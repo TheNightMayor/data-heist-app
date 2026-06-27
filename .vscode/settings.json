@@ -1,0 +1,10 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^npx jest --colors=false 2>&1 \\| Select-Object -Last 80$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    },
+    "workbench.browser.enableChatTools": true,
+    "workbench.browser.experimentalUserTools.enabled": true
+}

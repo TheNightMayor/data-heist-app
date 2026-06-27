@@ -1,0 +1,12 @@
+
+> data-heist-app@1.0.0 web
+> expo start --web
+
+Starting project at D:\Users\lawre\Documents\Work\data-heist-app
+Using src/app as the root directory for Expo Router.
+Starting Metro Bundler
+
+Waiting on http://localhost:8081
+6 packages may need updating. Run npx expo install --check for details.
+Logs for your project will appear below.
+^C^C
