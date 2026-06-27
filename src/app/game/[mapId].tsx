@@ -614,7 +614,7 @@ export default function GameScreen() {
       {/* Player strip — runs across the top, just below the topbar */}
       <ScrollView
         style={styles.playerStrip}
-        horizontal
+        horizontal={true}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ gap: 8, paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center' }}
       >
@@ -948,13 +948,13 @@ const styles = StyleSheet.create({
   playerStrip: {
     position: 'absolute',
     left: 12,
-    bottom: 12,
-    width: 160,
+    top: 60,
     maxHeight: '60%',
-    paddingVertical: 8,
+    paddingVertical: 0,
     backgroundColor: '#0f172a',
-    borderWidth: 1,
-    borderColor: '#1e293b',
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#054357',
   },
   // Canvas wrap fills the available width (player strip overlays it on the left),
   // with vertical insets so it doesn't touch the top/bottom of the screen.
