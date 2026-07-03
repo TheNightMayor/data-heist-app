@@ -21,7 +21,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Dimensions, View, StyleSheet, Pressable, useWindowDimensions } from 'react-native';
-import Svg, { Defs, Pattern, Line, Rect, G, Path, Circle } from 'react-native-svg';
+import Svg, { Defs, Pattern, Line, Rect, G, Path, Circle, Text as SvgText } from 'react-native-svg';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import { ChamferedFrame } from '../../ui/ChamferedFrame';
 
@@ -225,6 +225,9 @@ export function FlowCanvas({
     return applyLayout(map, layout);
   }, [map]);
 
+  const startNode = useMemo(() => positionedNodes.find(n => n.id === startId), [positionedNodes, startId]);
+  const rootNode = useMemo(() => positionedNodes.find(n => n.isRootAccess), [positionedNodes]);
+
   useEffect(() => {
     const { width, height } = Dimensions.get('window');
     // Defaults assume the bezel is 75% wide centered (12.5% insets on each side)
@@ -391,6 +394,61 @@ export function FlowCanvas({
                   </Pattern>
                 </Defs>
                 <Rect x="0" y="0" width={CANVAS_WIDTH} height={CANVAS_HEIGHT} fill="url(#grid)" />
+
+                {/* Entry Gateway Decoration (below start node) */}
+                {startNode && (
+                  <G>
+                    <Line 
+                      x1={startNode.x + NODE_WIDTH / 2} y1={startNode.y + NODE_WIDTH} 
+                      x2={startNode.x + NODE_WIDTH / 2} y2={startNode.y + NODE_WIDTH + 60} 
+                      stroke="#1e293b" strokeWidth={3} strokeDasharray="6 4" 
+                    />
+                    <Circle 
+                      cx={startNode.x + NODE_WIDTH / 2} cy={startNode.y + NODE_WIDTH + 80} 
+                      r={24} fill="#020617" stroke="#475569" strokeWidth={2} 
+                    />
+                    <SvgText 
+                      x={startNode.x + NODE_WIDTH / 2} y={startNode.y + NODE_WIDTH + 87} 
+                      fontSize={18} textAnchor="middle" fill="#94a3b8"
+                    >
+                      🌐
+                    </SvgText>
+                    <SvgText 
+                      x={startNode.x + NODE_WIDTH / 2} y={startNode.y + NODE_WIDTH + 120} 
+                      fontSize={10} textAnchor="middle" fill="#475569" fontWeight="800"
+                    >
+                      LOCAL_JACK
+                    </SvgText>
+                  </G>
+                )}
+
+                {/* Exit Gateway Decoration (above root node) */}
+                {rootNode && (
+                  <G>
+                   <Line 
+                      x1={rootNode.x + NODE_WIDTH / 2} y1={rootNode.y} 
+                      x2={rootNode.x + NODE_WIDTH / 2} y2={rootNode.y - 60} 
+                      stroke="#1e293b" strokeWidth={3} strokeDasharray="6 4" 
+                    />
+                    <Circle 
+                      cx={rootNode.x + NODE_WIDTH / 2} cy={rootNode.y - 80} 
+                      r={24} fill="#020617" stroke="#22d3ee" strokeWidth={2} 
+                    />
+                    <SvgText 
+                      x={rootNode.x + NODE_WIDTH / 2} y={rootNode.y - 73} 
+                      fontSize={18} textAnchor="middle" fill="#22d3ee"
+                    >
+                      🚪
+                    </SvgText>
+                    <SvgText 
+                      x={rootNode.x + NODE_WIDTH / 2} y={rootNode.y - 115} 
+                      fontSize={10} textAnchor="middle" fill="#22d3ee" fontWeight="800"
+                    >
+                      ROOT_EXIT
+                    </SvgText>
+                  </G>
+                )}
+
                 {/* Decorative stub branches — fake traces ending in small PCB vias */}
                 <StubBranches 
                   positionedNodes={positionedNodes} 

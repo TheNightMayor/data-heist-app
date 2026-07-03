@@ -36,7 +36,6 @@ export function NodeOverlay({
   children,
 }: NodeOverlayProps) {
   const [hovered, setHovered] = useState(false);
-  const growUp = active;
   return (
     <Pressable
       onHoverIn={() => setHovered(true)}
@@ -47,10 +46,9 @@ export function NodeOverlay({
       }}
       style={[
         styles.nodeWrapper,
-        growUp && styles.nodeWrapperActive,
         {
           left: node.x,
-          top: node.y - (growUp ? 18 : 0),
+          top: node.y,
           opacity: mode === 'game' && !reachable ? 0.4 : 1,
         },
       ]}
@@ -69,8 +67,5 @@ const styles = StyleSheet.create({
     height: NODE_WIDTH,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  nodeWrapperActive: {
-    height: NODE_WIDTH + 18,
   },
 });
