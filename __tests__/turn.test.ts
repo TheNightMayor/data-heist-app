@@ -42,6 +42,7 @@ const makeState = (overrides: Partial<GameState> = {}): GameState => ({
   actionsCommitted: 0,
   rpCommitted: 0,
   actionsTaken: 0,
+  minorActionsTaken: 0,
   visitedNodeIds: [],
   permanentlyFailedNodeIds: [],
   objectives: {},
@@ -91,6 +92,7 @@ describe('turn reducer — ROLL_RESOLVE', () => {
     });
     expect(next.objectives['n1'].successes).toBe(1);
     expect(next.players[0].resolvePoints).toBe(2);
+    expect(next.actionsTaken).toBe(1);
   });
 
   test('nat 1 deals CP damage on 1d6 roll of 1-3', () => {
@@ -251,7 +253,7 @@ describe('default flow — auto-commit 1/0 on first roll', () => {
     expect(next.actionsCommitted).toBe(1);
     expect(next.rpCommitted).toBe(0);
     expect(next.actionsTaken).toBe(1);
-    expect(next.phase).toBe('advancing'); // single action → auto-end
+    expect(next.phase).toBe('resolved'); // single action → auto-end
   });
 
   test('roll after PLAN_TURN respects the explicit commitment', () => {
@@ -305,10 +307,10 @@ describe('turn reducer — ROLL_RESOLVE applies penalty', () => {
     });
     expect(next.objectives['n1'].successes).toBe(0);
     expect(next.actionsTaken).toBe(2);
-    expect(next.phase).toBe('advancing'); // exhausted → auto-end
+    expect(next.phase).toBe('resolved'); // exhausted → auto-end
   });
 
-  test('RP-spend does not consume a major action', () => {
+  test('RP-spend consumes a major action', () => {
     const state = makeState({
       actionsCommitted: 1,
       rpCommitted: 1,
@@ -321,9 +323,9 @@ describe('turn reducer — ROLL_RESOLVE applies penalty', () => {
       d20: 1,
       spendRP: true,
     });
-    expect(next.actionsTaken).toBe(0); // unchanged
+    expect(next.actionsTaken).toBe(1); // was 0, now consumes major action
     expect(next.rpCommitted).toBe(1);
-    // 1 action committed, 0 taken → still resolved (can roll again or end)
+    // 1 action committed, 1 taken → still resolved (manual end turn)
     expect(next.phase).toBe('resolved');
   });
 
@@ -464,7 +466,7 @@ describe('turn reducer — SUPPORT_AID', () => {
       d20: 15,
     });
     expect(next.pendingAid).toEqual({ leadId: 'p1', bonus: 4, targetNodeId: 'n1' });
-    expect(next.phase).toBe('advancing');
+    expect(next.phase).toBe('resolved');
   });
 
   test('Aid failure grants no bonus', () => {

@@ -12,10 +12,21 @@
  * the icon's tint inside the node, so the border alone can signal state.
  */
 
+import { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Circle, G, Polygon } from 'react-native-svg';
+import Animated, {
+  useSharedValue,
+  withRepeat,
+  withTiming,
+  Easing,
+  useAnimatedProps,
+} from 'react-native-reanimated';
 import type { FlowNode as FlowNodeType } from '@/lib/flow/types';
 import type { NodeStatus } from '@/lib/flow/reachability';
+
+const AnimatedPolygon = Animated.createAnimatedComponent(Polygon);
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 interface Props {
   node: FlowNodeType;
@@ -24,14 +35,11 @@ interface Props {
   /** 0..1 — fraction of successes / successesRequired. */
   progress?: number;
   active?: boolean;
+  selected?: boolean;
 }
 
 const NODE_SIZE = 100;
 const RING_OUTER = 96;       // outer diameter of the ring container
-const RING_STROKE = 4;       // base ring thickness
-const ARC_STROKE = 6;        // overlay arc is slightly thicker
-const RADIUS = (RING_OUTER - RING_STROKE) / 2; // ring centerline
-const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 const HEX_PADDING = 0;
 const HEX_WIDTH = NODE_SIZE - HEX_PADDING * 2;
 const HEX_SIDE = HEX_WIDTH / 2;
@@ -50,22 +58,9 @@ const HEX_POINTS = [
 const RING_COLORS: Record<NodeStatus, string> = {
   available: '#22d3ee',         // cyan-400
   visited: '#fbbf24',          // amber-400
-  unlocked: '#16a34a',         // green-500 (successful hack)
+  unlocked: '#22d3ee',         // light blue
   blocked: '#475569',          // slate-600
   'permanently-failed': '#f87171', // red-400
-};
-
-/**
- * Brighter overlay color for the clockwise progress arc. Each is a lighter
- * tint of the base ring color so the sweep reads as "progress within this
- * state" rather than a separate indicator.
- */
-const ARC_COLORS: Record<NodeStatus, string> = {
-  available: '#a5f3fc',        // cyan-200
-  visited: '#fde68a',          // amber-200
-  unlocked: '#bbf7d0',         // green-200 (successful hack)
-  blocked: '#94a3b8',          // slate-400 (dim, rarely visible)
-  'permanently-failed': '#fecaca', // red-200
 };
 
 /** Inner-box tint per category. The border is reserved for state. */
@@ -75,80 +70,63 @@ const CATEGORY_COLORS = {
   gateway: { fill: '#374151', border: '#9ca3af', icon: '🔀' },
 } as const;
 
-export function FlowNodeView({ node, mode, status = 'available', progress = 0, active }: Props) {
+export function FlowNodeView({ node, mode, status = 'available', progress = 0, active, selected }: Props) {
   const cat = CATEGORY_COLORS[node.category];
-  const label = node.name.length > 9 ? node.name.slice(0, 8) + '…' : node.name;
-  const ringColor = RING_COLORS[status];
-  const arcColor = ARC_COLORS[status];
 
-  // For unlocked, the full ring is the unlocked color and no sweep is shown.
-  const sweepProgress = status === 'unlocked' ? 1 : Math.max(0, Math.min(1, progress));
-  const dashOffset = CIRCUMFERENCE * (1 - sweepProgress);
+  const isUnlocked = status === 'unlocked';
+  const hexStrokeColor = isUnlocked ? '#22d3ee' : RING_COLORS[status];
 
-  const showRing = mode === 'game';
+  const pulse = useSharedValue(0);
+  useEffect(() => {
+    if (isUnlocked) {
+      pulse.value = withRepeat(
+        withTiming(1, { duration: 1500, easing: Easing.inOut(Easing.sin) }),
+        -1,
+        true
+      );
+    } else {
+      pulse.value = 0;
+    }
+  }, [isUnlocked, pulse]);
+
+  const animatedHexProps = useAnimatedProps(() => {
+    return {
+      strokeWidth: isUnlocked ? 2 + pulse.value * 2 : 2,
+    };
+  });
+
+  const animatedGlowProps = useAnimatedProps(() => {
+    return {
+      strokeOpacity: isUnlocked ? 0.1 + pulse.value * 0.3 : 0,
+      strokeWidth: isUnlocked ? 4 + pulse.value * 8 : 0,
+    };
+  });
 
   return (
     <View style={[styles.wrapper, active && styles.wrapperActive]}>
-      {showRing && (
-        <Svg width={RING_OUTER} height={RING_OUTER} style={StyleSheet.absoluteFill}>
-          {/* Glow / fade behind the ring for all statuses. */}
-          <Circle
-            cx={RING_OUTER / 2}
-            cy={RING_OUTER / 2}
-            r={RADIUS + 2}
-            stroke={ringColor}
-            strokeWidth={12}
-            strokeOpacity={0.16}
-            fill="transparent"
-          />
-          <Circle
-            cx={RING_OUTER / 2}
-            cy={RING_OUTER / 2}
-            r={RADIUS + 6}
-            stroke={ringColor}
-            strokeWidth={10}
-            strokeOpacity={0.08}
-            fill="transparent"
-          />
-          {/* Base ring */}
-          <Circle
-            cx={RING_OUTER / 2}
-            cy={RING_OUTER / 2}
-            r={RADIUS}
-            stroke={ringColor}
-            strokeWidth={RING_STROKE}
-            fill="transparent"
-          />
-          {/* Clockwise progress arc. Rotated -90° so it starts at 12 o'clock. */}
-          {sweepProgress > 0 && (
-            <G transform={`rotate(-90 ${RING_OUTER / 2} ${RING_OUTER / 2})`}>
-              <Circle
-                cx={RING_OUTER / 2}
-                cy={RING_OUTER / 2}
-                r={RADIUS}
-                stroke={arcColor}
-                strokeWidth={ARC_STROKE}
-                fill="transparent"
-                strokeLinecap="round"
-                strokeDasharray={`${CIRCUMFERENCE} ${CIRCUMFERENCE}`}
-                strokeDashoffset={dashOffset}
-              />
-            </G>
-          )}
-        </Svg>
-      )}
-
       <View style={styles.node}>
         <Svg width={NODE_SIZE} height={NODE_SIZE} style={styles.hexagonSvg}>
-          <Polygon points={HEX_POINTS} fill="#2F4F4F" stroke={cat.border} strokeWidth={2} />
+          <AnimatedPolygon
+            points={HEX_POINTS}
+            fill="transparent"
+            stroke="#22d3ee"
+            animatedProps={animatedGlowProps}
+          />
+          <AnimatedPolygon
+            points={HEX_POINTS}
+            fill={cat.fill}
+            fillOpacity={0.8}
+            stroke={hexStrokeColor}
+            animatedProps={animatedHexProps}
+          />
         </Svg>
         <View style={styles.hexContent} pointerEvents="none">
           <Text style={styles.icon}>{cat.icon}</Text>
-          <Text style={styles.label} numberOfLines={2}>{label}</Text>
+          <Text style={styles.label}>{node.name}</Text>
           {node.hazard && <Text style={styles.hazard}>⚠</Text>}
           {node.isRootAccess && <Text style={styles.root}>★</Text>}
         </View>
-        {active && mode === 'game' && <View style={styles.activeRing} />}
+        {(selected || active) && mode === 'game' && <View style={styles.activeRing} />}
       </View>
     </View>
   );
@@ -203,10 +181,11 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 11,
     color: '#f8fafc',
-    fontWeight: '700',
+    fontFamily: 'Orbitron-Bold',
     marginTop: 2,
     textAlign: 'center',
     lineHeight: 14,
+    minWidth: 140, // Expand past the edges of the hexagon
   },
   hazard: { position: 'absolute', top: 2, right: 4, fontSize: 10, color: '#fbbf24' },
   root: { position: 'absolute', top: 2, left: 4, fontSize: 10, color: '#fbbf24' },

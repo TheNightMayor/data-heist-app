@@ -19,32 +19,55 @@
  *  - `NodeOverlay.tsx`           — per-node pressable wrapper
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Dimensions, View, StyleSheet } from 'react-native';
-import Svg, { Defs, Pattern, Line, Rect, G, Path } from 'react-native-svg';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Dimensions, View, StyleSheet, Pressable, useWindowDimensions } from 'react-native';
+import Svg, { Defs, Pattern, Line, Rect, G, Path, Circle } from 'react-native-svg';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   useDerivedValue,
   withTiming,
+  withRepeat,
   Easing,
+  runOnJS,
+  useAnimatedProps,
 } from 'react-native-reanimated';
 import type { FlowMap, FlowNode, FlowEdge } from '@/lib/flow/types';
 import type { NodeStatus } from '@/lib/flow/reachability';
 import { GRID_SIZE } from '@/lib/flow/layout';
 import { CANVAS_WIDTH, CANVAS_HEIGHT, NODE_WIDTH, layoutGraph, applyLayout } from '@/lib/flow/layoutGraph';
-import { circuitPath } from './flowCanvas/circuitPath';
-import { MonitorGlow } from './flowCanvas/MonitorGlow';
-import { StubBranches } from './flowCanvas/StubBranches';
-import { TravelLine } from './flowCanvas/TravelLine';
-import { NodeOverlay } from './flowCanvas/NodeOverlay';
+import { circuitPath } from './circuitPath';
+import { MonitorGlow } from './MonitorGlow';
+import { StubBranches } from './StubBranches';
+import { TravelLine } from './TravelLine';
+import { NodeOverlay } from './NodeOverlay';
+import { NodeActionPanel } from '../NodeActionPanel';
+
+const AnimatedPath = Animated.createAnimatedComponent(Path);
+
+function PulsingGlow({ d, pulse }: { d: string; pulse: Animated.SharedValue<number> }) {
+  const animatedProps = useAnimatedProps(() => ({
+    strokeOpacity: pulse.value,
+  }));
+  return (
+    <AnimatedPath
+      d={d}
+      stroke="#22d3ee"
+      strokeWidth={8}
+      fill="none"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      animatedProps={animatedProps}
+    />
+  );
+}
 
 interface Props {
   map: FlowMap;
   renderNode: (
     node: FlowNode,
-    info: { status: NodeStatus; progress: number; active: boolean },
+    info: { status: NodeStatus; progress: number; active: boolean; selected: boolean },
   ) => React.ReactNode;
   reachableIds?: Set<string>;
   selectedId?: string | null;
@@ -56,25 +79,78 @@ interface Props {
   activeId?: string | null;
   /** Per-node visual status. Used for opacity / hit-area gating. */
   statusById?: Record<string, NodeStatus>;
-  progressById?: Record<string, number>;
-  onSelectNode?: (node: FlowNode) => void;
+  onSelectNode?: (node: FlowNode | null) => void;
   mode: 'build' | 'game';
+
+  // New props for the action panel
+  activePlayerClass?: 'lead' | 'support';
+  canPlanTurn?: boolean;
+  onPlanTurn?: () => void;
+  onMajorAction?: (node: FlowNode) => void;
+  onSupportAction?: (node: FlowNode) => void;
+  onBuyMajorAction?: () => void;
+  onRefundMajorAction?: () => void;
+  onEndTurn?: () => void;
+  objectives?: Record<string, { successes: number }>;
+  playerName?: string;
+  rp?: number;
+  cp?: number;
+  maxCp?: number;
+  actionsCommitted?: number;
+  actionsTaken?: number;
+  minorActionsTaken?: number;
+  otherLeadsExist?: boolean;
+  aidBonus?: number;
 }
 
-export function FlowCanvas({
-  map,
-  renderNode,
-  reachableIds,
-  selectedId,
-  activeId,
-  statusById,
-  progressById,
-  onSelectNode,
+export function FlowCanvas({ 
+  map, 
+  renderNode, 
+  reachableIds, 
+  selectedId, 
+  activeId, 
+  statusById, 
+  onSelectNode, 
   mode,
+  activePlayerClass,
+  canPlanTurn,
+  onPlanTurn,
+  onMajorAction,
+  onSupportAction,
+  onBuyMajorAction,
+  onRefundMajorAction,
+  onEndTurn,
+  objectives,
+  playerName,
+  rp,
+  cp,
+  maxCp,
+  actionsCommitted,
+  actionsTaken,
+  minorActionsTaken,
+  otherLeadsExist,
+  aidBonus,
 }: Props) {
+  const { width: windowWidth } = useWindowDimensions();
+  const isSmallScreen = windowWidth < 768;
+
   const tx = useSharedValue(0);
   const ty = useSharedValue(0);
   const scale = useSharedValue(1);
+  const pulse = useSharedValue(0.15);
+
+  useEffect(() => {
+    pulse.value = withRepeat(
+      withTiming(0.4, { duration: 1500, easing: Easing.inOut(Easing.sin) }),
+      -1,
+      true
+    );
+  }, [pulse]);
+
+  // Live measurements of the visible canvas area (the bezel).
+  // Initialized from window dims; refined via onLayout as soon as the wrapper mounts.
+  const [viewRect, setViewRect] = useState({ x: 0, y: 0, width: 0, height: 0 });
+  const [isReady, setIsReady] = useState(false);
 
   const startTx = useSharedValue(0);
   const startTy = useSharedValue(0);
@@ -127,22 +203,25 @@ export function FlowCanvas({
 
   const composed = Gesture.Simultaneous(panGesture, pinchGesture);
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: tx.value },
-      { translateY: ty.value },
-      { scale: scale.value },
-    ],
-  }));
+  const animatedStyle = useAnimatedStyle(() => {
+    // Hide the canvas until we've measured the screen and framed the first node.
+    // This prevents the jarring "flash at origin" on mount.
+    const opacity = isReady ? 1 : 0;
+    return {
+      opacity: withTiming(opacity, { duration: 150 }),
+      transform: [
+        { translateX: tx.value },
+        { translateY: ty.value },
+        { scale: scale.value },
+      ],
+    };
+  });
 
   const { positionedNodes, positionedEdges, startId } = useMemo(() => {
     const layout = layoutGraph(map);
     return applyLayout(map, layout);
   }, [map]);
 
-  // Live measurements of the visible canvas area (the bezel).
-  // Initialized from window dims; refined via onLayout as soon as the wrapper mounts.
-  const [viewRect, setViewRect] = useState({ x: 0, y: 0, width: 0, height: 0 });
   useEffect(() => {
     const { width, height } = Dimensions.get('window');
     // Defaults assume the bezel is 75% wide centered (12.5% insets on each side)
@@ -152,8 +231,10 @@ export function FlowCanvas({
   // Mirror the bezel rect into shared values so the gesture worklet can
   // clamp pan bounds on the UI thread.
   useEffect(() => {
-    viewW.value = viewRect.width;
-    viewH.value = viewRect.height;
+    if (viewRect.width > 0 && viewRect.height > 0) {
+      viewW.value = viewRect.width;
+      viewH.value = viewRect.height;
+    }
   }, [viewRect, viewW, viewH]);
 
   // Internal "focus" node. The camera centers on this node whenever it
@@ -173,8 +254,8 @@ export function FlowCanvas({
 
   // Wrap the parent's `onSelectNode` so taps also drive `focusId`.
   const handleSelect = useCallback(
-    (node: FlowNode) => {
-      setFocusId(node.id);
+    (node: FlowNode | null) => {
+      if (node) setFocusId(node.id);
       onSelectNode?.(node);
     },
     [onSelectNode],
@@ -184,83 +265,113 @@ export function FlowCanvas({
   // Uses smooth timing animations so the camera glides instead of snapping.
   // Final values are clamped to the current pan bounds so the canvas never
   // settles in a position that would let the user scroll past it.
-  const isInitialScaling = useRef(true);
-
   useEffect(() => {
     if (!startId || viewRect.width === 0) return;
     const targetId = focusId ?? startId;
     const target = positionedNodes.find((n) => n.id === targetId)
       ?? positionedNodes.find((n) => n.id === startId);
     if (!target) return;
-
     const nodeCenterX = target.x + NODE_WIDTH / 2;
     const nodeCenterY = target.y + NODE_WIDTH / 2;
-
-    const isInitialFrame = !hasInitializedFocus.current && !focusId;
+    // The canvas is positioned inside `canvasContainer`, which is a child
+    // of the bezel — so transforms are measured in bezel-LOCAL coords,
+    // not screen coords. The bezel center is therefore at
+    // `(width/2, height/2)` regardless of where the bezel sits on screen.
+    // Only the very first framing (mount, no explicit focus yet) puts
+    // the start gateway lower-third so the level graph flows upward.
+    // Uses the dead center (or upper-quarter on mobile).
     const desiredX = viewRect.width / 2;
-    const desiredY = isInitialFrame
-      ? viewRect.height * 0.72
-      : viewRect.height / 2;
+    const isInitialStart = !hasInitializedFocus.current;
 
+    const verticalCenter = isSmallScreen ? viewRect.height * 0.25 : viewRect.height / 2;
+    const desiredY = isInitialStart
+      ? viewRect.height * 0.72
+      : verticalCenter;
+    // Bounds mirror the worklet's: canvas left/top edge must stay at or
+    // before the bezel's left/top edge (tx ≤ 0), and the canvas must
+    // extend past the bezel's right/bottom edge (tx ≥ -extra).
     const bX = Math.max(0, CANVAS_WIDTH - viewRect.width);
     const bY = Math.max(0, CANVAS_HEIGHT - viewRect.height);
     const newTx = Math.max(-bX, Math.min(0, desiredX - nodeCenterX));
     const newTy = Math.max(-bY, Math.min(0, desiredY - nodeCenterY));
-
-    if (target.id === lastTargetId.current && hasInitializedFocus.current) {
-      return;
-    }
-    lastTargetId.current = target.id;
-
-    const duration = isInitialFrame ? 600 : 420;
-    const easing = Easing.inOut(Easing.cubic);
-
-    if (isInitialFrame) {
-      tx.value = newTx;
-      ty.value = newTy;
-      scale.value = 1;
-    } else {
-      tx.value = withTiming(newTx, { duration, easing });
-      ty.value = withTiming(newTy, { duration, easing });
-      scale.value = withTiming(1, { duration, easing });
-    }
-
+    // Faster initial pan (mount), gentler follow pan on selection.
+    const duration = isInitialStart ? 600 : 420;
+    tx.value = withTiming(newTx, { duration, easing: Easing.inOut(Easing.cubic) });
+    ty.value = withTiming(newTy, { duration, easing: Easing.inOut(Easing.cubic) });
+    scale.value = withTiming(1, { duration: 350, easing: Easing.out(Easing.cubic) }, () => {
+      if (isInitialStart) {
+        runOnJS(setIsReady)(true);
+      }
+    });
     hasInitializedFocus.current = true;
-  }, [startId, positionedNodes, focusId, viewRect.width, viewRect.height]);
+  }, [startId, positionedNodes, focusId, viewRect, tx, ty, scale, isSmallScreen]);
 
   const nodeById = useMemo(() => new Map(positionedNodes.map((n) => [n.id, n])), [positionedNodes]);
 
   return (
     <View style={styles.container}>
       <View
-        style={styles.monitorFrame}
+        style={[
+          styles.monitorFrame,
+          isSmallScreen ? { marginHorizontal: 8, borderWidth: 4, borderRadius: 12 } : null
+        ]}
         onLayout={(e) => {
           const { x, y, width, height } = e.nativeEvent.layout;
           if (width > 0 && height > 0) setViewRect({ x, y, width, height });
         }}
       >
         {/* Top sheen + bottom shadow strips add depth to the bezel. */}
-        <View style={styles.monitorHighlight} />
-        <View style={styles.monitorBase} />
+        <View style={[styles.monitorHighlight, isSmallScreen ? { borderTopLeftRadius: 8, borderTopRightRadius: 8 } : null]} />
+        <View style={[styles.monitorBase, isSmallScreen ? { borderBottomLeftRadius: 8, borderBottomRightRadius: 8, height: 8 } : null]} />
         {/* Soft top + bottom radial glows (SVG-based true radial gradients). */}
         <MonitorGlow width={CANVAS_WIDTH} height={CANVAS_HEIGHT} />
-        <View style={styles.canvasContainer}>
+        <View style={[
+          styles.canvasContainer,
+          isSmallScreen ? { margin: 6, borderWidth: 2, borderRadius: 8 } : null
+        ]}>
           <GestureDetector gesture={composed}>
             <Animated.View style={[styles.canvas, animatedStyle]}>
+              <Pressable 
+                style={StyleSheet.absoluteFill} 
+                onPress={() => handleSelect(null)} 
+              />
               <Svg
                 width={CANVAS_WIDTH}
                 height={CANVAS_HEIGHT}
                 viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`}
               >
                 <Defs>
-                  <Pattern id="grid" width={GRID_SIZE} height={GRID_SIZE} patternUnits="userSpaceOnUse">
-                    <Line x1="0" y1="0" x2={GRID_SIZE} y2="0" stroke="#1e293b" strokeWidth={1} />
-                    <Line x1="0" y1="0" x2="0" y2={GRID_SIZE} stroke="#1e293b" strokeWidth={1} />
+                  {/* Flat-topped hexagonal grid pattern */}
+                  <Pattern 
+                    id="grid" 
+                    width={GRID_SIZE * 3} 
+                    height={GRID_SIZE * Math.sqrt(3)} 
+                    patternUnits="userSpaceOnUse"
+                  >
+                    <Path
+                      d={`
+                        M ${GRID_SIZE * 0.5} 0 
+                        L 0 ${GRID_SIZE * Math.sqrt(3) * 0.5}
+                        L ${GRID_SIZE * 0.5} ${GRID_SIZE * Math.sqrt(3)}
+                        H ${GRID_SIZE * 1.5}
+                        L ${GRID_SIZE * 2} ${GRID_SIZE * Math.sqrt(3) * 0.5}
+                        L ${GRID_SIZE * 1.5} 0
+                        H ${GRID_SIZE * 0.5}
+                        M ${GRID_SIZE * 2} ${GRID_SIZE * Math.sqrt(3) * 0.5}
+                        L ${GRID_SIZE * 3} ${GRID_SIZE * Math.sqrt(3) * 0.5}
+                      `}
+                      fill="none"
+                      stroke="#1e293b"
+                      strokeWidth={1}
+                    />
                   </Pattern>
                 </Defs>
                 <Rect x="0" y="0" width={CANVAS_WIDTH} height={CANVAS_HEIGHT} fill="url(#grid)" />
                 {/* Decorative stub branches — fake traces ending in small PCB vias */}
-                <StubBranches positionedNodes={positionedNodes} />
+                <StubBranches 
+                  positionedNodes={positionedNodes} 
+                  positionedEdges={positionedEdges} 
+                />
                 {/* Edges — circuit-style right-angle paths with rounded corners */}
                 {positionedEdges.map((edge) => {
                   const from = nodeById.get(edge.fromNodeId);
@@ -272,17 +383,32 @@ export function FlowCanvas({
                   const sy = from.y; // bottom edge of source
                   const tx2 = to.x + NODE_WIDTH / 2;
                   const ty2 = to.y + NODE_WIDTH; // top edge of target
-                  const d = circuitPath(sx, sy, tx2, ty2);
+                  const { d, points } = circuitPath(sx, sy, tx2, ty2);
+                  const status = statusById?.[edge.toNodeId] ?? 'available';
+                  const isAvailablePath = mode === 'game' && (status === 'available' || status === 'visited' || status === 'unlocked');
+                  const strokeColor = isAvailablePath ? '#22d3ee' : '#475569';
+
                   return (
                     <G key={edge.id}>
+                      {isAvailablePath && <PulsingGlow d={d} pulse={pulse} />}
                       <Path
                         d={d}
-                        stroke="#475569"
+                        stroke={strokeColor}
                         strokeWidth={3}
                         fill="none"
                         strokeLinecap="round"
                         strokeLinejoin="round"
                       />
+                      {/* Corner dots to match background circuit board look */}
+                      {points.slice(1, -1).map((p, i) => (
+                        <Circle key={i} cx={p.x} cy={p.y} r={1.5} fill={strokeColor} opacity={isAvailablePath ? 0.8 : 0.4} />
+                      ))}
+                      {/* Outer via ring at start */}
+                      <Circle cx={sx} cy={sy} r={6} fill="#020617" stroke={strokeColor} strokeWidth={2} />
+                      <Circle cx={sx} cy={sy} r={2.5} fill={strokeColor} />
+                      {/* Outer via ring at end */}
+                      <Circle cx={tx2} cy={ty2} r={6} fill="#020617" stroke={strokeColor} strokeWidth={2} />
+                      <Circle cx={tx2} cy={ty2} r={2.5} fill={strokeColor} />
                     </G>
                   );
                 })}
@@ -291,20 +417,48 @@ export function FlowCanvas({
 
               {positionedNodes.map((node) => {
                 const status = statusById?.[node.id] ?? 'available';
-                const progress = progressById?.[node.id] ?? 0;
-                const active = activeId === node.id;
+                const isActive = activeId === node.id;
+                const isSelected = selectedId === node.id;
+                const isReachable = reachableIds ? reachableIds.has(node.id) : true;
+                
                 return (
-                  <NodeOverlay
-                    key={node.id}
-                    node={node}
-                    reachable={reachableIds ? reachableIds.has(node.id) : true}
-                    selected={selectedId === node.id}
-                    active={active}
-                    mode={mode}
-                    onPress={() => handleSelect(node)}
-                  >
-                    {renderNode(node, { status, progress, active })}
-                  </NodeOverlay>
+                  <React.Fragment key={node.id}>
+                    <NodeOverlay
+                      node={node}
+                      reachable={isReachable}
+                      selected={isSelected}
+                      active={isActive}
+                      mode={mode}
+                      onPress={() => handleSelect(node)}
+                    >
+                      {renderNode(node, { status, progress: 0, active: isActive, selected: isSelected })}
+                    </NodeOverlay>
+
+                    {isSelected && mode === 'game' && activePlayerClass && (
+                      <NodeActionPanel
+                        node={node}
+                        isReachable={isReachable}
+                        successes={objectives?.[node.id]?.successes ?? 0}
+                        canPlanTurn={canPlanTurn ?? false}
+                        onPlanTurn={onPlanTurn ?? (() => {})}
+                        onMajorAction={() => onMajorAction?.(node)}
+                        onSupportAction={() => onSupportAction?.(node)}
+                        onBuyMajorAction={onBuyMajorAction}
+                        onRefundMajorAction={onRefundMajorAction}
+                        onEndTurn={onEndTurn ?? (() => {})}
+                        playerClass={activePlayerClass}
+                        playerName={playerName ?? 'Player'}
+                        rp={rp ?? 0}
+                        cp={cp ?? 0}
+                        maxCp={maxCp ?? 0}
+                        actionsCommitted={actionsCommitted ?? 0}
+                        actionsTaken={actionsTaken ?? 0}
+                        minorActionsTaken={minorActionsTaken ?? 0}
+                        otherLeadsExist={otherLeadsExist}
+                        aidBonus={aidBonus}
+                      />
+                    )}
+                  </React.Fragment>
                 );
               })}
             </Animated.View>

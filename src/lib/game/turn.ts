@@ -46,6 +46,8 @@ export type GameAction =
   | { type: 'END_PHASE' }
   | { type: 'SUPPORT_UPGRADE'; playerId: string }
   | { type: 'SET_PAIRED_LEAD'; supportId: string; leadId?: string }
+  | { type: 'SUPPORT_BUY_ACTION'; playerId: string }
+  | { type: 'SUPPORT_REFUND_ACTION'; playerId: string }
   | {
       type: 'SUPPORT_AID';
       supportId: string;
@@ -79,6 +81,10 @@ export function reducer(state: GameState, action: GameAction, map?: FlowMap): Ga
       return supportAid(state, action, map);
     case 'SET_PAIRED_LEAD':
       return setPairedLead(state, action.supportId, action.leadId);
+    case 'SUPPORT_BUY_ACTION':
+      return supportBuyAction(state, action.playerId);
+    case 'SUPPORT_REFUND_ACTION':
+      return supportRefundAction(state, action.playerId);
     case 'FINISH':
       return { ...state, finished: true, result: action.result };
     default:
@@ -102,6 +108,32 @@ function setPairedLead(state: GameState, supportId: string, leadId?: string): Ga
   });
 
   return { ...state, players: withLeads };
+}
+
+function supportBuyAction(state: GameState, playerId: string): GameState {
+  const player = state.players.find((p) => p.id === playerId);
+  if (!player || player.class !== 'support' || player.resolvePoints < 1) return state;
+
+  return {
+    ...state,
+    actionsCommitted: 1,
+    players: state.players.map((p) =>
+      p.id === playerId ? { ...p, resolvePoints: p.resolvePoints - 1 } : p
+    ),
+  };
+}
+
+function supportRefundAction(state: GameState, playerId: string): GameState {
+  const player = state.players.find((p) => p.id === playerId);
+  if (!player || player.class !== 'support') return state;
+
+  return {
+    ...state,
+    actionsCommitted: 0,
+    players: state.players.map((p) =>
+      p.id === playerId ? { ...p, resolvePoints: p.resolvePoints + 1 } : p
+    ),
+  };
 }
 
 // ---------- Planning ----------
@@ -183,6 +215,16 @@ function rollResolve(
   if (!player) return state;
   if (player.ejected) return state;
 
+  // Secondary hackers (Support) must ALWAYS spend 1 RP to perform a Resolve action.
+  // If they bought a major action using SUPPORT_BUY_ACTION, they already paid.
+  const isSupport = player.class === 'support';
+  const baselineCost = (isSupport && state.actionsCommitted === 0) ? 1 : 0;
+  const rpCost = baselineCost + (action.spendRP ? 1 : 0);
+
+  if (rpCost > 0 && player.resolvePoints < rpCost) {
+    return state;
+  }
+
   const node = action.node;
 
   // Auto-commit default plan (1 action / 0 RP) if the player hasn't planned
@@ -216,9 +258,9 @@ function rollResolve(
     }
   }
 
-  if (action.spendRP) {
+  if (rpCost > 0) {
     updatedPlayers = updatedPlayers.map((p) =>
-      p.id === player.id ? { ...p, resolvePoints: Math.max(0, p.resolvePoints - 1) } : p,
+      p.id === player.id ? { ...p, resolvePoints: Math.max(0, p.resolvePoints - rpCost) } : p,
     );
   }
 
@@ -258,7 +300,7 @@ function rollResolve(
         outcome.kind === 'nat1' && outcome.cpDamageRoll !== undefined && outcome.cpDamageRoll <= 3
           ? 1
           : 0,
-      rpSpent: action.spendRP ? 1 : 0,
+      rpSpent: rpCost,
     },
     ...state.log,
   ].slice(0, 20);
@@ -274,19 +316,12 @@ function rollResolve(
     result = 'lose';
   }
 
-  // Consume a committed major action. RP-spend does NOT count as a major action.
-  const actionsTaken = action.spendRP
-    ? state.actionsTaken
-    : state.actionsTaken + 1;
+  // Consume a committed major action.
+  const actionsTaken = state.actionsTaken + 1;
 
-  // If the game is over, skip auto-advance. Otherwise if all committed actions
-  // are spent, auto-end the turn so the next player can act.
-  const actionsExhausted = actionsTaken >= effectiveCommitted;
-  const nextPhase: typeof state.phase = finished
-    ? 'resolved'
-    : actionsExhausted
-      ? 'advancing'
-      : 'resolved';
+  // We no longer auto-advance when actions are exhausted.
+  // The player MUST click "End Turn" manually.
+  const nextPhase: typeof state.phase = 'resolved';
 
   return {
     ...state,
@@ -347,8 +382,9 @@ function advanceTurn(state: GameState, _map?: FlowMap): GameState {
     actionsCommitted: 0,
     rpCommitted: 0,
     actionsTaken: 0,
-    // No pending aid carries across turns.
-    pendingAid: undefined,
+    minorActionsTaken: 0,
+    // Note: pendingAid is NOT reset here. It persists until the targeted Lead 
+    // consumes it on their own turn.
   };
 }
 
@@ -398,8 +434,6 @@ function supportAid(
   const lead = state.players.find((p) => p.id === action.leadId);
   if (!support || support.ejected) return state;
   if (!lead || lead.ejected) return state;
-  if (lead.class !== 'lead') return state;
-  if (support.class !== 'support') return state;
 
   const target = action.targetNode;
   void map;
@@ -431,7 +465,7 @@ function supportAid(
     outcomeLabel = 'Aid +2';
   }
 
-  // RP-spend decrements Support's RP.
+  // RP-spend decrements active player's RP.
   let updatedPlayers = state.players;
   if (action.spendRP) {
     updatedPlayers = updatedPlayers.map((p) =>
@@ -453,12 +487,21 @@ function supportAid(
     ...state.log,
   ].slice(0, 20);
 
+  // If this was a self-aid (Lead minor action), it doesn't grant a bonus to next roll.
+  // It just consumes the minor action and logs the success/failure.
+  const isSelfAid = support.id === lead.id;
+  
+  const pendingAid = (bonus > 0 && !isSelfAid)
+    ? { leadId: lead.id, bonus, targetNodeId: target.id } 
+    : state.pendingAid;
+
   return {
     ...state,
     players: updatedPlayers,
     log,
-    pendingAid: bonus > 0 ? { leadId: lead.id, bonus, targetNodeId: target.id } : undefined,
-    phase: 'advancing', // Aid consumes the Support's turn entirely
+    pendingAid,
+    minorActionsTaken: state.minorActionsTaken + 1,
+    phase: 'resolved', 
     hazardSkipActive: false,
   };
 }

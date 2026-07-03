@@ -1,0 +1,79 @@
+[    1915ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:70495
+[    2010ms] [LOG] Running application "main" with appParams:
+ {rootTag: #root, hydrate: undefined} 
+Development-level warnings: ON.
+Performance optimizations: OFF. @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:70495
+[    2190ms] [WARNING] "shadow*" style props are deprecated. Use "boxShadow". @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:70495
+[    2192ms] [WARNING] "textShadow*" style props are deprecated. Use "textShadow". @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:70495
+[ 2199027ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\components\flow\flowCanvas\FlowCanvas.tsx: Identifier 'viewRect' has already been declared. (189:9)
+
+  187 |   // Live measurements of the visible canvas area (the bezel).
+  188 |   // Initialized from window dims; refined via onLayout as soon as the wrapper mounts.
+> 189 |   const [viewRect, setViewRect] = useState({ x: 0, y: 0, width: 0, height: 0 });
+      |          ^
+  190 |   const [isReady, setIsReady] = useState(false);
+  191 |
+  192 |   useEffect(() => {
+[ 2617103ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\game\[mapId].tsx: Identifier 'minorUsed' has already been declared. (83:8)
+
+  81 |   const hasBoughtMajor = actionsCommitted > 0;
+  82 |   
+> 83 |   const minorUsed = minorActionsTaken > 0;
+     |         ^
+  84 |   const majorUsed = actionsTaken > 0;
+  85 |
+  86 |   return (
+[ 2622108ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\game\[mapId].tsx: Identifier 'minorUsed' has already been declared. (83:8)
+
+  81 |   const hasBoughtMajor = actionsCommitted > 0;
+  82 |   
+> 83 |   const minorUsed = minorActionsTaken > 0;
+     |         ^
+  84 |   const majorUsed = actionsTaken > 0;
+  85 |
+  86 |   return (
+[ 2626842ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\game\[mapId].tsx: Identifier 'minorUsed' has already been declared. (83:8)
+
+  81 |   const hasBoughtMajor = actionsCommitted > 0;
+  82 |   
+> 83 |   const minorUsed = minorActionsTaken > 0;
+     |         ^
+  84 |   const majorUsed = actionsTaken > 0;
+  85 |
+  86 |   return (
+[ 2630344ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\game\[mapId].tsx: Identifier 'minorUsed' has already been declared. (83:8)
+
+  81 |   const hasBoughtMajor = actionsCommitted > 0;
+  82 |   
+> 83 |   const minorUsed = minorActionsTaken > 0;
+     |         ^
+  84 |   const majorUsed = actionsTaken > 0;
+  85 |
+  86 |   return (
+[ 3009232ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\game\[mapId].tsx: Identifier 'finalDetail' has already been declared. (467:10)
+
+  465 |
+  466 |     const rpSpent = (kind === 'support-self' ? 1 : 0) + (spendRP ? 1 : 0);
+> 467 |     const finalDetail = [
+      |           ^
+  468 |       detail,
+  469 |       aidBonus > 0 ? `Aid bonus +${aidBonus}` : undefined,
+  470 |       rpSpent > 0 ? `${rpSpent} RP spent` : undefined,
+[ 4110614ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\game\[mapId].tsx: Identifier 'otherLeadsExist' has already been declared. (362:8)
+
+  360 |   const activePlayer = state?.players.find((p) => p.id === activePlayerId);
+  361 |
+> 362 |   const otherLeadsExist = useMemo(() => {
+      |         ^
+  363 |     if (!state?.players || !activePlayerId) return false;
+  364 |     return state.players.some(p => p.class === 'lead' && p.id !== activePlayerId && !p.ejected);
+  365 |   }, [state?.players, activePlayerId]);
+[ 5699758ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\components\flow\NodeActionPanel.tsx: Expected corresponding JSX closing tag for <Pressable>. (152:4)
+
+  150 |         </Pressable>
+  151 |       </View>
+> 152 |     </View>
+      |     ^
+  153 |   );
+  154 | }
+  155 |

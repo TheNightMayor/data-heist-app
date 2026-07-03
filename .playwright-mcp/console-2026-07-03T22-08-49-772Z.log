@@ -1,0 +1,199 @@
+[     667ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:70495
+[     764ms] [LOG] Running application "main" with appParams:
+ {rootTag: #root, hydrate: undefined} 
+Development-level warnings: ON.
+Performance optimizations: OFF. @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:70495
+[     937ms] [WARNING] "shadow*" style props are deprecated. Use "boxShadow". @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:70495
+[     941ms] [WARNING] "textShadow*" style props are deprecated. Use "textShadow". @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:70495
+[   12024ms] [WARNING] props.pointerEvents is deprecated. Use style.pointerEvents @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:70495
+[  971402ms] ReferenceError: selected is not defined
+    at FlowNodeView (http://localhost:8081/src/components/flow/FlowNode.bundle//&platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable&minify=false&modulesOnly=true&runModule=false&shallow=true:185:14)
+    at Object.react_stack_bottom_frame (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:18829:20)
+    at renderWithHooks (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:9702:22)
+    at updateFunctionComponent (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:11091:19)
+    at beginWork (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:11660:18)
+    at runWithFiberInDEV (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:6179:70)
+    at performUnitOfWork (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:14087:95)
+    at workLoopSync (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:13982:40)
+    at renderRootSync (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:13967:9)
+    at performWorkOnRoot (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:13640:35)
+    at performSyncWorkOnRoot (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:14750:7)
+    at flushSyncWorkAcrossRoots_impl (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:14665:308)
+    at flushSyncWork$1 (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:13770:84)
+    at Object.scheduleRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:5592:9)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:70126:23
+    at Set.forEach (<anonymous>)
+    at Object.performReactRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:70118:32)
+    at Object.performReactRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:69884:27)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:429:21
+[  971403ms] [WARNING] %s
+
+%s
+ An error occurred in the <FlowNodeView> component. Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries. @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:70495
+[ 1042895ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\components\flow\NodeActionPanel.tsx: Unexpected token (86:19)
+
+  84 |             </RadialGradient>
+  85 |           </Defs>
+> 86 |           <Rect x="0" y="0" width="1" height="1" fill="url(#panelGlow)" />
+     |                    ^
+  87 |         </Svg>
+  88 |       </View>
+  89 |
+[ 1045092ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\components\flow\NodeActionPanel.tsx: Unexpected token (86:19)
+
+  84 |             </RadialGradient>
+  85 |           </Defs>
+> 86 |           <Rect x="0" y="0" width="1" height="1" fill="url(#panelGlow)" />
+     |                    ^
+  87 |         </Svg>
+  88 |       </View>
+  89 |
+[ 1653010ms] Unable to resolve module expo-splash-screen from D:\Users\lawre\Documents\Work\data-heist-app\src\app\_layout.tsx: expo-splash-screen could not be found within the project or in these directories:
+  node_modules
+  3 | import { StatusBar } from 'expo-status-bar';
+  4 | import { StyleSheet, View } from 'react-native';
+> 5 | import * as SplashScreen from 'expo-splash-screen';
+    |                                ^
+  6 | import { useFonts, Orbitron_400Regular, Orbitron_700Bold, Orbitron_900Black } from '@expo-google-fonts/orbitron';
+  7 |
+  8 | SplashScreen.preventAutoHideAsync();
+[ 1666271ms] Unable to resolve module expo-splash-screen from D:\Users\lawre\Documents\Work\data-heist-app\src\app\_layout.tsx: expo-splash-screen could not be found within the project or in these directories:
+  node_modules
+  3 | import { StatusBar } from 'expo-status-bar';
+  4 | import { StyleSheet, View } from 'react-native';
+> 5 | import * as SplashScreen from 'expo-splash-screen';
+    |                                ^
+  6 | import { useFonts, Orbitron_400Regular, Orbitron_700Bold, Orbitron_900Black } from '@expo-google-fonts/orbitron';
+  7 |
+  8 | SplashScreen.preventAutoHideAsync();
+[ 1669200ms] Unable to resolve module expo-splash-screen from D:\Users\lawre\Documents\Work\data-heist-app\src\app\_layout.tsx: expo-splash-screen could not be found within the project or in these directories:
+  node_modules
+  3 | import { StatusBar } from 'expo-status-bar';
+  4 | import { StyleSheet, View } from 'react-native';
+> 5 | import * as SplashScreen from 'expo-splash-screen';
+    |                                ^
+  6 | import { useFonts, Orbitron_400Regular, Orbitron_700Bold, Orbitron_900Black } from '@expo-google-fonts/orbitron';
+  7 |
+  8 | SplashScreen.preventAutoHideAsync();
+[ 1671796ms] Unable to resolve module expo-splash-screen from D:\Users\lawre\Documents\Work\data-heist-app\src\app\_layout.tsx: expo-splash-screen could not be found within the project or in these directories:
+  node_modules
+  3 | import { StatusBar } from 'expo-status-bar';
+  4 | import { StyleSheet, View } from 'react-native';
+> 5 | import * as SplashScreen from 'expo-splash-screen';
+    |                                ^
+  6 | import { useFonts, Orbitron_400Regular, Orbitron_700Bold, Orbitron_900Black } from '@expo-google-fonts/orbitron';
+  7 |
+  8 | SplashScreen.preventAutoHideAsync();
+[ 1678084ms] Unable to resolve module expo-splash-screen from D:\Users\lawre\Documents\Work\data-heist-app\src\app\_layout.tsx: expo-splash-screen could not be found within the project or in these directories:
+  node_modules
+  3 | import { StatusBar } from 'expo-status-bar';
+  4 | import { StyleSheet, View } from 'react-native';
+> 5 | import * as SplashScreen from 'expo-splash-screen';
+    |                                ^
+  6 | import { useFonts, Orbitron_400Regular, Orbitron_700Bold, Orbitron_900Black } from '@expo-google-fonts/orbitron';
+  7 |
+  8 | SplashScreen.preventAutoHideAsync();
+[ 1682956ms] Unable to resolve module expo-splash-screen from D:\Users\lawre\Documents\Work\data-heist-app\src\app\_layout.tsx: expo-splash-screen could not be found within the project or in these directories:
+  node_modules
+  3 | import { StatusBar } from 'expo-status-bar';
+  4 | import { StyleSheet, View } from 'react-native';
+> 5 | import * as SplashScreen from 'expo-splash-screen';
+    |                                ^
+  6 | import { useFonts, Orbitron_400Regular, Orbitron_700Bold, Orbitron_900Black } from '@expo-google-fonts/orbitron';
+  7 |
+  8 | SplashScreen.preventAutoHideAsync();
+[ 1686862ms] Unable to resolve module expo-splash-screen from D:\Users\lawre\Documents\Work\data-heist-app\src\app\_layout.tsx: expo-splash-screen could not be found within the project or in these directories:
+  node_modules
+  3 | import { StatusBar } from 'expo-status-bar';
+  4 | import { StyleSheet, View } from 'react-native';
+> 5 | import * as SplashScreen from 'expo-splash-screen';
+    |                                ^
+  6 | import { useFonts, Orbitron_400Regular, Orbitron_700Bold, Orbitron_900Black } from '@expo-google-fonts/orbitron';
+  7 |
+  8 | SplashScreen.preventAutoHideAsync();
+[ 1689290ms] Unable to resolve module expo-splash-screen from D:\Users\lawre\Documents\Work\data-heist-app\src\app\_layout.tsx: expo-splash-screen could not be found within the project or in these directories:
+  node_modules
+  3 | import { StatusBar } from 'expo-status-bar';
+  4 | import { StyleSheet, View } from 'react-native';
+> 5 | import * as SplashScreen from 'expo-splash-screen';
+    |                                ^
+  6 | import { useFonts, Orbitron_400Regular, Orbitron_700Bold, Orbitron_900Black } from '@expo-google-fonts/orbitron';
+  7 |
+  8 | SplashScreen.preventAutoHideAsync();
+[ 1695242ms] Unable to resolve module expo-splash-screen from D:\Users\lawre\Documents\Work\data-heist-app\src\app\_layout.tsx: expo-splash-screen could not be found within the project or in these directories:
+  node_modules
+  3 | import { StatusBar } from 'expo-status-bar';
+  4 | import { StyleSheet, View } from 'react-native';
+> 5 | import * as SplashScreen from 'expo-splash-screen';
+    |                                ^
+  6 | import { useFonts, Orbitron_400Regular, Orbitron_700Bold, Orbitron_900Black } from '@expo-google-fonts/orbitron';
+  7 |
+  8 | SplashScreen.preventAutoHideAsync();
+[ 1703831ms] Unable to resolve module expo-splash-screen from D:\Users\lawre\Documents\Work\data-heist-app\src\app\_layout.tsx: expo-splash-screen could not be found within the project or in these directories:
+  node_modules
+  3 | import { StatusBar } from 'expo-status-bar';
+  4 | import { StyleSheet, View } from 'react-native';
+> 5 | import * as SplashScreen from 'expo-splash-screen';
+    |                                ^
+  6 | import { useFonts, Orbitron_400Regular, Orbitron_700Bold, Orbitron_900Black } from '@expo-google-fonts/orbitron';
+  7 |
+  8 | SplashScreen.preventAutoHideAsync();
+[ 1708380ms] Unable to resolve module expo-splash-screen from D:\Users\lawre\Documents\Work\data-heist-app\src\app\_layout.tsx: expo-splash-screen could not be found within the project or in these directories:
+  node_modules
+  3 | import { StatusBar } from 'expo-status-bar';
+  4 | import { StyleSheet, View } from 'react-native';
+> 5 | import * as SplashScreen from 'expo-splash-screen';
+    |                                ^
+  6 | import { useFonts, Orbitron_400Regular, Orbitron_700Bold, Orbitron_900Black } from '@expo-google-fonts/orbitron';
+  7 |
+  8 | SplashScreen.preventAutoHideAsync();
+[ 1718374ms] Unable to resolve module expo-splash-screen from D:\Users\lawre\Documents\Work\data-heist-app\src\app\_layout.tsx: expo-splash-screen could not be found within the project or in these directories:
+  node_modules
+  3 | import { StatusBar } from 'expo-status-bar';
+  4 | import { StyleSheet, View } from 'react-native';
+> 5 | import * as SplashScreen from 'expo-splash-screen';
+    |                                ^
+  6 | import { useFonts, Orbitron_400Regular, Orbitron_700Bold, Orbitron_900Black } from '@expo-google-fonts/orbitron';
+  7 |
+  8 | SplashScreen.preventAutoHideAsync();
+[ 1723172ms] Unable to resolve module expo-splash-screen from D:\Users\lawre\Documents\Work\data-heist-app\src\app\_layout.tsx: expo-splash-screen could not be found within the project or in these directories:
+  node_modules
+  3 | import { StatusBar } from 'expo-status-bar';
+  4 | import { StyleSheet, View } from 'react-native';
+> 5 | import * as SplashScreen from 'expo-splash-screen';
+    |                                ^
+  6 | import { useFonts, Orbitron_400Regular, Orbitron_700Bold, Orbitron_900Black } from '@expo-google-fonts/orbitron';
+  7 |
+  8 | SplashScreen.preventAutoHideAsync();
+[ 1730707ms] Unable to resolve module expo-splash-screen from D:\Users\lawre\Documents\Work\data-heist-app\src\app\_layout.tsx: expo-splash-screen could not be found within the project or in these directories:
+  node_modules
+  3 | import { StatusBar } from 'expo-status-bar';
+  4 | import { StyleSheet, View } from 'react-native';
+> 5 | import * as SplashScreen from 'expo-splash-screen';
+    |                                ^
+  6 | import { useFonts, Orbitron_400Regular, Orbitron_700Bold, Orbitron_900Black } from '@expo-google-fonts/orbitron';
+  7 |
+  8 | SplashScreen.preventAutoHideAsync();
+[ 1752653ms] Unable to resolve module expo-splash-screen from D:\Users\lawre\Documents\Work\data-heist-app\src\app\_layout.tsx: expo-splash-screen could not be found within the project or in these directories:
+  node_modules
+  3 | import { StatusBar } from 'expo-status-bar';
+  4 | import { StyleSheet, View } from 'react-native';
+> 5 | import * as SplashScreen from 'expo-splash-screen';
+    |                                ^
+  6 | import { useFonts, Orbitron_400Regular, Orbitron_700Bold, Orbitron_900Black } from '@expo-google-fonts/orbitron';
+  7 |
+  8 | SplashScreen.preventAutoHideAsync();
+[ 1760379ms] Unable to resolve module expo-splash-screen from D:\Users\lawre\Documents\Work\data-heist-app\src\app\_layout.tsx: expo-splash-screen could not be found within the project or in these directories:
+  node_modules
+  3 | import { StatusBar } from 'expo-status-bar';
+  4 | import { StyleSheet, View } from 'react-native';
+> 5 | import * as SplashScreen from 'expo-splash-screen';
+    |                                ^
+  6 | import { useFonts, Orbitron_400Regular, Orbitron_700Bold, Orbitron_900Black } from '@expo-google-fonts/orbitron';
+  7 |
+  8 | SplashScreen.preventAutoHideAsync();
+[ 1805985ms] [WARNING] Disconnected from Metro (1006)
+To reconnect:
+- Ensure that Metro is running and available on the same network
+- Reload this app (will trigger further help if Metro cannot be connected to) @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:70495

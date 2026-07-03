@@ -136,6 +136,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       actionsCommitted: 0,
       rpCommitted: 0,
       actionsTaken: 0,
+      minorActionsTaken: 0,
       visitedNodeIds: [],
       permanentlyFailedNodeIds: [],
       objectives: {},

@@ -84,6 +84,8 @@ export interface GameState {
   rpCommitted: number;
   /** Lead's number of major actions taken this turn so far. */
   actionsTaken: number;
+  /** Support's number of minor actions taken this turn. */
+  minorActionsTaken: number;
   /**
    * Aid granted by a Support player. Consumed by the next Lead ROLL_RESOLVE
    * and then cleared. RP-spend Aid gives +2; success-by-10+ gives +4.

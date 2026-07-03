@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, TextInput, ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMapStore } from '@/stores/mapStore';
-import { FlowCanvas } from '@/components/flow/FlowCanvas';
+import { FlowCanvas } from '@/components/flow/flowCanvas/FlowCanvas';
 import { FlowNodeView } from '@/components/flow/FlowNode';
 import { NodePalette } from '@/components/flow/NodePalette';
 import { NodeEditor } from '@/components/flow/NodeEditor';
@@ -75,6 +75,10 @@ export default function BuildMapScreen() {
           mode="build"
           selectedId={selectedNode?.id ?? null}
           onSelectNode={(n) => {
+            if (!n) {
+              setSelectedNode(null);
+              return;
+            }
             if (connectFromId) {
               if (connectFromId !== n.id) {
                 addEdge(connectFromId, n.id);

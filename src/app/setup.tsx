@@ -155,8 +155,8 @@ export default function SetupScreen() {
             value={p.name}
             onChangeText={(name) => updatePlayer(p.id, { name })}
           />
-          <View style={styles.row}>
-            <View style={styles.col}>
+          <View style={styles.statsRow}>
+            <View style={styles.statCol}>
               <Text style={styles.label}>Class</Text>
               <View style={styles.row}>
                 <Pressable
@@ -173,7 +173,7 @@ export default function SetupScreen() {
                 </Pressable>
               </View>
             </View>
-            <View style={styles.col}>
+            <View style={styles.statCol}>
               <Text style={styles.label}>Skill Modifier</Text>
               <View style={styles.row}>
                 <Pressable
@@ -191,7 +191,7 @@ export default function SetupScreen() {
                 </Pressable>
               </View>
             </View>
-            <View style={styles.col}>
+            <View style={styles.statCol}>
               <Text style={styles.label}>Resolve Points</Text>
               <View style={styles.row}>
                 <Pressable
@@ -231,7 +231,7 @@ export default function SetupScreen() {
                       backgroundColor: '#0f172a',
                     }}
                   >
-                    <Text style={{ color: '#fff', fontWeight: '700' }}>{lead.name}</Text>
+                    <Text style={{ color: '#fff', fontFamily: 'Orbitron-Bold' }}>{lead.name}</Text>
                   </Pressable>
                 ))}
               </View>
@@ -247,7 +247,7 @@ export default function SetupScreen() {
       )}
 
       {leads.length === 0 && (
-        <Text style={{ color: '#f87171', fontWeight: '700', textAlign: 'center', marginTop: 8 }}>At least one Lead is required to start</Text>
+        <Text style={{ color: '#f87171', fontFamily: 'Orbitron-Bold', textAlign: 'center', marginTop: 8 }}>At least one Lead is required to start</Text>
       )}
       <Pressable style={[styles.startBtn, (!map || leads.length === 0) && styles.startBtnDisabled]} onPress={handleStart} disabled={!map || leads.length === 0}>
         <Text style={styles.startBtnText}>Start Game</Text>
@@ -266,8 +266,8 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     gap: 12,
   },
-  title: { fontSize: 24, fontWeight: '800', color: '#22d3ee' },
-  mapLabel: { fontSize: 13, color: '#94a3b8', marginBottom: 8 },
+  title: { fontSize: 24, fontFamily: 'Orbitron-Bold', color: '#22d3ee' },
+  mapLabel: { fontSize: 13, fontFamily: 'Orbitron', color: '#94a3b8', marginBottom: 8 },
   card: {
     backgroundColor: '#0f172a',
     padding: 14,
@@ -277,18 +277,21 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cardTitle: { fontSize: 16, color: '#f1f5f9', fontWeight: '700' },
-  remove: { color: '#f87171', fontSize: 12, fontWeight: '700' },
-  label: { fontSize: 11, color: '#64748b', fontWeight: '700', textTransform: 'uppercase' },
+  cardTitle: { fontSize: 16, color: '#f1f5f9', fontFamily: 'Orbitron-Bold' },
+  remove: { color: '#f87171', fontSize: 12, fontFamily: 'Orbitron-Bold' },
+  label: { fontSize: 11, color: '#64748b', fontFamily: 'Orbitron-Bold', textTransform: 'uppercase' },
   input: {
     backgroundColor: '#1e293b',
     color: '#f1f5f9',
     padding: 10,
     borderRadius: 6,
     fontSize: 14,
+    fontFamily: 'Orbitron',
   },
   row: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  statsRow: { flexDirection: 'row', gap: 12, flexWrap: 'wrap' },
   col: { flex: 1, gap: 6 },
+  statCol: { flex: 1, minWidth: 140, gap: 6 },
   pill: {
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -298,23 +301,23 @@ const styles = StyleSheet.create({
     borderColor: '#475569',
   },
   pillActive: { borderColor: '#22d3ee', backgroundColor: '#0e7490' },
-  pillText: { fontSize: 12, color: '#f1f5f9', fontWeight: '700' },
+  pillText: { fontSize: 12, color: '#f1f5f9', fontFamily: 'Orbitron-Bold' },
   stepBtn: {
     backgroundColor: '#1e293b',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 6,
   },
-  stepBtnText: { fontSize: 16, color: '#22d3ee', fontWeight: '700' },
-  value: { color: '#f1f5f9', fontSize: 14, fontWeight: '700', minWidth: 24, textAlign: 'center' },
-  hint: { fontSize: 11, color: '#475569', marginTop: 4 },
+  stepBtnText: { fontSize: 16, color: '#22d3ee', fontFamily: 'Orbitron-Bold' },
+  value: { color: '#f1f5f9', fontSize: 14, fontFamily: 'Orbitron-Bold', minWidth: 24, textAlign: 'center' },
+  hint: { fontSize: 11, color: '#475569', marginTop: 4, fontFamily: 'Orbitron' },
   addBtn: {
     padding: 12,
     backgroundColor: '#1e293b',
     borderRadius: 8,
     alignItems: 'center',
   },
-  addBtnText: { color: '#22d3ee', fontWeight: '700', fontSize: 13 },
+  addBtnText: { color: '#22d3ee', fontFamily: 'Orbitron-Bold', fontSize: 13 },
   startBtn: {
     padding: 16,
     backgroundColor: '#0e7490',
@@ -323,5 +326,5 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 24,
   },
-  startBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  startBtnText: { color: '#fff', fontFamily: 'Orbitron-Bold', fontSize: 16 },
 });

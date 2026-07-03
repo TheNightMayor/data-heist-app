@@ -6,11 +6,11 @@
 
 import { useEffect, useState, useMemo, useRef } from 'react';
 import {
-  View, Text, Pressable, StyleSheet, Modal, ScrollView,
+  View, Text, Pressable, StyleSheet, Modal, ScrollView, useWindowDimensions,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { nanoid } from 'nanoid';
-import { FlowCanvas } from '@/components/flow/FlowCanvas';
+import { FlowCanvas } from '@/components/flow/flowCanvas/FlowCanvas';
 import { FlowNodeView } from '@/components/flow/FlowNode';
 import { Toast, type ToastKind } from '@/components/ui/Toast';
 import { ResultModal, type RollResultInfo } from '@/components/game/ResultModal';
@@ -36,32 +36,72 @@ function ActionPips({
   class: cls,
   actionsCommitted,
   actionsTaken,
+  minorActionsTaken,
 }: {
   class: 'lead' | 'support';
   actionsCommitted: number;
   actionsTaken: number;
+  minorActionsTaken: number;
 }) {
-  // Lead: pip count = remaining major actions.
-  // Support: 1 dot if Aid hasn't been used, 0 if it has.
-  const total = cls === 'lead' ? Math.max(actionsCommitted, 1) : 1;
-  const used = cls === 'lead' ? actionsTaken : 0; // Aid consumes the whole turn
-  const remaining = Math.max(0, total - used);
-
-  const dotColor = cls === 'lead' ? '#22d3ee' : '#a78bfa';
-  const emptyColor = '#1e293b';
-
-  return (
-    <View style={pipStyles.row} accessibilityLabel={`${remaining} ${cls === 'lead' ? 'major' : 'minor'} action${remaining === 1 ? '' : 's'} remaining`}>
-      {Array.from({ length: total }, (_, i) => (
+  const isLead = cls === 'lead';
+  const minorUsed = minorActionsTaken > 0;
+  
+  if (isLead) {
+    const total = Math.max(actionsCommitted, 1);
+    const used = actionsTaken;
+    const remaining = Math.max(0, total - used);
+    return (
+      <View style={pipStyles.row} accessibilityLabel={`${remaining} actions remaining`}>
+        {/* Lead Minor Action */}
         <View
-          key={i}
           style={[
             pipStyles.dot,
-            cls === 'lead' ? pipStyles.dotSquare : pipStyles.dotCircle,
-            { backgroundColor: i < remaining ? dotColor : emptyColor },
+            pipStyles.dotCircle,
+            { backgroundColor: minorUsed ? '#1e293b' : '#a78bfa' },
           ]}
         />
-      ))}
+        {/* Lead Major Actions */}
+        {Array.from({ length: total }, (_, i) => (
+          <View
+            key={i}
+            style={[
+              pipStyles.dot,
+              pipStyles.dotSquare,
+              { backgroundColor: i < remaining ? '#22d3ee' : '#1e293b' },
+            ]}
+          />
+        ))}
+      </View>
+    );
+  }
+
+  // Support Class:
+  // - Minor Action dot (Circle, Violet)
+  // - Bought Major Action dot (Square, Cyan) if actionsCommitted > 0
+  const hasBoughtMajor = actionsCommitted > 0;
+  
+  const majorUsed = actionsTaken > 0;
+
+  return (
+    <View style={pipStyles.row}>
+      {/* Minor Action */}
+      <View
+        style={[
+          pipStyles.dot,
+          pipStyles.dotCircle,
+          { backgroundColor: minorUsed ? '#1e293b' : '#a78bfa' },
+        ]}
+      />
+      {/* Bought Major Action */}
+      {hasBoughtMajor ? (
+        <View
+          style={[
+            pipStyles.dot,
+            pipStyles.dotSquare,
+            { backgroundColor: majorUsed ? '#1e293b' : '#22d3ee' },
+          ]}
+        />
+      ) : null}
     </View>
   );
 }
@@ -90,7 +130,7 @@ function CurrentTargetPanel({
   if (!targetNode) {
     return (
       <View style={panelStyles.empty}>
-        <Text style={panelStyles.emptyText}>No active target</Text>
+        <Text style={panelStyles.emptyText}>select node</Text>
       </View>
     );
   }
@@ -158,6 +198,9 @@ const panelStyles = StyleSheet.create({
 });
 
 export default function GameScreen() {
+  const { width: windowWidth } = useWindowDimensions();
+  const isSmallScreen = windowWidth < 768;
+
   const { mapId } = useLocalSearchParams<{ mapId: string }>();
   const router = useRouter();
   const { state, map, dispatch, persist, endGame } = useGameStore();
@@ -311,25 +354,18 @@ export default function GameScreen() {
   // Priority: pending Aid target > Lead's pending roll > selected node.
   const activeTargetId = state?.pendingAid?.targetNodeId ?? pendingRollNode?.id ?? selectedNode?.id ?? null;
 
-  // Resolve the current target node + label for the topbar panel.
-  const currentTargetNode = useMemo(() => {
-    if (!map || !activeTargetId) return null;
-    return map.nodes.find((n) => n.id === activeTargetId) ?? null;
-  }, [map, activeTargetId]);
-
   const activePlayerId = state?.turnOrder?.[state?.activePlayerIndex];
   const activePlayer = state?.players.find((p) => p.id === activePlayerId);
 
-  const currentTargetLabel = state?.pendingAid
-    ? 'Aid target'
-    : pendingRollNode
-      ? 'Pending roll'
-      : selectedNode
-        ? 'Selected node'
-        : '';
-  const currentTargetSuccesses = currentTargetNode
-    ? state?.objectives[currentTargetNode.id]?.successes ?? 0
-    : 0;
+  const otherLeadsExist = useMemo(() => {
+    if (!state?.players || !activePlayerId) return false;
+    return state.players.some(p => p.class === 'lead' && p.id !== activePlayerId && !p.ejected);
+  }, [state?.players, activePlayerId]);
+
+  const currentAidBonus = useMemo(() => {
+    if (activePlayer?.class !== 'lead' || !activePlayerId) return 0;
+    return state?.pendingAid?.leadId === activePlayerId ? state.pendingAid.bonus : 0;
+  }, [activePlayer?.class, activePlayerId, state?.pendingAid]);
 
   if (!state || !map) {
     return (
@@ -339,24 +375,20 @@ export default function GameScreen() {
     );
   }
 
-  const onSelectNode = (node: FlowNode) => {
-    if (state.finished) return;
-    if (!reachableIds.has(node.id)) return;
-    // Block new rolls once the Lead has spent their committed actions.
-    if (
-      activePlayer?.class === 'lead' &&
-      state.actionsCommitted > 0 &&
-      state.actionsTaken >= state.actionsCommitted
-    ) {
+  const onSelectNode = (node: FlowNode | null) => {
+    if (!node) {
+      setSelectedNode(null);
       return;
     }
-    // Land on the node for both Lead and Support. For Supports we don't
-    // immediately show the popup; they get the same selection UX as Leads.
+    if (state.finished) return;
+    
+    // Allow selecting any node to see its info in the actions panel.
     setSelectedNode(node);
-    if (activePlayer?.class === 'lead') return;
   };
 
   const openRollForNode = (node: FlowNode, kind: 'lead' | 'support-self' = 'lead') => {
+    // For Support hackers, we don't block opening the modal anymore.
+    // The RP cost check happens inside handleRoll when they actually commit.
     setPendingRollNode(node);
     setPendingRollKind(kind);
     setModalOpen(true);
@@ -364,72 +396,86 @@ export default function GameScreen() {
 
   const rollDie = (sides: number = 20) => Math.floor(Math.random() * sides) + 1;
 
-  const handleRoll = (spendRP: boolean) => {
-    if (!pendingRollNode || !activePlayer) return;
-    const d20 = rollDie(20);
-    const subskill = pendingRollNode.resolve?.subskill ?? 'hack';
-    let modifier = modifierFor(activePlayer, subskill);
-    const dc = effectiveDC(pendingRollNode.tier, pendingRollNode.resolve);
+  const handleRoll = (spendRP: boolean, overrideNode?: FlowNode, overrideKind?: 'lead' | 'support-self') => {
+    const node = overrideNode || pendingRollNode;
+    const kind = overrideKind || pendingRollKind;
+    if (!node || !activePlayer) return;
 
-    // Consume pending Aid from a paired Support, if any. Only applies when
-    // this is a Lead roll (pendingRollKind === 'lead').
+    // Pre-calculate RP cost for validation.
+    const rpCost = (kind === 'support-self' ? 1 : 0) + (spendRP ? 1 : 0);
+    if (rpCost > activePlayer.resolvePoints) {
+      showToast(`Requires ${rpCost} Resolve Points`, undefined, 'failure');
+      return;
+    }
+
+    const d20 = rollDie(20);
+    const subskill = node.resolve?.subskill ?? 'hack';
+    const baseModifier = modifierFor(activePlayer, subskill);
+    let modifier = baseModifier;
+    const dc = effectiveDC(node.tier, node.resolve);
+
+    // Apply multi-action penalty
+    const penalty = turnPenalty(state.actionsTaken, state.rpCommitted);
+    modifier += penalty;
+
+    // Consuming pending Aid from a paired Support, if any.
     let aidBonus = 0;
+    const pendingAid = state.pendingAid;
     if (
-      pendingRollKind === 'lead' &&
+      kind === 'lead' &&
       activePlayer.class === 'lead' &&
-      state.pendingAid?.leadId === activePlayer.id
+      pendingAid?.leadId === activePlayer.id
     ) {
-      aidBonus = state.pendingAid.bonus;
+      aidBonus = pendingAid.bonus;
     }
     modifier += aidBonus;
 
     // Pre-compute the outcome so we can show it after the rolling animation.
     const outcome: Outcome = resolve({ d20, modifier, dc, spendRP });
 
-    const applied = Math.min(outcome.successes, pendingRollNode.resolve?.successesRequired ?? 1);
+    const applied = Math.min(outcome.successes, node.resolve?.successesRequired ?? 1);
 
-    let kind: RollResultInfo['kind'] = 'info';
+    let resultKind: RollResultInfo['kind'] = 'info';
     let outcomeLabel = 'Roll';
-    let detail: string | undefined;
+    let detailString = '';
 
     if (outcome.kind === 'rp-spend') {
-      kind = 'success';
+      resultKind = 'success';
       outcomeLabel = 'Auto-Success (Resolve Point)';
-      detail = 'RP spent — no roll needed';
+      detailString = 'RP spent — no roll needed';
     } else if (outcome.kind === 'nat20') {
-      kind = 'success';
+      resultKind = 'success';
       outcomeLabel = 'Natural 20!';
     } else if (outcome.kind === 'major-success') {
-      kind = 'success';
+      resultKind = 'success';
       outcomeLabel = 'Major Success';
     } else if (outcome.kind === 'standard-success') {
-      kind = 'success';
+      resultKind = 'success';
       outcomeLabel = 'Success';
     } else if (outcome.kind === 'failure') {
-      kind = 'failure';
+      resultKind = 'failure';
       outcomeLabel = 'Failure';
     } else if (outcome.kind === 'nat1') {
-      kind = 'critical';
+      resultKind = 'critical';
       outcomeLabel = 'Natural 1!';
       if (outcome.cpDamageRoll !== undefined && outcome.cpDamageRoll <= 3) {
-        detail = 'Lost 1 CP to countermeasure';
+        detailString = 'Lost 1 CP to countermeasure';
       }
     }
-
-    const finalDetail = aidBonus > 0
-      ? `${detail ?? ''}${detail ? ' • ' : ''}Aid bonus +${aidBonus}`.trim()
-      : detail;
 
     const info: RollResultInfo = {
       d20: spendRP ? 0 : d20,
       modifier,
+      baseModifier,
+      penalty: penalty !== 0 ? penalty : undefined,
+      aidBonus: aidBonus !== 0 ? aidBonus : undefined,
       dc,
       total: spendRP ? dc : outcome.total,
       outcomeLabel,
       successes: applied,
-      kind,
-      detail: finalDetail,
-      nodeName: pendingRollNode.name,
+      kind: resultKind,
+      detail: detailString,
+      nodeName: node.name,
     };
 
     // Close pre-roll modal.
@@ -450,7 +496,7 @@ export default function GameScreen() {
     dispatch({
       type: 'ROLL_RESOLVE',
       playerId: activePlayer.id,
-      node: pendingRollNode,
+      node: node,
       d20,
       spendRP,
       aidBonus: aidBonus > 0 ? aidBonus : undefined,
@@ -464,45 +510,98 @@ export default function GameScreen() {
   };
 
   const handleSupportAction = (action: 'aid' | 'rp' | 'pass') => {
-    if (!activePlayer || activePlayer.class !== 'support') return;
+    if (!activePlayer) return;
+
     setSupportUpgradePromptOpen(false);
     const target = selectedNode;
+
     if (action === 'pass') {
       dispatch({ type: 'ADVANCE_TURN' });
       setSelectedNode(null);
       return;
     }
+
     if (action === 'rp') {
-      // Spend RP for own major action — one roll of their own (no planning).
+      // For Support: Spend RP for own major action roll (auto-success).
+      // (Leads might eventually get their own RP minor actions here too).
       if (!target) {
         showToast('Pick a target node first', undefined, 'info');
         return;
       }
-      if (activePlayer.resolvePoints <= 0) {
-        showToast('No Resolve Points left', undefined, 'failure');
+      if (activePlayer.resolvePoints < 2) {
+        showToast('Requires 2 Resolve Points', undefined, 'failure');
         return;
       }
-      setPendingRollNode(target);
-      // Reuse the roll modal; mark this roll as the Support's own.
-      setPendingRollKind('support-self');
-      setModalOpen(true);
+      handleRoll(true, target, 'support-self');
       return;
     }
+
     // action === 'aid'
     if (!target) {
       showToast('Pick a target node first', undefined, 'info');
       return;
     }
-    // Prefer the UI-selected lead, otherwise read the current pairing from state
-    const supportPlayer = state.players.find((p) => p.id === activePlayer.id);
-    const chosenLeadId = selectedLeadId ?? supportPlayer?.pairedLeadId;
+
+    // Identify target Lead. 
+    // If player is a Support, they might have a pairedLeadId. 
+    // If player is a Lead, they must pick a DIFFERENT Lead.
+    const chosenLeadId = selectedLeadId || 
+      (activePlayer.class === 'support' ? state.players.find(p => p.id === activePlayer.id)?.pairedLeadId : undefined);
+    
     const lead = chosenLeadId ? state.players.find((p) => p.id === chosenLeadId) : undefined;
-    if (!lead) {
-      showToast('No paired Lead to aid', undefined, 'failure');
+    
+    if (!lead || (lead.id === activePlayer.id)) {
+      showToast('Select a Lead hacker to aid', undefined, 'failure');
       return;
     }
+
     // Roll the Aid check immediately.
     const d20 = rollDie(20);
+    const modifier = modifierFor(activePlayer, 'hack');
+    const baseDC = effectiveDC(target.tier, target.resolve);
+    const dc = Math.max(10, baseDC - 10);
+    const outcome = resolve({ d20, modifier, dc });
+
+    let resultKind: RollResultInfo['kind'] = 'info';
+    let outcomeLabel = 'Aid';
+    let detail: string | undefined;
+
+    if (outcome.kind === 'nat20' || outcome.kind === 'major-success') {
+      resultKind = 'success';
+      outcomeLabel = 'Aid Success (+4)';
+      detail = 'Major success — bonus increased to +4';
+    } else if (outcome.kind === 'standard-success') {
+      resultKind = 'success';
+      outcomeLabel = 'Aid Success (+2)';
+      detail = 'Standard success — bonus +2';
+    } else if (outcome.kind === 'failure') {
+      resultKind = 'failure';
+      outcomeLabel = 'Aid Failure';
+      detail = 'No bonus granted';
+    } else if (outcome.kind === 'nat1') {
+      resultKind = 'critical';
+      outcomeLabel = 'Aid Critical Fail';
+      detail = 'Natural 1 — no bonus';
+    }
+
+    const info: RollResultInfo = {
+      d20,
+      modifier,
+      baseModifier: modifier,
+      dc,
+      total: outcome.total,
+      outcomeLabel,
+      successes: 0,
+      kind: resultKind,
+      detail,
+      nodeName: `${target.name} (Aid)`,
+    };
+
+    setResultModal({ visible: true, rolling: true, info });
+    setTimeout(() => {
+      setResultModal((prev) => ({ ...prev, rolling: false }));
+    }, 800);
+
     dispatch({
       type: 'SUPPORT_AID',
       supportId: activePlayer.id,
@@ -510,7 +609,7 @@ export default function GameScreen() {
       targetNode: target,
       d20,
     });
-    setSelectedNode(null);
+    // setSelectedNode(null); // Keep panel open
   };
 
   const handleEndTurn = () => {
@@ -536,113 +635,70 @@ export default function GameScreen() {
         onHide={() => setToast((t) => ({ ...t, visible: false }))}
       />
 
-      {/* Top bar — turn indicator + actions */}
-      <View style={styles.topbar}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.turnLabel}>
-            Round {state.round + 1} • Turn {state.turn + 1}
-          </Text>
-          <Text style={styles.activeName}>
-            {activePlayer?.name ?? '—'} ({activePlayer?.class})
-          </Text>
-        </View>
-        <CurrentTargetPanel
-          targetNode={currentTargetNode}
-          label={currentTargetLabel}
-          successes={currentTargetSuccesses}
-        />
-        {state.actionsCommitted > 0 && (
-          <View style={styles.statBox}>
-            <Text style={styles.statLabel}>Actions</Text>
-            <Text style={styles.statValue}>
-              {state.actionsTaken}/{state.actionsCommitted}
-            </Text>
-          </View>
-        )}
-        {state.actionsCommitted > 0 && (
-          <View style={styles.statBox}>
-            <Text style={styles.statLabel}>Penalty</Text>
-            <Text style={styles.statValue}>
-              {turnPenalty(state.actionsTaken, state.rpCommitted)}
-            </Text>
-          </View>
-        )}
-        <View style={styles.statBox}>
-          <Text style={styles.statLabel}>RP</Text>
-          <Text style={styles.statValue}>{activePlayer?.resolvePoints ?? 0}</Text>
-        </View>
-        <View style={styles.statBox}>
-          <Text style={styles.statLabel}>CP</Text>
-          <Text style={styles.statValue}>
-            {activePlayer?.currentCP ?? 0}/{activePlayer?.maxCP ?? 0}
-          </Text>
-        </View>
-        {activePlayer?.class === 'lead' && state.actionsTaken === 0 && state.actionsCommitted <= 1 && (
-          <Pressable style={styles.planBtn} onPress={() => setPlanModalOpen(true)}>
-            <Text style={styles.planBtnText}>Plan Turn</Text>
-          </Pressable>
-        )}
-        {selectedNode && activePlayer?.class === 'lead' && (
-          <Pressable
-            style={styles.rollBtn}
-            onPress={() => openRollForNode(selectedNode, 'lead')}
+      <View style={{ flex: 1 }}>
+        {/* Header — Turn Order, Round and Objectives */}
+        <View style={styles.header}>
+        <View style={styles.headerRow}>
+          <ScrollView
+            horizontal={true}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.headerTurnOrder}
           >
-            <Text style={styles.rollBtnText}>Roll Check</Text>
-          </Pressable>
-        )}
-        {selectedNode && activePlayer?.class === 'support' && (
-          <>
-            <Pressable
-              style={styles.rollBtn}
-              onPress={() => openRollForNode(selectedNode, 'support-self')}
-            >
-              <Text style={styles.rollBtnText}>Roll Check</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.planBtn, { marginLeft: 8 }]}
-              onPress={() => setSupportUpgradePromptOpen(true)}
-            >
-              <Text style={styles.planBtnText}>Support Action</Text>
-            </Pressable>
-          </>
-        )}
-        <Pressable style={styles.endBtn} onPress={handleEndTurn}>
-          <Text style={styles.endBtnText}>End Turn</Text>
-        </Pressable>
-      </View>
+            {state.turnOrder
+              .map((id) => state.players.find((p) => p.id === id))
+              .filter((p): p is NonNullable<typeof p> => !!p)
+              .map((p) => {
+                const isActive = p.id === activePlayerId;
+                return (
+                  <View key={p.id} style={{ alignItems: 'center' }}>
+                    <View style={[styles.miniPlayerChip, isActive ? styles.miniPlayerChipActive : null]}>
+                      <Text style={[
+                        styles.miniPlayerClass,
+                        isActive ? (p.class === 'lead' ? styles.miniPlayerClassActiveLead : styles.miniPlayerClassActiveSupport) : null
+                      ]}>
+                        {p.class === 'lead' ? 'LEAD' : 'SUPPORT'}
+                      </Text>
+                      <Text style={[styles.miniPlayerName, isActive ? styles.miniPlayerNameActive : null]}>
+                        {p.name}
+                      </Text>
+                      <Text style={styles.miniPlayerStats}>
+                        RP {p.resolvePoints} • CP {p.currentCP}/{p.maxCP}
+                      </Text>
+                      {p.ejected ? <Text style={styles.ejected}>EJECTED</Text> : null}
+                    </View>
+                    {isActive && !p.ejected ? (
+                      <ActionPips
+                        class={p.class}
+                        actionsCommitted={state.actionsCommitted}
+                        actionsTaken={state.actionsTaken}
+                        minorActionsTaken={state.minorActionsTaken}
+                      />
+                    ) : null}
+                  </View>
+                );
+              })}
+          </ScrollView>
 
-      {/* Player strip — runs across the top, just below the topbar */}
-      <ScrollView
-        style={styles.playerStrip}
-        horizontal={true}
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ gap: 8, paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center' }}
-      >
-        {( 
-          state.turnOrder.map((id) => state.players.find((p) => p.id === id)).filter(Boolean) as typeof state.players
-        ).map((p) => {
-          const isActive = p.id === activePlayerId;
-          return (
-            <View
-              key={p.id}
-              style={[styles.playerChip, isActive && styles.playerChipActive]}
-            >
-              <Text style={styles.playerName}>{p.name}</Text>
-              <Text style={styles.playerStats}>
-                {p.class === 'lead' ? '★' : '◇'} RP {p.resolvePoints} • CP {p.currentCP}/{p.maxCP}
-              </Text>
-              {isActive && !p.ejected && (
-                <ActionPips
-                  class={p.class}
-                  actionsCommitted={state.actionsCommitted}
-                  actionsTaken={state.actionsTaken}
-                />
-              )}
-              {p.ejected && <Text style={styles.ejected}>EJECTED</Text>}
-            </View>
-          );
-        })}
-      </ScrollView>
+          <View style={styles.roundChip}>
+            <Text style={styles.roundLabel}>ROUND</Text>
+            <Text style={styles.roundValue}>{state.round + 1}</Text>
+          </View>
+        </View>
+
+        <View style={styles.statRow}>
+          {Object.entries(state.objectives || {}).map(([id, obj]) => {
+            const node = map?.nodes.find((n) => n.id === id);
+            return (
+              <View key={id} style={styles.statBox}>
+                <Text style={styles.statLabel}>{node?.name || id}</Text>
+                <Text style={styles.statValue}>
+                  {obj.successes}/{node?.resolve?.successesRequired || 1}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+      </View>
 
       {/* Canvas — constrained to the central monitor area (matches the bezel) */}
       <View style={styles.canvasWrap}>
@@ -652,14 +708,35 @@ export default function GameScreen() {
           reachableIds={reachableIds}
           activeId={activeTargetId}
           statusById={statusById}
+          progressById={progressById}
+          selectedId={selectedNode?.id}
           onSelectNode={onSelectNode}
+          activePlayerClass={activePlayer?.class}
+          canPlanTurn={activePlayer?.class === 'lead' && state.actionsTaken === 0 && state.actionsCommitted <= 1}
+          onPlanTurn={() => setPlanModalOpen(true)}
+          onMajorAction={(node) => openRollForNode(node, activePlayer?.class === 'support' ? 'support-self' : 'lead')}
+          onSupportAction={() => setSupportUpgradePromptOpen(true)}
+          onBuyMajorAction={() => activePlayer && dispatch({ type: 'SUPPORT_BUY_ACTION', playerId: activePlayer.id })}
+          onRefundMajorAction={() => activePlayer && dispatch({ type: 'SUPPORT_REFUND_ACTION', playerId: activePlayer.id })}
+          onEndTurn={handleEndTurn}
+          objectives={state.objectives}
+          playerName={activePlayer?.name}
+          rp={activePlayer?.resolvePoints ?? 0}
+          cp={activePlayer?.currentCP ?? 0}
+          maxCp={activePlayer?.maxCP ?? 0}
+          actionsCommitted={state.actionsCommitted}
+          actionsTaken={state.actionsTaken}
+          minorActionsTaken={state.minorActionsTaken}
+          otherLeadsExist={otherLeadsExist}
+          aidBonus={currentAidBonus}
           renderNode={(n, info) => (
             <FlowNodeView
               node={n}
               mode="game"
               status={info.status}
-              progress={progressById[n.id] ?? 0}
+              progress={info.progress}
               active={info.active}
+              selected={info.selected}
             />
           )}
         />
@@ -670,28 +747,40 @@ export default function GameScreen() {
         <View style={styles.modalBackdrop}>
           <View style={styles.modal}>
             <Text style={styles.modalTitle}>Resolve Check</Text>
-            {pendingRollNode && (
+            {pendingRollNode ? (
               <Text style={styles.modalSub}>
                 {pendingRollNode.name} (DC {effectiveDC(pendingRollNode.tier, pendingRollNode.resolve)})
               </Text>
-            )}
+            ) : null}
+            
+            {state.pendingAid?.leadId === activePlayer?.id ? (
+              <View style={styles.aidBanner}>
+                <Text style={styles.aidBannerText}>
+                  ✨ Receiving +{state.pendingAid.bonus} Aid from Support hacker
+                </Text>
+              </View>
+            ) : null}
+
             <Pressable
               style={[styles.modalBtn, styles.modalBtnPrimary]}
               onPress={() => handleRoll(false)}
             >
-              <Text style={styles.modalBtnText}>🎲 Roll d20</Text>
+              <Text style={styles.modalBtnText}>
+                🎲 Roll d20{state.pendingAid?.leadId === activePlayer?.id ? ` (+${state.pendingAid.bonus} Aid)` : ''}
+              </Text>
             </Pressable>
             <Pressable
               style={[
                 styles.modalBtn,
                 styles.modalBtnSecondary,
-                !activePlayer || activePlayer.resolvePoints <= 0 ? styles.modalBtnDisabled : null,
+                !activePlayer || activePlayer.resolvePoints < (activePlayer.class === 'support' ? 2 : 1) ? styles.modalBtnDisabled : null,
               ]}
               onPress={() => handleRoll(true)}
-              disabled={!activePlayer || activePlayer.resolvePoints <= 0}
+              disabled={!activePlayer || activePlayer.resolvePoints < (activePlayer.class === 'support' ? 2 : 1)}
             >
               <Text style={styles.modalBtnText}>
-                ⭐ Spend RP (auto-success)
+                ⭐ Spend RP (auto-success){activePlayer?.class === 'support' ? ' — 2 RP' : ''}
+                {state.pendingAid?.leadId === activePlayer?.id ? ` (+${state.pendingAid.bonus} Aid ignored)` : ''}
               </Text>
             </Pressable>
             <Pressable
@@ -708,7 +797,7 @@ export default function GameScreen() {
       </Modal>
 
       {/* Planning modal — opt-in. Default flow is 1 action / 0 RP (no modal). */}
-      <Modal visible={planModalOpen && activePlayer?.class === 'lead'} transparent animationType="fade">
+      <Modal visible={!!(planModalOpen && activePlayer?.class === 'lead')} transparent animationType="fade">
         <View style={styles.modalBackdrop}>
           <View style={styles.modal}>
             <Text style={styles.modalTitle}>Plan Your Turn</Text>
@@ -721,7 +810,7 @@ export default function GameScreen() {
               <Text style={styles.stepperLabel}>Major Actions</Text>
               <View style={styles.stepperCtl}>
                 <Pressable
-                  style={[styles.stepperBtn, planActions <= 1 && styles.stepperBtnDisabled]}
+                  style={[styles.stepperBtn, planActions <= 1 ? styles.stepperBtnDisabled : null]}
                   onPress={() => setPlanActions((n) => Math.max(1, n - 1))}
                   disabled={planActions <= 1}
                 >
@@ -729,7 +818,7 @@ export default function GameScreen() {
                 </Pressable>
                 <Text style={styles.stepperValue}>{planActions}</Text>
                 <Pressable
-                  style={[styles.stepperBtn, planActions >= 4 && styles.stepperBtnDisabled]}
+                  style={[styles.stepperBtn, planActions >= 4 ? styles.stepperBtnDisabled : null]}
                   onPress={() => setPlanActions((n) => Math.min(4, n + 1))}
                   disabled={planActions >= 4}
                 >
@@ -744,7 +833,7 @@ export default function GameScreen() {
               <Text style={styles.stepperLabel}>Resolve Points</Text>
               <View style={styles.stepperCtl}>
                 <Pressable
-                  style={[styles.stepperBtn, planRP <= 0 && styles.stepperBtnDisabled]}
+                  style={[styles.stepperBtn, planRP <= 0 ? styles.stepperBtnDisabled : null]}
                   onPress={() => setPlanRP((n) => Math.max(0, n - 1))}
                   disabled={planRP <= 0}
                 >
@@ -754,7 +843,7 @@ export default function GameScreen() {
                 <Pressable
                   style={[
                     styles.stepperBtn,
-                    (planRP >= 3 || planRP >= (activePlayer?.resolvePoints ?? 0)) && styles.stepperBtnDisabled,
+                    (planRP >= 3 || planRP >= (activePlayer?.resolvePoints ?? 0)) ? styles.stepperBtnDisabled : null,
                   ]}
                   onPress={() =>
                     setPlanRP((n) => Math.min(3, activePlayer?.resolvePoints ?? 0, n + 1))
@@ -806,56 +895,52 @@ export default function GameScreen() {
         <View style={styles.modalBackdrop}>
           <View style={styles.modal}>
             <Text style={styles.modalTitle}>Support Action</Text>
-            <Text style={styles.modalSub}>
-              {activePlayer?.name}, choose a Lead to aid:
-            </Text>
-            <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
-              {state.players.filter((p) => p.class === 'lead').map((lead) => (
-                <Pressable
-                  key={lead.id}
-                  onPress={() => {
-                    if (!activePlayer) return;
-                    setSelectedLeadId(lead.id);
-                    dispatch({ type: 'SET_PAIRED_LEAD', supportId: activePlayer.id, leadId: lead.id });
-                  }}
-                  style={{
-                    paddingHorizontal: 10,
-                    paddingVertical: 6,
-                    borderRadius: 8,
-                    borderWidth: 2,
-                    borderColor: selectedLeadId === lead.id ? '#22d3ee' : 'transparent',
-                    backgroundColor: '#0f172a',
-                  }}
-                >
-                  <Text style={{ color: '#fff', fontWeight: '700' }}>{lead.name}</Text>
-                </Pressable>
-              ))}
+            <Text style={styles.modalSub}>{activePlayer?.name}, choose a Lead to aid:</Text>
+            <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginVertical: 10 }}>
+              {state.players
+                .filter((p) => p.class === 'lead' && p.id !== activePlayerId)
+                .map((lead) => (
+                  <Pressable
+                    key={lead.id}
+                    onPress={() => {
+                      if (!activePlayer) return;
+                      setSelectedLeadId(lead.id);
+                      dispatch({ type: 'SET_PAIRED_LEAD', supportId: activePlayer.id, leadId: lead.id });
+                    }}
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 6,
+                      borderRadius: 8,
+                      borderWidth: 2,
+                      borderColor: selectedLeadId === lead.id ? '#22d3ee' : 'transparent',
+                      backgroundColor: '#0f172a',
+                    }}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: '700' }}>{lead.name}</Text>
+                  </Pressable>
+                ))}
             </View>
-            {selectedNode && (
+            {selectedNode ? (
               <Text style={styles.modalSub}>
-                Target: {selectedNode.name} (effective DC {effectiveDC(selectedNode.tier, selectedNode.resolve)})
+                Target: {selectedNode.name} (DC {effectiveDC(selectedNode.tier, selectedNode.resolve)})
               </Text>
-            )}
+            ) : null}
             <Pressable
               style={[styles.modalBtn, styles.modalBtnPrimary]}
               onPress={() => handleSupportAction('aid')}
             >
-              <Text style={styles.modalBtnText}>
-                ✨ Aid (+2 / +4 by 10+) — DC {selectedNode ? Math.max(10, effectiveDC(selectedNode.tier, selectedNode.resolve) - 10) : '?'}
-              </Text>
+              <Text style={styles.modalBtnText}>✨ Aid (+2 / +4)</Text>
             </Pressable>
             <Pressable
               style={[
                 styles.modalBtn,
                 styles.modalBtnSecondary,
-                !activePlayer || activePlayer.resolvePoints <= 0 ? styles.modalBtnDisabled : null,
+                (!activePlayer || (activePlayer.resolvePoints ?? 0) < 2) ? styles.modalBtnDisabled : null,
               ]}
               onPress={() => handleSupportAction('rp')}
-              disabled={!activePlayer || activePlayer.resolvePoints <= 0}
+              disabled={!activePlayer || (activePlayer.resolvePoints ?? 0) < 2}
             >
-              <Text style={styles.modalBtnText}>
-                ⭐ Spend RP — own major action
-              </Text>
+              <Text style={styles.modalBtnText}>⭐ Spend RP (auto-success) — 2 RP</Text>
             </Pressable>
             <Pressable
               style={[styles.modalBtn, styles.modalBtnCancel]}
@@ -868,17 +953,19 @@ export default function GameScreen() {
       </Modal>
 
       {/* Animated dice roll result modal */}
-      <ResultModal
-        visible={resultModal.visible}
-        rolling={resultModal.rolling}
-        result={resultModal.info}
-        playerName={activePlayer?.name ?? 'Player'}
-        nodeName={pendingRollNode?.name ?? 'Target'}
-        onDismiss={dismissResultModal}
-      />
+      {resultModal.visible ? (
+        <ResultModal
+          visible={resultModal.visible}
+          rolling={resultModal.rolling}
+          result={resultModal.info}
+          playerName={activePlayer?.name ?? 'Player'}
+          nodeName={pendingRollNode?.name ?? 'Target'}
+          onDismiss={dismissResultModal}
+        />
+      ) : null}
 
       {/* Win/Lose modal */}
-      <Modal visible={state.finished} transparent animationType="fade">
+      <Modal visible={!!state.finished} transparent animationType="fade">
         <View style={styles.modalBackdrop}>
           <View style={styles.modal}>
             <Text style={styles.modalTitle}>
@@ -893,6 +980,7 @@ export default function GameScreen() {
           </View>
         </View>
       </Modal>
+      </View>
     </View>
   );
 }
@@ -901,6 +989,106 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#020617' },
   loading: { flex: 1, backgroundColor: '#020617', alignItems: 'center', justifyContent: 'center' },
   loadingText: { color: '#94a3b8', fontSize: 16 },
+  header: {
+    padding: 12,
+    backgroundColor: '#0f172a',
+    borderBottomWidth: 1,
+    borderColor: '#1e293b',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  headerTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#64748b',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+  },
+  headerTurnOrder: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    paddingRight: 12,
+  },
+  miniPlayerChip: {
+    backgroundColor: '#1e293b',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#334155',
+    alignItems: 'center',
+  },
+  miniPlayerChipActive: {
+    borderColor: '#22d3ee',
+    backgroundColor: '#0f172a',
+  },
+  miniPlayerClass: {
+    fontSize: 8,
+    color: '#64748b',
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  miniPlayerClassActiveLead: {
+    color: '#22d3ee',
+  },
+  miniPlayerClassActiveSupport: {
+    color: '#a78bfa',
+  },
+  miniPlayerName: {
+    fontSize: 11,
+    color: '#94a3b8',
+    fontWeight: '700',
+  },
+  miniPlayerNameActive: {
+    color: '#fff',
+  },
+  miniPlayerStats: {
+    fontSize: 9,
+    color: '#64748b',
+    marginTop: 1,
+  },
+  roundChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1e293b',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  roundLabel: {
+    color: '#94a3b8',
+    fontSize: 9,
+    fontWeight: '800',
+    marginRight: 6,
+  },
+  roundValue: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  statRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  statBox: {
+    flex: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#1e293b',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  statLabel: { fontSize: 9, color: '#64748b', fontWeight: '700', textTransform: 'uppercase' },
+  statValue: { fontSize: 14, color: '#22d3ee', fontWeight: '800' },
   topbar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -939,6 +1127,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#22c55e',
     borderRadius: 6,
   },
+  rollBtnDisabled: {
+    opacity: 0.5,
+    backgroundColor: '#1e293b',
+  },
   rollBtnText: {
     color: '#020617',
     fontWeight: '700',
@@ -959,11 +1151,10 @@ const styles = StyleSheet.create({
   // Canvas wrap fills the available width (player strip overlays it on the left),
   // with vertical insets so it doesn't touch the top/bottom of the screen.
   canvasWrap: {
-    position: 'absolute',
-    top: '12%',
-    bottom: '12%',
-    left: 0,
-    right: 0,
+    position: 'relative',
+    flex: 1,
+    marginTop: 10,
+    marginBottom: 10,
   },
   playerChip: {
     paddingHorizontal: 12,
@@ -998,6 +1189,22 @@ const styles = StyleSheet.create({
   },
   modalTitle: { fontSize: 18, color: '#22d3ee', fontWeight: '800', textAlign: 'center' },
   modalSub: { fontSize: 13, color: '#94a3b8', textAlign: 'center', marginBottom: 4 },
+  aidBanner: {
+    backgroundColor: 'rgba(34, 211, 238, 0.15)',
+    borderWidth: 1,
+    borderColor: '#22d3ee',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 10,
+    marginTop: 8,
+    width: '100%',
+    alignItems: 'center',
+  },
+  aidBannerText: {
+    color: '#22d3ee',
+    fontSize: 13,
+    fontWeight: '700',
+  },
   modalBtn: {
     padding: 12,
     borderRadius: 8,

@@ -16,6 +16,9 @@ import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
 export interface RollResultInfo {
   d20: number;
   modifier: number;
+  baseModifier?: number;
+  penalty?: number;
+  aidBonus?: number;
   dc: number;
   total: number;
   /** Outcome label, e.g. "Success", "Failure", "Nat 20!" */
@@ -71,35 +74,57 @@ export function ResultModal({ visible, result, rolling, playerName, nodeName, on
             {playerName} rolls at {result?.nodeName ?? nodeName}
           </Text>
 
-          {rolling && (
+          {rolling ? (
             <View style={styles.rollingBox}>
               <Text style={styles.dieLabel}>d20</Text>
               <Text style={styles.die}>{spinningD20 || '·'}</Text>
               <Text style={styles.rollingText}>Rolling…</Text>
             </View>
-          )}
+          ) : null}
 
-          {showResult && result && (
+          {showResult && result ? (
             <View style={[styles.resultBox, { backgroundColor: KIND_STYLES[result.kind].bg, borderColor: KIND_STYLES[result.kind].border }]}>
               <View style={styles.resultRow}>
                 <Text style={[styles.icon, { color: KIND_STYLES[result.kind].border }]}>{KIND_STYLES[result.kind].icon}</Text>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.outcomeLabel}>{result.outcomeLabel}</Text>
                   <Text style={styles.detail}>
-                    Rolled {result.d20} + {result.modifier >= 0 ? result.modifier : result.modifier} = <Text style={styles.bold}>{result.total}</Text>
-                    {result.dc ? <> vs DC <Text style={styles.bold}>{result.dc}</Text></> : null}
+                    {result.d20 === 0 && result.kind === 'success' ? (
+                      <Text>Automated Success</Text>
+                    ) : (
+                      <Text>
+                        Rolled {result.d20}
+                        {result.baseModifier !== undefined ? (
+                          <Text>
+                            {` +${result.baseModifier} (skill)`}
+                            {result.penalty ? ` ${result.penalty} (penalty)` : ''}
+                            {result.aidBonus ? ` +${result.aidBonus} (aid)` : ''}
+                          </Text>
+                        ) : (
+                          <Text>{` ${result.modifier >= 0 ? '+' : '-'} ${Math.abs(result.modifier)}`}</Text>
+                        )}
+                      </Text>
+                    )}
+                    <Text>{` = `}</Text>
+                    <Text style={styles.bold}>{result.total}</Text>
+                    {result.dc ? (
+                      <Text>
+                        {' '}
+                        vs DC <Text style={styles.bold}>{result.dc}</Text>
+                      </Text>
+                    ) : null}
                   </Text>
-                  {result.detail && <Text style={styles.detail}>{result.detail}</Text>}
+                  {result.detail ? <Text style={styles.detail}>{result.detail}</Text> : null}
                 </View>
               </View>
             </View>
-          )}
+          ) : null}
 
-          {showResult && (
+          {showResult ? (
             <Pressable style={styles.continueBtn} onPress={onDismiss}>
               <Text style={styles.continueBtnText}>Continue</Text>
             </Pressable>
-          )}
+          ) : null}
         </View>
       </View>
     </Modal>

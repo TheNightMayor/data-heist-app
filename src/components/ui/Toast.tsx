@@ -89,8 +89,8 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  icon: { fontSize: 24, fontWeight: '800' },
+  icon: { fontSize: 24, fontFamily: 'Orbitron-Black' },
   textCol: { flex: 1 },
-  message: { color: '#f8fafc', fontSize: 15, fontWeight: '800' },
-  detail: { color: '#cbd5e1', fontSize: 12, marginTop: 2 },
+  message: { color: '#f8fafc', fontSize: 15, fontFamily: 'Orbitron-Black' },
+  detail: { color: '#cbd5e1', fontSize: 12, marginTop: 2, fontFamily: 'Orbitron' },
 });

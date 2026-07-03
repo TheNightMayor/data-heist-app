@@ -60,14 +60,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderColor: '#1e293b',
   },
-  title: { fontSize: 20, fontWeight: '800', color: '#22d3ee' },
+  title: { fontSize: 20, fontFamily: 'Orbitron-Bold', color: '#22d3ee' },
   newBtn: {
     backgroundColor: '#0e7490',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 6,
   },
-  newBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  newBtnText: { color: '#fff', fontFamily: 'Orbitron-Bold', fontSize: 13 },
   row: {
     backgroundColor: '#0f172a',
     padding: 14,
@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#1e293b',
   },
-  rowName: { fontSize: 15, color: '#f1f5f9', fontWeight: '700' },
-  rowMeta: { fontSize: 11, color: '#64748b', marginTop: 4 },
-  empty: { color: '#475569', fontSize: 14, textAlign: 'center', marginTop: 32 },
+  rowName: { fontSize: 15, color: '#f1f5f9', fontFamily: 'Orbitron-Bold' },
+  rowMeta: { fontSize: 11, color: '#64748b', marginTop: 4, fontFamily: 'Orbitron' },
+  empty: { color: '#475569', fontSize: 14, textAlign: 'center', marginTop: 32, fontFamily: 'Orbitron' },
 });

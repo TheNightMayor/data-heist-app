@@ -100,6 +100,7 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 6,
     fontSize: 14,
+    fontFamily: 'Orbitron',
     marginTop: 4,
   },
   row: { flexDirection: 'row', gap: 8, alignItems: 'center', marginTop: 4 },
@@ -112,15 +113,15 @@ const styles = StyleSheet.create({
     borderColor: '#475569',
   },
   pillActive: { borderColor: '#22d3ee', backgroundColor: '#0e7490' },
-  pillText: { fontSize: 12, color: '#f1f5f9' },
+  pillText: { fontSize: 12, color: '#f1f5f9', fontFamily: 'Orbitron' },
   stepBtn: {
     backgroundColor: '#1e293b',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 6,
   },
-  stepBtnText: { fontSize: 18, color: '#22d3ee', fontWeight: '700' },
-  tierValue: { fontSize: 14, color: '#f1f5f9', fontWeight: '700' },
+  stepBtnText: { fontSize: 18, color: '#22d3ee', fontFamily: 'Orbitron-Bold' },
+  tierValue: { fontSize: 14, color: '#f1f5f9', fontFamily: 'Orbitron-Bold' },
   toggle: {
     padding: 12,
     borderRadius: 6,
@@ -130,7 +131,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   toggleActive: { borderColor: '#22d3ee', backgroundColor: '#0e7490' },
-  toggleText: { color: '#f1f5f9', fontWeight: '700', fontSize: 13 },
+  toggleText: { color: '#f1f5f9', fontFamily: 'Orbitron-Bold', fontSize: 13 },
   deleteBtn: {
     padding: 12,
     borderRadius: 6,
@@ -138,5 +139,5 @@ const styles = StyleSheet.create({
     marginTop: 12,
     marginBottom: 24,
   },
-  deleteBtnText: { color: '#fff', fontWeight: '700', textAlign: 'center' },
+  deleteBtnText: { color: '#fff', fontFamily: 'Orbitron-Bold', textAlign: 'center' },
 });
