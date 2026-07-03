@@ -22,6 +22,7 @@ import { resolve, type Outcome } from '@/lib/resolution';
 import { modifierFor } from '@/lib/game/types';
 import { turnPenalty } from '@/lib/game/turn';
 import type { FlowNode } from '@/lib/flow/types';
+import { ChamferedFrame } from '@/components/ui/ChamferedFrame';
 
 /**
  * Renders a row of action pips for the currently active player.
@@ -109,7 +110,7 @@ function ActionPips({
 const pipStyles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 4, marginTop: 6 },
   dot: { width: 10, height: 10 },
-  dotSquare: { borderRadius: 2 },
+  dotSquare: { borderRadius: 0 },
   dotCircle: { borderRadius: 5 },
 });
 
@@ -130,6 +131,9 @@ function CurrentTargetPanel({
   if (!targetNode) {
     return (
       <View style={panelStyles.empty}>
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <ChamferedFrame width={120} height={42} chamfer={6} stroke="#1e293b" fill="#0f172a" strokeWidth={1} />
+        </View>
         <Text style={panelStyles.emptyText}>select node</Text>
       </View>
     );
@@ -145,7 +149,10 @@ function CurrentTargetPanel({
   const successesRequired = targetNode.resolve?.successesRequired ?? 0;
 
   return (
-    <View style={[panelStyles.panel, { borderColor: cat.border }]}>
+    <View style={[panelStyles.panel]}>
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <ChamferedFrame width={240} height={52} chamfer={8} stroke={cat.border} fill="#0f172a" />
+      </View>
       <View style={[panelStyles.iconBox, { backgroundColor: cat.fill, borderColor: cat.border }]}>
         <Text style={panelStyles.icon}>{cat.icon}</Text>
       </View>
@@ -163,38 +170,32 @@ function CurrentTargetPanel({
 
 const panelStyles = StyleSheet.create({
   empty: {
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    backgroundColor: '#0f172a',
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#1e293b',
-    borderStyle: 'dashed',
+    width: 120,
+    height: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  emptyText: { color: '#475569', fontSize: 11, fontWeight: '700' },
+  emptyText: { color: '#475569', fontSize: 11, fontWeight: '700', fontFamily: 'Orbitron' },
   panel: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    backgroundColor: '#0f172a',
-    borderRadius: 6,
-    borderWidth: 1,
-    maxWidth: 280,
+    width: 240,
+    height: 52,
   },
   iconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 6,
+    width: 32,
+    height: 32,
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  icon: { fontSize: 18 },
-  label: { fontSize: 9, color: '#22d3ee', fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8 },
-  name: { fontSize: 13, color: '#f1f5f9', fontWeight: '700' },
-  meta: { fontSize: 10, color: '#94a3b8', marginTop: 1 },
+  icon: { fontSize: 16 },
+  label: { fontSize: 9, color: '#22d3ee', fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8, fontFamily: 'Orbitron-Black' },
+  name: { fontSize: 13, color: '#f1f5f9', fontWeight: '700', fontFamily: 'Orbitron-Bold' },
+  meta: { fontSize: 10, color: '#94a3b8', marginTop: 1, fontFamily: 'Orbitron' },
 });
 
 export default function GameScreen() {
@@ -746,6 +747,17 @@ export default function GameScreen() {
       <Modal visible={modalOpen} transparent animationType="fade">
         <View style={styles.modalBackdrop}>
           <View style={styles.modal}>
+            <View style={StyleSheet.absoluteFill} pointerEvents="none">
+              <ChamferedFrame 
+                width={320} 
+                height={280} 
+                chamfer={16} 
+                stroke="#475569" 
+                strokeWidth={2} 
+                fill="#1e293b" 
+              />
+            </View>
+            <View style={{ padding: 20, width: 320 }}>
             <Text style={styles.modalTitle}>Resolve Check</Text>
             {pendingRollNode ? (
               <Text style={styles.modalSub}>
@@ -792,6 +804,7 @@ export default function GameScreen() {
             >
               <Text style={styles.modalBtnText}>Cancel</Text>
             </Pressable>
+            </View>
           </View>
         </View>
       </Modal>
@@ -799,11 +812,15 @@ export default function GameScreen() {
       {/* Planning modal — opt-in. Default flow is 1 action / 0 RP (no modal). */}
       <Modal visible={!!(planModalOpen && activePlayer?.class === 'lead')} transparent animationType="fade">
         <View style={styles.modalBackdrop}>
-          <View style={styles.modal}>
-            <Text style={styles.modalTitle}>Plan Your Turn</Text>
-            <Text style={styles.modalSub}>
-              {activePlayer?.name}, opt in to more major actions and resolve points.
-            </Text>
+          <View style={[styles.modal, { width: 340 }]}>
+            <View style={StyleSheet.absoluteFill} pointerEvents="none">
+              <ChamferedFrame width={340} height={460} chamfer={16} stroke="#22d3ee" fill="#0f172a" />
+            </View>
+            <View style={{ padding: 20, gap: 10 }}>
+              <Text style={styles.modalTitle}>Plan Your Turn</Text>
+              <Text style={styles.modalSub}>
+                {activePlayer?.name}, opt in to more major actions and resolve points.
+              </Text>
 
             {/* Actions stepper */}
             <View style={styles.stepperRow}>
@@ -886,6 +903,7 @@ export default function GameScreen() {
             >
               <Text style={styles.modalBtnText}>Cancel</Text>
             </Pressable>
+            </View>
           </View>
         </View>
       </Modal>
@@ -893,9 +911,13 @@ export default function GameScreen() {
       {/* Support action prompt */}
       <Modal visible={supportUpgradePromptOpen} transparent animationType="fade">
         <View style={styles.modalBackdrop}>
-          <View style={styles.modal}>
-            <Text style={styles.modalTitle}>Support Action</Text>
-            <Text style={styles.modalSub}>{activePlayer?.name}, choose a Lead to aid:</Text>
+          <View style={[styles.modal, { width: 340 }]}>
+            <View style={StyleSheet.absoluteFill} pointerEvents="none">
+              <ChamferedFrame width={340} height={420} chamfer={16} stroke="#22d3ee" fill="#0f172a" />
+            </View>
+            <View style={{ padding: 20, gap: 10 }}>
+              <Text style={styles.modalTitle}>Support Action</Text>
+              <Text style={styles.modalSub}>{activePlayer?.name}, choose a Lead to aid:</Text>
             <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginVertical: 10 }}>
               {state.players
                 .filter((p) => p.class === 'lead' && p.id !== activePlayerId)
@@ -948,6 +970,7 @@ export default function GameScreen() {
             >
               <Text style={styles.modalBtnText}>Pass turn</Text>
             </Pressable>
+            </View>
           </View>
         </View>
       </Modal>
@@ -967,16 +990,27 @@ export default function GameScreen() {
       {/* Win/Lose modal */}
       <Modal visible={!!state.finished} transparent animationType="fade">
         <View style={styles.modalBackdrop}>
-          <View style={styles.modal}>
-            <Text style={styles.modalTitle}>
-              {state.result === 'win' ? '🎉 Heist Successful!' : '💀 Heist Failed'}
-            </Text>
-            <Text style={styles.modalSub}>
-              {state.result === 'win' ? 'You reached root access.' : 'All personas ejected.'}
-            </Text>
-            <Pressable style={[styles.modalBtn, styles.modalBtnPrimary]} onPress={handleNewGame}>
-              <Text style={styles.modalBtnText}>Back to Home</Text>
-            </Pressable>
+          <View style={[styles.modal, { width: 340 }]}>
+            <View style={StyleSheet.absoluteFill} pointerEvents="none">
+              <ChamferedFrame 
+                width={340} 
+                height={240} 
+                chamfer={16} 
+                stroke={state.result === 'win' ? '#22d3ee' : '#f87171'} 
+                fill="#0f172a" 
+              />
+            </View>
+            <View style={{ padding: 20, gap: 10 }}>
+              <Text style={styles.modalTitle}>
+                {state.result === 'win' ? '🎉 Heist Successful!' : '💀 Heist Failed'}
+              </Text>
+              <Text style={styles.modalSub}>
+                {state.result === 'win' ? 'You reached root access.' : 'All personas ejected.'}
+              </Text>
+              <Pressable style={[styles.modalBtn, styles.modalBtnPrimary]} onPress={handleNewGame}>
+                <Text style={styles.modalBtnText}>Back to Home</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1018,7 +1052,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#1e293b',
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 6,
     borderWidth: 1,
     borderColor: '#334155',
     alignItems: 'center',
@@ -1057,7 +1090,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#1e293b',
-    borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderWidth: 1,
@@ -1103,7 +1135,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     backgroundColor: '#1e293b',
-    borderRadius: 6,
     alignItems: 'center',
   },
   statLabel: { fontSize: 9, color: '#64748b', fontWeight: '700' },
@@ -1112,20 +1143,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     backgroundColor: '#7f1d1d',
-    borderRadius: 6,
   },
   endBtnText: { color: '#fff', fontWeight: '700', fontSize: 12 },
   planBtn: {
     paddingHorizontal: 12,
     paddingVertical: 8,
     backgroundColor: '#0e7490',
-    borderRadius: 6,
   },
   rollBtn: {
     paddingHorizontal: 12,
     paddingVertical: 8,
     backgroundColor: '#22c55e',
-    borderRadius: 6,
   },
   rollBtnDisabled: {
     opacity: 0.5,
@@ -1144,7 +1172,6 @@ const styles = StyleSheet.create({
     maxHeight: '60%',
     paddingVertical: 0,
     backgroundColor: '#0f172a',
-    borderRadius: 6,
     borderWidth: 2,
     borderColor: '#054357',
   },
@@ -1160,7 +1187,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     backgroundColor: '#1e293b',
-    borderRadius: 8,
     borderWidth: 2,
     borderColor: 'transparent',
     minWidth: 140,
@@ -1178,13 +1204,9 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   modal: {
-    backgroundColor: '#0f172a',
-    padding: 20,
-    borderRadius: 12,
-    width: '100%',
-    maxWidth: 360,
-    borderWidth: 1,
-    borderColor: '#22d3ee',
+    backgroundColor: 'transparent',
+    padding: 0,
+    width: 320,
     gap: 10,
   },
   modalTitle: { fontSize: 18, color: '#22d3ee', fontWeight: '800', textAlign: 'center' },
@@ -1193,7 +1215,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(34, 211, 238, 0.15)',
     borderWidth: 1,
     borderColor: '#22d3ee',
-    borderRadius: 8,
     padding: 10,
     marginBottom: 10,
     marginTop: 8,
@@ -1207,42 +1228,39 @@ const styles = StyleSheet.create({
   },
   modalBtn: {
     padding: 12,
-    borderRadius: 8,
     alignItems: 'center',
   },
   modalBtnPrimary: { backgroundColor: '#0e7490' },
   modalBtnSecondary: { backgroundColor: '#1e293b' },
   modalBtnCancel: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#475569' },
   modalBtnDisabled: { opacity: 0.4 },
-  modalBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  modalBtnText: { color: '#fff', fontWeight: '700', fontSize: 14, fontFamily: 'Orbitron-Bold' },
   stepperRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 6,
   },
-  stepperLabel: { color: '#cbd5e1', fontSize: 14, fontWeight: '700' },
+  stepperLabel: { color: '#cbd5e1', fontSize: 14, fontWeight: '700', fontFamily: 'Orbitron' },
   stepperCtl: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     backgroundColor: '#1e293b',
-    borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
   stepperBtn: {
     width: 32,
     height: 32,
-    borderRadius: 6,
     backgroundColor: '#0e7490',
     alignItems: 'center',
     justifyContent: 'center',
   },
   stepperBtnDisabled: { backgroundColor: '#334155', opacity: 0.5 },
   stepperBtnText: { color: '#fff', fontSize: 18, fontWeight: '800' },
-  stepperValue: { color: '#22d3ee', fontSize: 18, fontWeight: '800', minWidth: 28, textAlign: 'center' },
-  helperText: { color: '#64748b', fontSize: 11, fontStyle: 'italic' },
+  stepperValue: { color: '#22d3ee', fontSize: 18, fontWeight: '800', minWidth: 28, textAlign: 'center', fontFamily: 'Orbitron-Black' },
+  helperText: { color: '#64748b', fontSize: 11, fontStyle: 'italic', fontFamily: 'Orbitron' },
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1250,7 +1268,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#1e293b',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 6,
   },
   summaryLabel: { color: '#94a3b8', fontSize: 12 },
   summaryValue: { color: '#fbbf24', fontSize: 16, fontWeight: '800' },

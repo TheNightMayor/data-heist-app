@@ -4,6 +4,7 @@
 
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView } from 'react-native';
 import type { FlowNode, NodeCategory } from '@/lib/flow/types';
+import { ChamferedFrame } from '../ui/ChamferedFrame';
 
 interface Props {
   node: FlowNode | null;
@@ -16,6 +17,9 @@ export function NodeEditor({ node, onUpdate, onDelete, onClose }: Props) {
   if (!node) return null;
   return (
     <View style={styles.editor}>
+       <View style={StyleSheet.absoluteFill} pointerEvents="none" style={{ top: -1 }}>
+          <ChamferedFrame width={1200} height={300} chamfer={20} stroke="#22d3ee" fill="#0f172a" strokeWidth={2} />
+       </View>
       <View style={styles.header}>
         <Text style={styles.title}>Edit Node</Text>
         <Pressable onPress={onClose}>
@@ -82,23 +86,21 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#0f172a',
-    borderTopWidth: 1,
-    borderColor: '#22d3ee',
     paddingTop: 12,
     paddingHorizontal: 16,
     maxHeight: 280,
   },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { fontSize: 16, fontWeight: '700', color: '#22d3ee' },
+  title: { fontSize: 16, fontWeight: '700', color: '#22d3ee', fontFamily: 'Orbitron-Bold' },
   close: { fontSize: 22, color: '#94a3b8', padding: 4 },
   body: { marginTop: 8 },
-  label: { fontSize: 11, color: '#64748b', fontWeight: '700', textTransform: 'uppercase', marginTop: 8, letterSpacing: 1 },
+  label: { fontSize: 11, color: '#64748b', fontWeight: '700', textTransform: 'uppercase', marginTop: 8, letterSpacing: 1, fontFamily: 'Orbitron' },
   input: {
     backgroundColor: '#1e293b',
     color: '#f1f5f9',
     padding: 10,
-    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#334155',
     fontSize: 14,
     fontFamily: 'Orbitron',
     marginTop: 4,
@@ -107,7 +109,6 @@ const styles = StyleSheet.create({
   pill: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 6,
     backgroundColor: '#1e293b',
     borderWidth: 1,
     borderColor: '#475569',
@@ -118,13 +119,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#1e293b',
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#334155',
   },
   stepBtnText: { fontSize: 18, color: '#22d3ee', fontFamily: 'Orbitron-Bold' },
   tierValue: { fontSize: 14, color: '#f1f5f9', fontFamily: 'Orbitron-Bold' },
   toggle: {
     padding: 12,
-    borderRadius: 6,
     backgroundColor: '#1e293b',
     borderWidth: 1,
     borderColor: '#475569',
@@ -134,7 +135,6 @@ const styles = StyleSheet.create({
   toggleText: { color: '#f1f5f9', fontFamily: 'Orbitron-Bold', fontSize: 13 },
   deleteBtn: {
     padding: 12,
-    borderRadius: 6,
     backgroundColor: '#7f1d1d',
     marginTop: 12,
     marginBottom: 24,

@@ -1,13 +1,18 @@
-import { useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { useMapStore } from '@/stores/mapStore';
 import { SAMPLE_MAPS } from '../sample-maps';
 import { saveAllMaps } from '@/lib/flow/persistence';
+import { ChamferedFrame } from '@/components/ui/ChamferedFrame';
 
 export default function HomeScreen() {
   const { allMaps, refreshAll, loading } = useMapStore();
   const router = useRouter();
+  const { width: windowWidth } = useWindowDimensions();
+  const cardWidth = Math.min(windowWidth - 48, 592);
+
+  const [cardHeights, setCardHeights] = useState<Record<string, number>>({});
 
   useEffect(() => {
     (async () => {
@@ -42,7 +47,22 @@ export default function HomeScreen() {
 
       <View style={styles.buttonRow}>
         <Link href="/build" asChild>
-          <Pressable style={StyleSheet.flatten([styles.bigButton, styles.buildButton])}>
+          <Pressable 
+            style={StyleSheet.flatten([styles.bigButton, { width: cardWidth }])}
+            onLayout={(e) => setCardHeights(prev => ({ ...prev, 'build': e.nativeEvent.layout.height }))}
+          >
+            <View style={StyleSheet.absoluteFill} pointerEvents="none">
+              {cardHeights['build'] && (
+                <ChamferedFrame 
+                  width={cardWidth} 
+                  height={cardHeights['build']} 
+                  chamfer={16} 
+                  stroke="#22d3ee" 
+                  strokeWidth={2}
+                  fill="#0e7490" 
+                />
+              )}
+            </View>
             <Text style={styles.bigButtonText}>🛠 Build Map</Text>
             <Text style={styles.bigButtonSub}>Design a new network</Text>
           </Pressable>
@@ -53,9 +73,22 @@ export default function HomeScreen() {
       {SAMPLE_MAPS.map((m) => (
         <Pressable
           key={m.id}
-          style={styles.mapCard}
+          style={[styles.mapCard, { width: cardWidth }]}
           onPress={() => handlePlaySample(m.id)}
+          onLayout={(e) => setCardHeights(prev => ({ ...prev, [m.id]: e.nativeEvent.layout.height }))}
         >
+          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            {cardHeights[m.id] && (
+              <ChamferedFrame 
+                width={cardWidth} 
+                height={cardHeights[m.id]} 
+                chamfer={16} 
+                stroke="#1e293b" 
+                strokeWidth={2}
+                fill="#0f172a" 
+              />
+            )}
+          </View>
           <Text style={styles.mapName}>{m.name}</Text>
           <Text style={styles.mapDesc}>{m.description}</Text>
           <Text style={styles.mapMeta}>
@@ -72,17 +105,40 @@ export default function HomeScreen() {
             .map((m) => (
               <Pressable
                 key={m.id}
-                style={styles.mapCard}
+                style={[styles.mapCard, { width: cardWidth }]}
                 onPress={() => handlePlaySample(m.id)}
+                onLayout={(e) => setCardHeights(prev => ({ ...prev, [m.id]: e.nativeEvent.layout.height }))}
               >
+                <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                  {cardHeights[m.id] && (
+                    <ChamferedFrame 
+                      width={cardWidth} 
+                      height={cardHeights[m.id]} 
+                      chamfer={16} 
+                      stroke="#1e293b" 
+                      strokeWidth={2}
+                      fill="#0f172a" 
+                    />
+                  )}
+                </View>
                 <Text style={styles.mapName}>{m.name}</Text>
                 <Pressable
                   style={styles.editBtn}
+                  onLayout={(e) => setCardHeights(prev => ({ ...prev, [m.id + '_edit']: e.nativeEvent.layout.height }))}
                   onPress={(e) => {
                     e.stopPropagation?.();
                     router.push(`/build/${m.id}`);
                   }}
                 >
+                  <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                    <ChamferedFrame 
+                      width={60} 
+                      height={24} 
+                      chamfer={4} 
+                      stroke="#22d3ee" 
+                      fill="#1e293b" 
+                    />
+                  </View>
                   <Text style={styles.editBtnText}>Edit</Text>
                 </Pressable>
               </Pressable>
@@ -110,13 +166,10 @@ const styles = StyleSheet.create({
   buttonRow: { marginVertical: 8 },
   bigButton: {
     padding: 24,
-    borderRadius: 16,
     alignItems: 'center',
-    borderWidth: 1,
   },
   buildButton: {
-    backgroundColor: '#0e7490',
-    borderColor: '#22d3ee',
+    // Removed old background values as ChamferedFrame handles them
   },
   bigButtonText: { fontSize: 20, fontFamily: 'Orbitron-Bold', color: '#fff' },
   bigButtonSub: { fontSize: 12, fontFamily: 'Orbitron', color: '#cffafe', marginTop: 4 },
@@ -130,11 +183,8 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   mapCard: {
-    backgroundColor: '#0f172a',
     padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#1e293b',
+    marginBottom: 8,
   },
   mapName: { fontSize: 16, fontFamily: 'Orbitron-Bold', color: '#f1f5f9' },
   mapDesc: { fontSize: 12, fontFamily: 'Orbitron', color: '#94a3b8', marginTop: 4 },
@@ -143,10 +193,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 12,
     top: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-    backgroundColor: '#1e293b',
+    width: 60,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  editBtnText: { fontSize: 11, color: '#22d3ee', fontWeight: '700' },
+  editBtnText: { fontSize: 11, color: '#22d3ee', fontFamily: 'Orbitron-Bold' },
 });

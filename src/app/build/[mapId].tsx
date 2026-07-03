@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, TextInput, ScrollView } from 'react-native';
+import { View, Text, Pressable, StyleSheet, TextInput, ScrollView, useWindowDimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMapStore } from '@/stores/mapStore';
 import { FlowCanvas } from '@/components/flow/flowCanvas/FlowCanvas';
@@ -7,10 +7,12 @@ import { FlowNodeView } from '@/components/flow/FlowNode';
 import { NodePalette } from '@/components/flow/NodePalette';
 import { NodeEditor } from '@/components/flow/NodeEditor';
 import type { NodeCategory, FlowNode } from '@/lib/flow/types';
+import { ChamferedFrame } from '@/components/ui/ChamferedFrame';
 
 export default function BuildMapScreen() {
   const { mapId } = useLocalSearchParams<{ mapId: string }>();
   const router = useRouter();
+  const { width: windowWidth } = useWindowDimensions();
   const {
     current,
     loadMapById,
@@ -48,16 +50,26 @@ export default function BuildMapScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.topbar}>
-        <TextInput
-          style={styles.nameInput}
-          value={current.name}
-          onChangeText={setName}
-          placeholder="Map name"
-          placeholderTextColor="#475569"
-        />
-        <Pressable style={styles.saveBtn} onPress={() => saveCurrent()}>
-          <Text style={styles.saveBtnText}>{dirty ? 'Save *' : 'Saved'}</Text>
-        </Pressable>
+        <View style={{ flex: 1, height: 36 }}>
+          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <ChamferedFrame width={windowWidth - 110} height={36} chamfer={6} stroke="#1e293b" fill="#0f172a" />
+          </View>
+          <TextInput
+            style={styles.nameInput}
+            value={current.name}
+            onChangeText={setName}
+            placeholder="Map name"
+            placeholderTextColor="#475569"
+          />
+        </View>
+        <View style={{ width: 80, height: 36 }}>
+          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <ChamferedFrame width={80} height={36} chamfer={6} stroke="#22d3ee" fill="#0e7490" />
+          </View>
+          <Pressable style={styles.saveBtn} onPress={() => saveCurrent()}>
+            <Text style={styles.saveBtnText}>{dirty ? 'Save *' : 'Saved'}</Text>
+          </Pressable>
+        </View>
       </View>
 
       {/* Canvas — using a simple tap-anywhere approach */}
@@ -94,6 +106,9 @@ export default function BuildMapScreen() {
         />
         {connectFromId && (
           <View style={styles.connectBanner}>
+            <View style={StyleSheet.absoluteFill} pointerEvents="none">
+              <ChamferedFrame width={windowWidth - 16} height={44} chamfer={8} stroke="#22d3ee" fill="rgba(15,23,42,0.95)" />
+            </View>
             <Text style={styles.connectBannerText}>
               Tap a node to connect from "{current.nodes.find((n) => n.id === connectFromId)?.name}"
             </Text>
@@ -108,12 +123,22 @@ export default function BuildMapScreen() {
 
       {selectedNode && (
         <View style={styles.bottomBar}>
-          <Pressable style={styles.actionBtn} onPress={() => setConnectFromId(selectedNode.id)}>
-            <Text style={styles.actionBtnText}>🔗 Connect</Text>
-          </Pressable>
-          <Pressable style={styles.actionBtn} onPress={() => setSelectedNode(null)}>
-            <Text style={styles.actionBtnText}>Done</Text>
-          </Pressable>
+          <View style={{ flex: 1, height: 40 }}>
+            <View style={StyleSheet.absoluteFill} pointerEvents="none">
+              <ChamferedFrame width={(windowWidth - 32) / 2} height={40} chamfer={8} stroke="#334155" fill="#1e293b" />
+            </View>
+            <Pressable style={styles.actionBtn} onPress={() => setConnectFromId(selectedNode.id)}>
+              <Text style={styles.actionBtnText}>🔗 Connect</Text>
+            </Pressable>
+          </View>
+          <View style={{ flex: 1, height: 40 }}>
+            <View style={StyleSheet.absoluteFill} pointerEvents="none">
+              <ChamferedFrame width={(windowWidth - 32) / 2} height={40} chamfer={8} stroke="#334155" fill="#1e293b" />
+            </View>
+            <Pressable style={styles.actionBtn} onPress={() => setSelectedNode(null)}>
+              <Text style={styles.actionBtnText}>Done</Text>
+            </Pressable>
+          </View>
         </View>
       )}
 
@@ -145,41 +170,34 @@ const styles = StyleSheet.create({
     borderColor: '#1e293b',
   },
   nameInput: {
-    flex: 1,
-    backgroundColor: '#0f172a',
-    color: '#f1f5f9',
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
+    height: 36,
+    color: '#f1f5f9',
     fontSize: 15,
-    fontWeight: '700',
+    fontFamily: 'Orbitron-Bold',
   },
   saveBtn: {
-    backgroundColor: '#0e7490',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 6,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  saveBtnText: { color: '#fff', fontFamily: 'Orbitron-Bold', fontSize: 13 },
   canvasContainer: { flex: 1, position: 'relative' },
   loading: { flex: 1, backgroundColor: '#020617', alignItems: 'center', justifyContent: 'center' },
-  loadingText: { color: '#94a3b8', fontSize: 16 },
+  loadingText: { color: '#94a3b8', fontSize: 16, fontFamily: 'Orbitron' },
   connectBanner: {
     position: 'absolute',
     top: 8,
     left: 8,
     right: 8,
-    backgroundColor: 'rgba(15,23,42,0.95)',
-    padding: 12,
-    borderRadius: 8,
+    height: 44,
+    paddingHorizontal: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#22d3ee',
   },
-  connectBannerText: { color: '#f1f5f9', fontSize: 12, flex: 1 },
-  connectCancel: { color: '#f87171', fontWeight: '700', fontSize: 12 },
+  connectBannerText: { color: '#f1f5f9', fontSize: 12, flex: 1, fontFamily: 'Orbitron' },
+  connectCancel: { color: '#f87171', fontFamily: 'Orbitron-Bold', fontSize: 12 },
   bottomBar: {
     flexDirection: 'row',
     padding: 12,
@@ -190,10 +208,9 @@ const styles = StyleSheet.create({
   },
   actionBtn: {
     flex: 1,
-    backgroundColor: '#1e293b',
-    padding: 10,
-    borderRadius: 6,
+    height: 40,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  actionBtnText: { color: '#f1f5f9', fontWeight: '700', fontSize: 13 },
+  actionBtnText: { color: '#f1f5f9', fontFamily: 'Orbitron-Bold', fontSize: 13 },
 });

@@ -5,6 +5,7 @@
 
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import type { NodeCategory } from '@/lib/flow/types';
+import { ChamferedFrame } from '../ui/ChamferedFrame';
 
 interface Props {
   onPick: (category: NodeCategory) => void;
@@ -19,6 +20,9 @@ export function NodePalette({ onPick, active }: Props) {
   ];
   return (
     <View style={styles.palette}>
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <ChamferedFrame width={110} height={145} chamfer={8} stroke="#1e293b" fill="rgba(15,23,42,0.95)" />
+      </View>
       <Text style={styles.title}>Add Node</Text>
       {items.map((it) => (
         <Pressable
@@ -42,12 +46,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 12,
     left: 12,
-    backgroundColor: 'rgba(15,23,42,0.95)',
+    width: 110,
+    height: 145,
     padding: 8,
-    borderRadius: 8,
     gap: 6,
-    borderWidth: 1,
-    borderColor: '#1e293b',
   },
   title: { fontSize: 11, color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1 },
   item: {
@@ -56,8 +58,8 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 6,
     paddingHorizontal: 10,
-    borderRadius: 6,
     borderWidth: 2,
+    borderRadius: 0,
   },
   icon: { fontSize: 16 },
   label: { fontSize: 12, color: '#f1f5f9', fontWeight: '700' },

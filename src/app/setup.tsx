@@ -5,13 +5,14 @@
 
 import { useEffect, useState } from 'react';
 import {
-  View, Text, Pressable, StyleSheet, TextInput, ScrollView, Switch,
+  View, Text, Pressable, StyleSheet, TextInput, ScrollView, Switch, useWindowDimensions,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { nanoid } from 'nanoid';
 import { loadMap } from '@/lib/flow/persistence';
 import type { FlowMap } from '@/lib/flow/types';
 import { useGameStore } from '@/stores/gameStore';
+import { ChamferedFrame } from '@/components/ui/ChamferedFrame';
 
 interface DraftPlayer {
   id: string;
@@ -29,6 +30,7 @@ export default function SetupScreen() {
   const startGame = useGameStore((s) => s.startGame);
 
   const [map, setMap] = useState<FlowMap | null>(null);
+  const [cardHeights, setCardHeights] = useState<Record<string, number>>({});
   const [players, setPlayers] = useState<DraftPlayer[]>(() => {
     const leadId = nanoid(6);
     const supportId = nanoid(6);
@@ -133,6 +135,9 @@ export default function SetupScreen() {
     router.push(`/game/${map.id}`);
   };
 
+  const { width: windowWidth } = useWindowDimensions();
+  const cardWidth = Math.min(windowWidth - 32, 560);
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
       <View style={styles.contentWrapper}>
@@ -140,7 +145,26 @@ export default function SetupScreen() {
       {map && <Text style={styles.mapLabel}>Map: {map.name}</Text>}
 
       {players.map((p, i) => (
-        <View key={p.id} style={styles.card}>
+        <View 
+          key={p.id} 
+          style={[styles.card, { width: cardWidth }]}
+          onLayout={(e) => {
+            const h = e.nativeEvent.layout.height;
+            setCardHeights(prev => ({ ...prev, [p.id]: h }));
+          }}
+        >
+          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+             {cardHeights[p.id] && (
+               <ChamferedFrame 
+                 width={cardWidth} 
+                 height={cardHeights[p.id]} 
+                 chamfer={16}
+                 stroke="#334155"
+                 strokeWidth={2}
+                 fill="#1e293b"
+               />
+             )}
+          </View>
           <View style={styles.cardHeader}>
             <Text style={styles.cardTitle}>Player {i + 1}</Text>
             {players.length > 1 && (
@@ -241,18 +265,39 @@ export default function SetupScreen() {
       ))}
 
       {players.length < 4 && (
-        <Pressable style={styles.addBtn} onPress={addPlayer}>
-          <Text style={styles.addBtnText}>+ Add Player</Text>
-        </Pressable>
+        <View>
+          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <ChamferedFrame width={cardWidth} height={50} chamfer={8} stroke="#475569" fill="#1e293b" />
+          </View>
+          <Pressable style={[styles.addBtn, { height: 50 }]} onPress={addPlayer}>
+            <Text style={styles.addBtnText}>+ Add Player</Text>
+          </Pressable>
+        </View>
       )}
 
       {leads.length === 0 && (
         <Text style={{ color: '#f87171', fontFamily: 'Orbitron-Bold', textAlign: 'center', marginTop: 8 }}>At least one Lead is required to start</Text>
       )}
-      <Pressable style={[styles.startBtn, (!map || leads.length === 0) && styles.startBtnDisabled]} onPress={handleStart} disabled={!map || leads.length === 0}>
-        <Text style={styles.startBtnText}>Start Game</Text>
-      </Pressable>
+
+      <View style={{ marginTop: 8, marginBottom: 24 }}>
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <ChamferedFrame 
+            width={cardWidth} 
+            height={60} 
+            chamfer={10} 
+            stroke="#22d3ee" 
+            fill={(!map || leads.length === 0) ? "#1e293b" : "#0e7490"} 
+          />
+        </View>
+        <Pressable 
+          style={[styles.startBtn, { height: 60 }, (!map || leads.length === 0) && styles.startBtnDisabled]} 
+          onPress={handleStart} 
+          disabled={!map || leads.length === 0}
+        >
+          <Text style={styles.startBtnText}>Start Game</Text>
+        </Pressable>
       </View>
+    </View>
     </ScrollView>
   );
 }
@@ -269,11 +314,8 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontFamily: 'Orbitron-Bold', color: '#22d3ee' },
   mapLabel: { fontSize: 13, fontFamily: 'Orbitron', color: '#94a3b8', marginBottom: 8 },
   card: {
-    backgroundColor: '#0f172a',
-    padding: 14,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#1e293b',
+    padding: 20,
+    backgroundColor: 'transparent',
     gap: 8,
   },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -284,7 +326,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#1e293b',
     color: '#f1f5f9',
     padding: 10,
-    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#334155',
     fontSize: 14,
     fontFamily: 'Orbitron',
   },
@@ -295,7 +338,6 @@ const styles = StyleSheet.create({
   pill: {
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 6,
     backgroundColor: '#1e293b',
     borderWidth: 1,
     borderColor: '#475569',
@@ -306,25 +348,24 @@ const styles = StyleSheet.create({
     backgroundColor: '#1e293b',
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#334155',
   },
   stepBtnText: { fontSize: 16, color: '#22d3ee', fontFamily: 'Orbitron-Bold' },
   value: { color: '#f1f5f9', fontSize: 14, fontFamily: 'Orbitron-Bold', minWidth: 24, textAlign: 'center' },
   hint: { fontSize: 11, color: '#475569', marginTop: 4, fontFamily: 'Orbitron' },
   addBtn: {
-    padding: 12,
-    backgroundColor: '#1e293b',
-    borderRadius: 8,
+    height: 44,
+    borderRadius: 0,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   addBtnText: { color: '#22d3ee', fontFamily: 'Orbitron-Bold', fontSize: 13 },
   startBtn: {
-    padding: 16,
-    backgroundColor: '#0e7490',
-    borderRadius: 8,
+    height: 54,
+    borderRadius: 0,
     alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 24,
+    justifyContent: 'center',
   },
   startBtnText: { color: '#fff', fontFamily: 'Orbitron-Bold', fontSize: 16 },
 });

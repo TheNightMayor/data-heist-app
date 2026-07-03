@@ -23,6 +23,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Dimensions, View, StyleSheet, Pressable, useWindowDimensions } from 'react-native';
 import Svg, { Defs, Pattern, Line, Rect, G, Path, Circle } from 'react-native-svg';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
+import { ChamferedFrame } from '../../ui/ChamferedFrame';
+
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -48,7 +50,7 @@ const AnimatedPath = Animated.createAnimatedComponent(Path);
 
 function PulsingGlow({ d, pulse }: { d: string; pulse: Animated.SharedValue<number> }) {
   const animatedProps = useAnimatedProps(() => ({
-    strokeOpacity: pulse.value,
+    strokeOpacity: pulse.value * 0.4,
   }));
   return (
     <AnimatedPath
@@ -150,6 +152,7 @@ export function FlowCanvas({
   // Live measurements of the visible canvas area (the bezel).
   // Initialized from window dims; refined via onLayout as soon as the wrapper mounts.
   const [viewRect, setViewRect] = useState({ x: 0, y: 0, width: 0, height: 0 });
+  const [canvasRect, setCanvasRect] = useState({ width: 0, height: 0 });
   const [isReady, setIsReady] = useState(false);
 
   const startTx = useSharedValue(0);
@@ -313,22 +316,53 @@ export function FlowCanvas({
       <View
         style={[
           styles.monitorFrame,
-          isSmallScreen ? { marginHorizontal: 8, borderWidth: 4, borderRadius: 12 } : null
+          isSmallScreen ? { marginHorizontal: 8 } : null
         ]}
         onLayout={(e) => {
           const { x, y, width, height } = e.nativeEvent.layout;
           if (width > 0 && height > 0) setViewRect({ x, y, width, height });
         }}
       >
+        {/* Chamfered Bezel Background */}
+        {viewRect.width > 0 && (
+          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+            <ChamferedFrame
+              width={viewRect.width}
+              height={viewRect.height}
+              chamfer={isSmallScreen ? 12 : 24}
+              stroke="#111827"
+              strokeWidth={isSmallScreen ? 10 : 20}
+              fill="rgba(2, 6, 23, 0.96)"
+            />
+          </View>
+        )}
         {/* Top sheen + bottom shadow strips add depth to the bezel. */}
-        <View style={[styles.monitorHighlight, isSmallScreen ? { borderTopLeftRadius: 8, borderTopRightRadius: 8 } : null]} />
-        <View style={[styles.monitorBase, isSmallScreen ? { borderBottomLeftRadius: 8, borderBottomRightRadius: 8, height: 8 } : null]} />
+        <View style={[styles.monitorHighlight]} />
+        <View style={[styles.monitorBase]} />
         {/* Soft top + bottom radial glows (SVG-based true radial gradients). */}
         <MonitorGlow width={CANVAS_WIDTH} height={CANVAS_HEIGHT} />
-        <View style={[
-          styles.canvasContainer,
-          isSmallScreen ? { margin: 6, borderWidth: 2, borderRadius: 8 } : null
-        ]}>
+        <View
+          onLayout={(e) => {
+            const { width, height } = e.nativeEvent.layout;
+            if (width > 0 && height > 0) setCanvasRect({ width, height });
+          }}
+          style={[
+            styles.canvasContainer,
+            isSmallScreen ? { margin: 6 } : null
+          ]}>
+          {/* Inner Chamfered Frame */}
+          {canvasRect.width > 0 && (
+            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+              <ChamferedFrame
+                width={canvasRect.width}
+                height={canvasRect.height}
+                chamfer={isSmallScreen ? 8 : 12}
+                stroke="#475569"
+                strokeWidth={isSmallScreen ? 4 : 8}
+                fill="rgba(2, 6, 23, 0.9)"
+              />
+            </View>
+          )}
           <GestureDetector gesture={composed}>
             <Animated.View style={[styles.canvas, animatedStyle]}>
               <Pressable 
@@ -341,25 +375,15 @@ export function FlowCanvas({
                 viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`}
               >
                 <Defs>
-                  {/* Flat-topped hexagonal grid pattern */}
+                  {/* Square grid pattern */}
                   <Pattern 
                     id="grid" 
-                    width={GRID_SIZE * 3} 
-                    height={GRID_SIZE * Math.sqrt(3)} 
+                    width={GRID_SIZE} 
+                    height={GRID_SIZE} 
                     patternUnits="userSpaceOnUse"
                   >
                     <Path
-                      d={`
-                        M ${GRID_SIZE * 0.5} 0 
-                        L 0 ${GRID_SIZE * Math.sqrt(3) * 0.5}
-                        L ${GRID_SIZE * 0.5} ${GRID_SIZE * Math.sqrt(3)}
-                        H ${GRID_SIZE * 1.5}
-                        L ${GRID_SIZE * 2} ${GRID_SIZE * Math.sqrt(3) * 0.5}
-                        L ${GRID_SIZE * 1.5} 0
-                        H ${GRID_SIZE * 0.5}
-                        M ${GRID_SIZE * 2} ${GRID_SIZE * Math.sqrt(3) * 0.5}
-                        L ${GRID_SIZE * 3} ${GRID_SIZE * Math.sqrt(3) * 0.5}
-                      `}
+                      d={`M ${GRID_SIZE} 0 L 0 0 0 ${GRID_SIZE}`}
                       fill="none"
                       stroke="#1e293b"
                       strokeWidth={1}
@@ -477,10 +501,7 @@ const styles = StyleSheet.create({
   monitorFrame: {
     flex: 1,
     marginHorizontal: '15%',
-    borderRadius: 18,
-    borderWidth: 8,
-    borderColor: '#111827',
-    backgroundColor: 'rgba(2, 6, 23, 0.96)',
+    backgroundColor: 'transparent',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.75,
@@ -496,8 +517,6 @@ const styles = StyleSheet.create({
     right: 0,
     height: 6,
     backgroundColor: 'rgba(148, 163, 184, 0.18)',
-    borderTopLeftRadius: 14,
-    borderTopRightRadius: 14,
     pointerEvents: 'none',
   },
   // Outer bezel base shadow strip — adds depth at the bottom edge.
@@ -508,8 +527,6 @@ const styles = StyleSheet.create({
     right: 0,
     height: 14,
     backgroundColor: 'rgba(0, 0, 0, 0.45)',
-    borderBottomLeftRadius: 14,
-    borderBottomRightRadius: 14,
     pointerEvents: 'none',
   },
   // Inner container holds the canvas; decorative overlays are absolutely
@@ -517,11 +534,8 @@ const styles = StyleSheet.create({
   canvasContainer: {
     flex: 1,
     position: 'relative',
-    borderWidth: 4,
-    borderColor: '#475569',
-    borderRadius: 12,
     margin: 14,
-    backgroundColor: 'rgba(2, 6, 23, 0.9)',
+    backgroundColor: 'transparent',
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },

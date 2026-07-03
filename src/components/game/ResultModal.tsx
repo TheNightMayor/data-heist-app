@@ -12,6 +12,7 @@
 
 import { useEffect, useState } from 'react';
 import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
+import { ChamferedFrame } from '../ui/ChamferedFrame';
 
 export interface RollResultInfo {
   d20: number;
@@ -52,6 +53,7 @@ const KIND_STYLES: Record<RollResultInfo['kind'], { bg: string; border: string; 
 
 export function ResultModal({ visible, result, rolling, playerName, nodeName, onDismiss }: Props) {
   const [spinningD20, setSpinningD20] = useState(1);
+  const [modalSize, setModalSize] = useState({ w: 0, h: 0 });
 
   // Spin animation: cycle 1..20 while rolling.
   useEffect(() => {
@@ -69,7 +71,24 @@ export function ResultModal({ visible, result, rolling, playerName, nodeName, on
   return (
     <Modal visible={visible} transparent animationType="fade">
       <View style={styles.backdrop}>
-        <View style={styles.modal}>
+        <View 
+          style={styles.modal}
+          onLayout={(e) => setModalSize({ 
+            w: e.nativeEvent.layout.width, 
+            h: e.nativeEvent.layout.height 
+          })}
+        >
+          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            {modalSize.h > 0 && (
+              <ChamferedFrame 
+                width={modalSize.w} 
+                height={modalSize.h} 
+                chamfer={20} 
+                stroke="#22d3ee" 
+                fill="#0f172a" 
+              />
+            )}
+          </View>
           <Text style={styles.title}>
             {playerName} rolls at {result?.nodeName ?? nodeName}
           </Text>
@@ -121,9 +140,14 @@ export function ResultModal({ visible, result, rolling, playerName, nodeName, on
           ) : null}
 
           {showResult ? (
-            <Pressable style={styles.continueBtn} onPress={onDismiss}>
-              <Text style={styles.continueBtnText}>Continue</Text>
-            </Pressable>
+            <View style={{ width: '100%', height: 48, marginTop: 8 }}>
+              <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                <ChamferedFrame width={modalSize.w - 48} height={48} chamfer={10} stroke="#22d3ee" fill="#0e7490" />
+              </View>
+              <Pressable style={styles.continueBtn} onPress={onDismiss}>
+                <Text style={styles.continueBtnText}>Continue</Text>
+              </Pressable>
+            </View>
           ) : null}
         </View>
       </View>
@@ -140,18 +164,22 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   modal: {
-    backgroundColor: '#0f172a',
     padding: 24,
-    borderRadius: 14,
     width: '100%',
     maxWidth: 380,
-    borderWidth: 1,
-    borderColor: '#22d3ee',
     gap: 16,
     alignItems: 'center',
   },
   title: { fontSize: 13, color: '#94a3b8', textTransform: 'uppercase', fontWeight: '700', letterSpacing: 1, textAlign: 'center' },
-  rollingBox: { alignItems: 'center', gap: 12, paddingVertical: 24 },
+  rollingBox: { 
+    alignItems: 'center', 
+    gap: 12, 
+    paddingVertical: 24,
+    borderWidth: 1,
+    borderColor: '#334155',
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    width: '100%',
+  },
   dieLabel: { fontSize: 12, color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 2 },
   die: {
     fontSize: 96,
@@ -167,7 +195,6 @@ const styles = StyleSheet.create({
   resultBox: {
     width: '100%',
     padding: 16,
-    borderRadius: 10,
     borderWidth: 2,
   },
   resultRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
@@ -176,12 +203,10 @@ const styles = StyleSheet.create({
   detail: { color: '#cbd5e1', fontSize: 13, marginTop: 4 },
   bold: { fontWeight: '800', color: '#fff' },
   continueBtn: {
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    backgroundColor: '#0e7490',
-    borderRadius: 8,
+    height: 48,
     width: '100%',
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  continueBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
+  continueBtnText: { color: '#fff', fontWeight: '800', fontSize: 15, fontFamily: 'Orbitron-Bold' },
 });

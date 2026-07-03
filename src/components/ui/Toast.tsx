@@ -3,8 +3,9 @@
  * Used for roll outcomes, mode B declarations, and other transient feedback.
  */
 
-import { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { ChamferedFrame } from './ChamferedFrame';
 
 export type ToastKind = 'success' | 'failure' | 'info' | 'critical';
 
@@ -29,6 +30,8 @@ const DEFAULT_DURATION = 4000;
 export function Toast({ message, detail, kind = 'info', duration = DEFAULT_DURATION, visible, onHide }: ToastProps) {
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(-60)).current;
+  const { width: windowWidth } = useWindowDimensions();
+  const [toastHeight, setToastHeight] = useState(0);
 
   useEffect(() => {
     if (!visible) return;
@@ -47,6 +50,7 @@ export function Toast({ message, detail, kind = 'info', duration = DEFAULT_DURAT
 
   if (!visible) return null;
   const style = KIND_STYLES[kind];
+  const toastWidth = Math.min(windowWidth - 48, 480);
 
   return (
     <Animated.View
@@ -55,12 +59,18 @@ export function Toast({ message, detail, kind = 'info', duration = DEFAULT_DURAT
         {
           opacity,
           transform: [{ translateY }],
-          backgroundColor: style.bg,
-          borderColor: style.border,
+          width: toastWidth,
+          left: (windowWidth - toastWidth) / 2,
         },
       ]}
+      onLayout={(e) => setToastHeight(e.nativeEvent.layout.height)}
       onStartShouldSetResponder={() => false}
     >
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        {toastHeight > 0 && (
+          <ChamferedFrame width={toastWidth} height={toastHeight} chamfer={12} stroke={style.border} fill={style.bg} />
+        )}
+      </View>
       <View style={styles.row}>
         <Text style={[styles.icon, { color: style.border }]}>{style.icon}</Text>
         <View style={styles.textCol}>
@@ -76,17 +86,8 @@ const styles = StyleSheet.create({
   container: {
     position: 'absolute',
     top: 80,
-    left: 24,
-    right: 24,
     padding: 12,
-    borderRadius: 10,
-    borderWidth: 2,
     zIndex: 1000,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
-    shadowRadius: 6,
-    elevation: 6,
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   icon: { fontSize: 24, fontFamily: 'Orbitron-Black' },

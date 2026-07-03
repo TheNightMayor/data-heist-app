@@ -3,6 +3,7 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import type { FlowNode } from '@/lib/flow/types';
 import { effectiveDC } from '@/lib/starfinder/tables';
+import { ChamferedFrame } from '../ui/ChamferedFrame';
 
 interface NodeActionPanelProps {
   node: FlowNode;
@@ -66,25 +67,40 @@ export function NodeActionPanel({
     : actionsCommitted;
   const majorDisabled = !isReachable || (playerClass === 'support' && actionsCommitted === 0) || actionsTaken >= effectiveCommitted;
 
+  const PANEL_WIDTH = 260;
+  const PANEL_HEIGHT = isReachable ? 270 : 160;
+
   return (
     <Pressable style={[
       styles.panel,
       {
-        left: node.x + 50 - 100, // horizontal center: node.x + NODE_WIDTH/2 - panelWidth/2
-        top: node.y + 110,      // below node: node.y + NODE_WIDTH + margin
+        width: PANEL_WIDTH,
+        height: PANEL_HEIGHT,
+        left: node.x + 50 - (PANEL_WIDTH / 2), 
+        top: node.y + 110,      
       }
     ]}>
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        <Svg width="100%" height="100%" viewBox="0 0 1 1" preserveAspectRatio="none">
-          <Defs>
-            <RadialGradient id="panelGlow" cx="0.5" cy="0" r="1.2" fx="0.5" fy="0">
-              <Stop offset="0%" stopColor={glowColor} stopOpacity="0.15" />
-              <Stop offset="50%" stopColor={glowColor} stopOpacity="0.05" />
-              <Stop offset="100%" stopColor={glowColor} stopOpacity="0" />
-            </RadialGradient>
-          </Defs>
-          <Rect x="0" y="0" width="1" height="1" fill="url(#panelGlow)" />
-        </Svg>
+        <ChamferedFrame 
+          width={PANEL_WIDTH} 
+          height={PANEL_HEIGHT} 
+          chamfer={16} 
+          stroke="#475569" 
+          strokeWidth={8} 
+          fill="rgba(2, 6, 23, 0.95)" 
+        />
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <Svg width="100%" height="100%" viewBox="0 0 1 1" preserveAspectRatio="none">
+            <Defs>
+              <RadialGradient id="panelGlow" cx="0.5" cy="0" r="1.2" fx="0.5" fy="0">
+                <Stop offset="0%" stopColor={glowColor} stopOpacity="0.15" />
+                <Stop offset="50%" stopColor={glowColor} stopOpacity="0.05" />
+                <Stop offset="100%" stopColor={glowColor} stopOpacity="0" />
+              </RadialGradient>
+            </Defs>
+            <Rect x="0" y="0" width="1" height="1" fill="url(#panelGlow)" />
+          </Svg>
+        </View>
       </View>
 
       {isReachable && <Text style={styles.playerLabel}>{playerName} ({playerClass})</Text>}
@@ -187,17 +203,8 @@ export function NodeActionPanel({
 const styles = StyleSheet.create({
   panel: {
     position: 'absolute',
-    width: 200,
-    backgroundColor: 'rgba(2, 6, 23, 0.95)',
-    borderRadius: 12,
-    borderWidth: 4,
-    borderColor: '#475569',
+    // Width and left handled dynamically in the component
     padding: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
-    elevation: 10,
     zIndex: 100,
   },
   playerLabel: {
@@ -220,7 +227,7 @@ const styles = StyleSheet.create({
   iconBox: {
     width: 32,
     height: 32,
-    borderRadius: 4,
+    borderRadius: 0,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -234,7 +241,7 @@ const styles = StyleSheet.create({
   btn: {
     paddingVertical: 6,
     paddingHorizontal: 10,
-    borderRadius: 4,
+    borderRadius: 0,
     alignItems: 'center',
   },
   btnText: {
@@ -295,7 +302,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(127, 29, 29, 0.2)',
     borderWidth: 1,
     borderColor: '#ef4444',
-    borderRadius: 8,
+    borderRadius: 0,
     padding: 16,
     alignItems: 'center',
     justifyContent: 'center',

@@ -14,7 +14,7 @@
 
 import { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import Svg, { Circle, G, Polygon } from 'react-native-svg';
+import Svg, { Circle, G, Polygon, Path } from 'react-native-svg';
 import Animated, {
   useSharedValue,
   withRepeat,
@@ -24,6 +24,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import type { FlowNode as FlowNodeType } from '@/lib/flow/types';
 import type { NodeStatus } from '@/lib/flow/reachability';
+import { ChamferedFrame } from '../ui/ChamferedFrame';
 
 const AnimatedPolygon = Animated.createAnimatedComponent(Polygon);
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -126,7 +127,11 @@ export function FlowNodeView({ node, mode, status = 'available', progress = 0, a
           {node.hazard && <Text style={styles.hazard}>⚠</Text>}
           {node.isRootAccess && <Text style={styles.root}>★</Text>}
         </View>
-        {(selected || active) && mode === 'game' && <View style={styles.activeRing} />}
+        {(selected || active) && mode === 'game' && (
+          <View style={{ position: 'absolute', top: -4, left: -4 }}>
+            <ChamferedFrame width={108} height={108} openCenter={true} />
+          </View>
+        )}
       </View>
     </View>
   );
@@ -189,14 +194,4 @@ const styles = StyleSheet.create({
   },
   hazard: { position: 'absolute', top: 2, right: 4, fontSize: 10, color: '#fbbf24' },
   root: { position: 'absolute', top: 2, left: 4, fontSize: 10, color: '#fbbf24' },
-  activeRing: {
-    position: 'absolute',
-    top: -4,
-    left: -4,
-    right: -4,
-    bottom: -4,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: '#22d3ee',
-  },
 });
