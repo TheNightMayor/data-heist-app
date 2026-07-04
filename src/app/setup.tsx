@@ -154,7 +154,18 @@ export default function SetupScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
       <View style={styles.contentWrapper}>
-      <Text style={styles.title}>Setup</Text>
+      <View style={styles.headerRow}>
+        <Pressable 
+          style={({ pressed }) => [
+            styles.backBtn,
+            pressed && { opacity: 0.7 }
+          ]} 
+          onPress={() => router.push('/')}
+        >
+          <Text style={styles.backBtnText}>← MAPS</Text>
+        </Pressable>
+        <Text style={styles.title}>Setup</Text>
+      </View>
       {map && <Text style={styles.mapLabel}>Map: {map.name}</Text>}
 
       {players.map((p, i) => (
@@ -333,6 +344,24 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   title: { fontSize: 24, fontFamily: 'Orbitron-Bold', color: '#22d3ee' },
+  headerRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 16,
+    marginBottom: 4,
+  },
+  backBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: '#334155',
+    backgroundColor: '#1e293b',
+  },
+  backBtnText: {
+    color: '#94a3b8',
+    fontFamily: 'Orbitron-Bold',
+    fontSize: 12,
+  },
   mapLabel: { fontSize: 13, fontFamily: 'Orbitron', color: '#94a3b8', marginBottom: 8 },
   card: {
     padding: 20,

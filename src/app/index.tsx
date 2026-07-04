@@ -46,27 +46,27 @@ export default function HomeScreen() {
       <Text style={styles.subtitle}>Pass-and-play hacking with flowcharts</Text>
 
       <View style={styles.buttonRow}>
-        <Link href="/build" asChild>
-          <Pressable 
-            style={StyleSheet.flatten([styles.bigButton, { width: cardWidth }])}
-            onLayout={(e) => setCardHeights(prev => ({ ...prev, 'build': e.nativeEvent.layout.height }))}
-          >
-            <View style={StyleSheet.absoluteFill} pointerEvents="none">
-              {cardHeights['build'] && (
-                <ChamferedFrame 
-                  width={cardWidth} 
-                  height={cardHeights['build']} 
-                  chamfer={16} 
-                  stroke="#22d3ee" 
-                  strokeWidth={2}
-                  fill="#0e7490" 
-                />
-              )}
-            </View>
-            <Text style={styles.bigButtonText}>🛠 Build Map</Text>
-            <Text style={styles.bigButtonSub}>Design a new network</Text>
-          </Pressable>
-        </Link>
+        <View 
+          style={StyleSheet.flatten([styles.bigButton, styles.bigButtonDisabled, { width: cardWidth }])}
+          onLayout={(e) => setCardHeights(prev => ({ ...prev, 'build': e.nativeEvent.layout.height }))}
+          // @ts-ignore - 'title' is valid on web for hover tooltips
+          title="Coming soon!"
+        >
+          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            {cardHeights['build'] && (
+              <ChamferedFrame 
+                width={cardWidth} 
+                height={cardHeights['build']} 
+                chamfer={16} 
+                stroke="#475569" 
+                strokeWidth={2}
+                fill="#1e293b" 
+              />
+            )}
+          </View>
+          <Text style={[styles.bigButtonText, { color: '#64748b' }]}>🛠 Build Map</Text>
+          <Text style={[styles.bigButtonSub, { color: '#475569' }]}>Design a new network</Text>
+        </View>
       </View>
 
       <Text style={styles.sectionHeader}>Sample Maps</Text>
@@ -167,6 +167,9 @@ const styles = StyleSheet.create({
   bigButton: {
     padding: 24,
     alignItems: 'center',
+  },
+  bigButtonDisabled: {
+    opacity: 0.8,
   },
   buildButton: {
     // Removed old background values as ChamferedFrame handles them
