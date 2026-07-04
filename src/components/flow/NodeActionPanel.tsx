@@ -26,6 +26,7 @@ interface NodeActionPanelProps {
   otherLeadsExist?: boolean;
   aidBonus?: number;
   isReachable?: boolean;
+  modifiers?: { deceive: number; hack: number; process: number };
 }
 
 export function NodeActionPanel({
@@ -49,6 +50,7 @@ export function NodeActionPanel({
   otherLeadsExist,
   aidBonus,
   isReachable = true,
+  modifiers,
 }: NodeActionPanelProps) {
   const catColors: Record<FlowNode['category'], { fill: string; border: string; icon: string }> = {
     module: { fill: '#1e3a8a', border: '#60a5fa', icon: '📦' },
@@ -68,7 +70,7 @@ export function NodeActionPanel({
   const majorDisabled = !isReachable || (playerClass === 'support' && actionsCommitted === 0) || actionsTaken >= effectiveCommitted;
 
   const PANEL_WIDTH = 260;
-  const PANEL_HEIGHT = isReachable ? 270 : 160;
+  const PANEL_HEIGHT = isReachable ? 320 : 160;
 
   return (
     <Pressable style={[
@@ -128,6 +130,29 @@ export function NodeActionPanel({
           <View style={styles.statLine}>
             <Text style={styles.statLabel}>CP</Text>
             <Text style={styles.statValue}>{cp}/{maxCp}</Text>
+          </View>
+        </View>
+      )}
+
+      {isReachable && (
+        <View style={styles.modifiersRow}>
+          <View style={styles.modItem}>
+            <Text style={styles.modLabel}>Hack</Text>
+            <Text style={[styles.modValue, subskill === 'hack' && styles.modValueHighlight]}>
+              +{modifiers?.hack ?? 0}
+            </Text>
+          </View>
+          <View style={styles.modItem}>
+            <Text style={styles.modLabel}>Deceive</Text>
+            <Text style={[styles.modValue, subskill === 'deceive' && styles.modValueHighlight]}>
+              +{modifiers?.deceive ?? 0}
+            </Text>
+          </View>
+          <View style={styles.modItem}>
+            <Text style={styles.modLabel}>Process</Text>
+            <Text style={[styles.modValue, subskill === 'process' && styles.modValueHighlight]}>
+              +{modifiers?.process ?? 0}
+            </Text>
           </View>
         </View>
       )}
@@ -279,7 +304,7 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 6,
     paddingHorizontal: 4,
   },
   statLine: {
@@ -298,6 +323,19 @@ const styles = StyleSheet.create({
     color: '#22d3ee',
     fontFamily: 'Orbitron-Black',
   },
+  modifiersRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(30, 41, 59, 0.5)',
+    padding: 6,
+    borderWidth: 1,
+    borderColor: '#334155',
+    marginBottom: 10,
+  },
+  modItem: { alignItems: 'center', flex: 1 },
+  modLabel: { fontSize: 8, color: '#64748b', fontFamily: 'Orbitron', textTransform: 'uppercase' },
+  modValue: { fontSize: 11, color: '#94a3b8', fontFamily: 'Orbitron-Bold' },
+  modValueHighlight: { color: '#22d3ee' },
   deniedBox: {
     backgroundColor: 'rgba(127, 29, 29, 0.2)',
     borderWidth: 1,

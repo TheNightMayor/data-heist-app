@@ -34,7 +34,15 @@ interface DraftPlayer {
   name: string;
   class: 'lead' | 'support';
   computersRanks: number;
+  /** Global total modifier for the base Computers skill. */
+  computersModifier: number;
   resolvePoints: number;
+  deceiveModifier: number;
+  hackModifier: number;
+  processModifier: number;
+  /** Net bonus points across styles. Determined by ranks/3. */
+  personaModifier: number;
+  personaModifierLimit: number;
   /** Support only: which Lead this Support is paired with for Aid. */
   pairedLeadId?: string;
 }
@@ -53,8 +61,8 @@ export default function SetupScreen() {
     let name2 = getRandomName();
     while (name2 === name1) name2 = getRandomName();
     return [
-      { id: leadId, name: name1, class: 'lead', computersRanks: 4, resolvePoints: 3 },
-      { id: supportId, name: name2, class: 'support', computersRanks: 4, resolvePoints: 3, pairedLeadId: leadId },
+      { id: leadId, name: name1, class: 'lead', computersRanks: 4, computersModifier: 4, resolvePoints: 3, deceiveModifier: 4, hackModifier: 4, processModifier: 4, personaModifier: 0, personaModifierLimit: 1 },
+      { id: supportId, name: name2, class: 'support', computersRanks: 4, computersModifier: 4, resolvePoints: 3, deceiveModifier: 4, hackModifier: 4, processModifier: 4, personaModifier: 0, personaModifierLimit: 1, pairedLeadId: leadId },
     ];
   });
 
@@ -69,8 +77,54 @@ export default function SetupScreen() {
       const existing = ps.find((p) => p.id === id);
       if (!existing) return ps;
 
-      // Tentatively apply patch
-      const tentative = ps.map((p) => (p.id === id ? { ...p, ...patch } : p));
+      // Apply patch and enforce all constraints
+      let tentative = ps.map((p) => {
+        if (p.id !== id) return p;
+        let updated = { ...p, ...patch };
+
+        // 1. Total Mod change syncs sub-modifiers
+        if (patch.computersModifier !== undefined) {
+          updated.hackModifier = patch.computersModifier;
+          updated.deceiveModifier = patch.computersModifier;
+          updated.processModifier = patch.computersModifier;
+        }
+
+        // 2. Ranks purely determines the Persona limit
+        updated.personaModifierLimit = Math.floor(updated.computersRanks / 3);
+
+        // 3. Enforce the +/- 3 absolute bounds relative to Total Mod
+        const minVal = updated.computersModifier - 3;
+        const maxVal = updated.computersModifier + 3;
+        updated.hackModifier = Math.max(0, Math.min(updated.hackModifier, maxVal, Math.max(updated.hackModifier, minVal)));
+        updated.deceiveModifier = Math.max(0, Math.min(updated.deceiveModifier, maxVal, Math.max(updated.deceiveModifier, minVal)));
+        updated.processModifier = Math.max(0, Math.min(updated.processModifier, maxVal, Math.max(updated.processModifier, minVal)));
+
+        // 4. Enforce Persona Modifier Limit (sum of net added/subtracted points)
+        const getPersonaSum = (u: DraftPlayer) => 
+          (u.hackModifier - u.computersModifier) +
+          (u.deceiveModifier - u.computersModifier) +
+          (u.processModifier - u.computersModifier);
+
+        let sum = getPersonaSum(updated);
+        if (sum > updated.personaModifierLimit) {
+          // If we exceeded the limit, revert the specific skill being changed or reset
+          if (patch.hackModifier !== undefined) {
+            updated.hackModifier -= (sum - updated.personaModifierLimit);
+          } else if (patch.deceiveModifier !== undefined) {
+            updated.deceiveModifier -= (sum - updated.personaModifierLimit);
+          } else if (patch.processModifier !== undefined) {
+            updated.processModifier -= (sum - updated.personaModifierLimit);
+          } else {
+            // If it was caused by rank or total mod change, reset styles to match total
+            updated.hackModifier = updated.computersModifier;
+            updated.deceiveModifier = updated.computersModifier;
+            updated.processModifier = updated.computersModifier;
+          }
+        }
+        
+        updated.personaModifier = getPersonaSum(updated);
+        return updated;
+      });
 
       // Compute lead lists
       const leadsExcludingTarget = tentative.filter((p) => p.class === 'lead' && p.id !== id);
@@ -104,7 +158,19 @@ export default function SetupScreen() {
     if (players.length >= 4) return;
     setPlayers((ps) => [
       ...ps,
-      { id: nanoid(6), name: getRandomName(), class: 'lead', computersRanks: 4, resolvePoints: 3 },
+      { 
+        id: nanoid(6), 
+        name: getRandomName(), 
+        class: 'lead', 
+        computersRanks: 4, 
+        computersModifier: 4, 
+        resolvePoints: 3, 
+        deceiveModifier: 4, 
+        hackModifier: 4, 
+        processModifier: 4,
+        personaModifier: 0,
+        personaModifierLimit: 1
+      },
     ]);
   };
 
@@ -142,6 +208,12 @@ export default function SetupScreen() {
       class: p.class,
       computersRanks: p.computersRanks,
       resolvePoints: p.resolvePoints,
+      deceiveModifier: p.deceiveModifier,
+      hackModifier: p.hackModifier,
+      processModifier: p.processModifier,
+      computersModifier: p.computersModifier,
+      personaModifier: p.personaModifier,
+      personaModifierLimit: p.personaModifierLimit,
       pairedLeadId: p.class === 'support' ? (p.pairedLeadId || firstLead?.id) : undefined,
     }));
     startGame(map, input);
@@ -168,7 +240,18 @@ export default function SetupScreen() {
       </View>
       {map && <Text style={styles.mapLabel}>Map: {map.name}</Text>}
 
-      {players.map((p, i) => (
+      {players.map((p, i) => {
+        const pointsUsed = 
+          Math.max(0, p.hackModifier - p.computersModifier) +
+          Math.max(0, p.deceiveModifier - p.computersModifier) +
+          Math.max(0, p.processModifier - p.computersModifier);
+        const bonusFromReductions = 
+          Math.max(0, p.computersModifier - p.hackModifier) +
+          Math.max(0, p.computersModifier - p.deceiveModifier) +
+          Math.max(0, p.computersModifier - p.processModifier);
+        const totalBudget = p.personaModifierLimit + bonusFromReductions;
+
+        return (
         <View 
           key={p.id} 
           style={[styles.card, { width: cardWidth }]}
@@ -230,24 +313,6 @@ export default function SetupScreen() {
               </View>
             </View>
             <View style={styles.statCol}>
-              <Text style={styles.label}>Skill Modifier</Text>
-              <View style={styles.row}>
-                <Pressable
-                  style={styles.stepBtn}
-                  onPress={() => updatePlayer(p.id, { computersRanks: Math.max(1, p.computersRanks - 1) })}
-                >
-                  <Text style={styles.stepBtnText}>−</Text>
-                </Pressable>
-                <Text style={styles.value}>{p.computersRanks}</Text>
-                <Pressable
-                  style={styles.stepBtn}
-                  onPress={() => updatePlayer(p.id, { computersRanks: Math.min(15, p.computersRanks + 1) })}
-                >
-                  <Text style={styles.stepBtnText}>+</Text>
-                </Pressable>
-              </View>
-            </View>
-            <View style={styles.statCol}>
               <Text style={styles.label}>Resolve Points</Text>
               <View style={styles.row}>
                 <Pressable
@@ -265,9 +330,120 @@ export default function SetupScreen() {
                 </Pressable>
               </View>
             </View>
+            <View style={styles.statCol}>
+              <Text style={styles.label}>Max CP</Text>
+              <View style={[styles.row, { height: 32 }]}>
+                <Text style={[styles.value, { color: '#22d3ee' }]}>{12 + 2 * p.computersRanks}</Text>
+              </View>
+            </View>
           </View>
+
+          <View style={[styles.statsRow, { marginTop: 8 }]}>
+            <View style={styles.statCol}>
+              <Text style={styles.label}>Skill Ranks</Text>
+              <View style={styles.row}>
+                <Pressable
+                  style={styles.stepBtn}
+                  onPress={() => updatePlayer(p.id, { computersRanks: Math.max(1, p.computersRanks - 1) })}
+                >
+                  <Text style={styles.stepBtnText}>−</Text>
+                </Pressable>
+                <Text style={styles.value}>{p.computersRanks}</Text>
+                <Pressable
+                  style={styles.stepBtn}
+                  onPress={() => updatePlayer(p.id, { computersRanks: Math.min(15, p.computersRanks + 1) })}
+                >
+                  <Text style={styles.stepBtnText}>+</Text>
+                </Pressable>
+              </View>
+            </View>
+            <View style={styles.statCol}>
+              <Text style={styles.label}>Total Mod</Text>
+              <View style={styles.row}>
+                <Pressable
+                  style={styles.stepBtn}
+                  onPress={() => updatePlayer(p.id, { computersModifier: Math.max(0, p.computersModifier - 1) })}
+                >
+                  <Text style={styles.stepBtnText}>−</Text>
+                </Pressable>
+                <Text style={styles.value}>{p.computersModifier}</Text>
+                <Pressable
+                  style={styles.stepBtn}
+                  onPress={() => updatePlayer(p.id, { computersModifier: Math.min(25, p.computersModifier + 1) })}
+                >
+                  <Text style={styles.stepBtnText}>+</Text>
+                </Pressable>
+              </View>
+            </View>
+            <View style={styles.statCol}>
+              <Text style={styles.label}>Persona Mod</Text>
+              <View style={[styles.row, { height: 32 }]}>
+                <Text style={[styles.value, { color: pointsUsed > totalBudget ? '#f43f5e' : '#a855f7' }]}>
+                  {pointsUsed} / {totalBudget}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={[styles.statsRow, { marginTop: 8 }]}>
+            <View style={styles.statCol}>
+              <Text style={styles.label}>Hack Mod</Text>
+              <View style={styles.row}>
+                <Pressable
+                  style={styles.stepBtn}
+                  onPress={() => updatePlayer(p.id, { hackModifier: Math.max(p.computersModifier - 3, p.hackModifier - 1) })}
+                >
+                  <Text style={styles.stepBtnText}>−</Text>
+                </Pressable>
+                <Text style={styles.value}>{p.hackModifier}</Text>
+                <Pressable
+                  style={styles.stepBtn}
+                  onPress={() => updatePlayer(p.id, { hackModifier: Math.min(p.computersModifier + 3, p.hackModifier + 1) })}
+                >
+                  <Text style={styles.stepBtnText}>+</Text>
+                </Pressable>
+              </View>
+            </View>
+            <View style={styles.statCol}>
+              <Text style={styles.label}>Deceive Mod</Text>
+              <View style={styles.row}>
+                <Pressable
+                  style={styles.stepBtn}
+                  onPress={() => updatePlayer(p.id, { deceiveModifier: Math.max(p.computersModifier - 3, p.deceiveModifier - 1) })}
+                >
+                  <Text style={styles.stepBtnText}>−</Text>
+                </Pressable>
+                <Text style={styles.value}>{p.deceiveModifier}</Text>
+                <Pressable
+                  style={styles.stepBtn}
+                  onPress={() => updatePlayer(p.id, { deceiveModifier: Math.min(p.computersModifier + 3, p.deceiveModifier + 1) })}
+                >
+                  <Text style={styles.stepBtnText}>+</Text>
+                </Pressable>
+              </View>
+            </View>
+            <View style={styles.statCol}>
+              <Text style={styles.label}>Process Mod</Text>
+              <View style={styles.row}>
+                <Pressable
+                  style={styles.stepBtn}
+                  onPress={() => updatePlayer(p.id, { processModifier: Math.max(p.computersModifier - 3, p.processModifier - 1) })}
+                >
+                  <Text style={styles.stepBtnText}>−</Text>
+                </Pressable>
+                <Text style={styles.value}>{p.processModifier}</Text>
+                <Pressable
+                  style={styles.stepBtn}
+                  onPress={() => updatePlayer(p.id, { processModifier: Math.min(p.computersModifier + 3, p.processModifier + 1) })}
+                >
+                  <Text style={styles.stepBtnText}>+</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+
           <Text style={styles.hint}>
-            CP: {12 + 2 * p.computersRanks} • All subskills at +{p.computersRanks}
+            Updating Total Mod sets all sub-modifiers
           </Text>
           {p.class === 'support' && (
             <View>
@@ -294,7 +470,8 @@ export default function SetupScreen() {
             </View>
           )}
         </View>
-      ))}
+      );
+    })}
 
       {players.length < 4 && (
         <View>
@@ -393,7 +570,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   statsRow: { flexDirection: 'row', gap: 12, flexWrap: 'wrap' },
   col: { flex: 1, gap: 6 },
-  statCol: { flex: 1, minWidth: 140, gap: 6 },
+  statCol: { flex: 1, minWidth: 110, gap: 6 },
   pill: {
     paddingHorizontal: 10,
     paddingVertical: 6,

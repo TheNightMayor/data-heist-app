@@ -730,6 +730,11 @@ export default function GameScreen() {
           minorActionsTaken={state.minorActionsTaken}
           otherLeadsExist={otherLeadsExist}
           aidBonus={currentAidBonus}
+          modifiers={activePlayer ? {
+            deceive: activePlayer.deceiveModifier,
+            hack: activePlayer.hackModifier,
+            process: activePlayer.processModifier
+          } : undefined}
           renderNode={(n, info) => (
             <FlowNodeView
               node={n}

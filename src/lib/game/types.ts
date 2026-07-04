@@ -27,6 +27,9 @@ export interface Player {
   deceiveModifier: number;
   hackModifier: number;
   processModifier: number;
+  /** Net bonus points applied across hacking styles. Limit = ranks / 3. */
+  personaModifier: number;
+  personaModifierLimit: number;
   /** Resolve Points — per-character pool, default 3. */
   resolvePoints: number;
   /** Connection Points — current persona health. */

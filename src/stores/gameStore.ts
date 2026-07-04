@@ -106,6 +106,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
         deceiveModifier: p.deceiveModifier ?? mod,
         hackModifier: p.hackModifier ?? mod,
         processModifier: p.processModifier ?? mod,
+        personaModifier: p.personaModifier ?? 0,
+        personaModifierLimit: p.personaModifierLimit ?? Math.floor(p.computersRanks / 3),
         resolvePoints: p.resolvePoints ?? 3,
         currentCP: max,
         maxCP: max,
