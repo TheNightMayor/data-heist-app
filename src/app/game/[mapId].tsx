@@ -12,7 +12,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { nanoid } from 'nanoid';
 import { FlowCanvas } from '@/components/flow/flowCanvas/FlowCanvas';
 import { FlowNodeView } from '@/components/flow/FlowNode';
-import { Toast, type ToastKind } from '@/components/ui/Toast';
 import { ResultModal, type RollResultInfo } from '@/components/game/ResultModal';
 import { useGameStore } from '@/stores/gameStore';
 import { loadMap } from '@/lib/flow/persistence';
@@ -123,10 +122,12 @@ function CurrentTargetPanel({
   targetNode,
   label,
   successes,
+  hackingMode = 'dynamic',
 }: {
   targetNode: FlowNode | null;
   label: string;
   successes: number;
+  hackingMode?: 'basic' | 'dynamic';
 }) {
   if (!targetNode) {
     return (
@@ -160,7 +161,8 @@ function CurrentTargetPanel({
         <Text style={panelStyles.label}>{label}</Text>
         <Text style={panelStyles.name} numberOfLines={1}>{targetNode.name}</Text>
         <Text style={panelStyles.meta}>
-          DC {dc} • {subskill[0].toUpperCase() + subskill.slice(1)}
+          DC {dc} 
+          {hackingMode === 'dynamic' && ` • ${subskill[0].toUpperCase() + subskill.slice(1)}`}
           {successesRequired > 0 ? ` • ${successes}/${successesRequired}` : ''}
         </Text>
       </View>
@@ -220,16 +222,6 @@ export default function GameScreen() {
     rolling: false,
     info: null,
   });
-  const [toast, setToast] = useState<{ visible: boolean; message: string; detail?: string; kind: ToastKind; key: number }>({
-    visible: false,
-    message: '',
-    kind: 'info',
-    key: 0,
-  });
-
-  function showToast(message: string, detail: string | undefined, kind: ToastKind) {
-    setToast({ visible: true, message, detail, kind, key: Date.now() });
-  }
 
   // Boot: if no game state, redirect to setup.
   useEffect(() => {
@@ -269,56 +261,6 @@ export default function GameScreen() {
       dispatch({ type: 'ADVANCE_TURN' });
     }
   }, [state?.phase, state?.finished, dispatch]);
-
-  // Toast for each new log entry (skip entries from current render before mount).
-  const seenLogKeys = useRef<Set<number>>(new Set());
-  useEffect(() => {
-    const log = state?.log ?? [];
-    const seen = seenLogKeys.current;
-    const fresh = log.filter((entry) => !seen.has(entry.turn));
-    for (const entry of fresh) seen.add(entry.turn);
-    if (fresh.length === 0) return;
-    const last = fresh[0];
-    if (!last.outcome) return;
-
-    const player = state?.players.find((p) => p.id === last.playerId);
-    const playerName = player?.name ?? 'Someone';
-
-    let kind: ToastKind = 'info';
-    let message = `${playerName}: ${last.outcome}`;
-    let detail: string | undefined;
-
-    if (last.outcome === 'rp-spend') {
-      kind = 'success';
-      message = `${playerName}: Auto-Success`;
-      detail = 'Resolve Point spent — no roll needed';
-    } else if (last.outcome === 'nat20') {
-      kind = 'success';
-      message = `${playerName}: Natural 20!`;
-      detail = `Roll ${last.roll}, total ${last.total} vs DC ${last.dc}`;
-    } else if (last.outcome === 'major-success') {
-      kind = 'success';
-      message = `${playerName}: Major Success!`;
-      detail = `Roll ${last.roll}, total ${last.total} vs DC ${last.dc} — beat by 10+`;
-    } else if (last.outcome === 'standard-success') {
-      kind = 'success';
-      message = `${playerName}: Success`;
-      detail = `Roll ${last.roll}, total ${last.total} vs DC ${last.dc}`;
-    } else if (last.outcome === 'failure') {
-      kind = 'failure';
-      message = `${playerName}: Failure`;
-      detail = `Roll ${last.roll}, total ${last.total} vs DC ${last.dc}`;
-    } else if (last.outcome === 'nat1') {
-      kind = 'critical';
-      message = `${playerName}: Natural 1!`;
-      detail = last.cpLost && last.cpLost > 0
-        ? `Lost ${last.cpLost} CP to countermeasure`
-        : `Roll ${last.roll} — auto-fail`;
-    }
-
-    showToast(message, detail, kind);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state?.log]);
 
   const reachableIds = useMemo(() => {
     if (!map || !state) return new Set<string>();
@@ -482,16 +424,12 @@ export default function GameScreen() {
     // Close pre-roll modal.
     setModalOpen(false);
 
-    // For RP-spend (auto-success), skip the rolling animation — go straight to result.
-    if (spendRP) {
-      setResultModal({ visible: true, rolling: false, info });
-    } else {
-      setResultModal({ visible: true, rolling: true, info });
-      // Switch from rolling to result after 800ms.
-      setTimeout(() => {
-        setResultModal((prev) => ({ ...prev, rolling: false }));
-      }, 800);
-    }
+    // Show the rolling animation for all outcomes (including RP spend for "calculating" feel).
+    setResultModal({ visible: true, rolling: true, info });
+    // Switch from rolling to result after 3200ms (4x longer than 800ms).
+    setTimeout(() => {
+      setResultModal((prev) => ({ ...prev, rolling: false }));
+    }, 3200);
 
     // Dispatch the actual game state change.
     dispatch({
@@ -510,8 +448,13 @@ export default function GameScreen() {
     setResultModal({ visible: false, rolling: false, info: null });
   };
 
-  const handleSupportAction = (action: 'aid' | 'rp' | 'pass') => {
+  const handleSupportAction = (action: 'aid' | 'rp' | 'pass' | 'cancel') => {
     if (!activePlayer) return;
+
+    if (action === 'cancel') {
+      setSupportUpgradePromptOpen(false);
+      return;
+    }
 
     setSupportUpgradePromptOpen(false);
     const target = selectedNode;
@@ -601,7 +544,7 @@ export default function GameScreen() {
     setResultModal({ visible: true, rolling: true, info });
     setTimeout(() => {
       setResultModal((prev) => ({ ...prev, rolling: false }));
-    }, 800);
+    }, 3200);
 
     dispatch({
       type: 'SUPPORT_AID',
@@ -626,16 +569,6 @@ export default function GameScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Toast notifications for roll outcomes */}
-      <Toast
-        key={toast.key}
-        visible={toast.visible}
-        message={toast.message}
-        detail={toast.detail}
-        kind={toast.kind}
-        onHide={() => setToast((t) => ({ ...t, visible: false }))}
-      />
-
       <View style={{ flex: 1 }}>
         {/* Header — Turn Order, Round and Objectives */}
         <View style={styles.header}>
@@ -730,10 +663,12 @@ export default function GameScreen() {
           minorActionsTaken={state.minorActionsTaken}
           otherLeadsExist={otherLeadsExist}
           aidBonus={currentAidBonus}
+          hackingMode={state.hackingMode}
           modifiers={activePlayer ? {
             deceive: activePlayer.deceiveModifier,
             hack: activePlayer.hackModifier,
-            process: activePlayer.processModifier
+            process: activePlayer.processModifier,
+            total: activePlayer.computersModifier
           } : undefined}
           renderNode={(n, info) => (
             <FlowNodeView
@@ -749,25 +684,61 @@ export default function GameScreen() {
       </View>
 
       {/* Pre-roll modal */}
-      <Modal visible={modalOpen} transparent animationType="fade">
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modal}>
+      <Modal 
+        visible={modalOpen} 
+        transparent 
+        animationType="fade"
+        onRequestClose={() => {
+          setModalOpen(false);
+          setPendingRollNode(null);
+        }}
+      >
+        <Pressable 
+          style={styles.modalBackdrop} 
+          onPress={() => {
+            setModalOpen(false);
+            setPendingRollNode(null);
+          }}
+        >
+          <Pressable style={[styles.modal, { width: 400, alignItems: 'center' }]} onPress={() => {}}>
             <View style={StyleSheet.absoluteFill} pointerEvents="none">
               <ChamferedFrame 
-                width={320} 
-                height={280} 
+                width={400} 
+                height={420} 
                 chamfer={16} 
                 stroke="#475569" 
                 strokeWidth={2} 
                 fill="#1e293b" 
               />
             </View>
-            <View style={{ padding: 20, width: 320 }}>
-            <Text style={styles.modalTitle}>Resolve Check</Text>
+            <View style={{ padding: 24, alignItems: 'center', width: '100%' }}>
+            <Text style={styles.modalTitle}>Major Actions</Text>
             {pendingRollNode ? (
-              <Text style={styles.modalSub}>
-                {pendingRollNode.name} (DC {effectiveDC(pendingRollNode.tier, pendingRollNode.resolve)})
-              </Text>
+              <View style={{ alignItems: 'center', marginBottom: 15 }}>
+                <Text style={styles.modalSub}>{pendingRollNode.name}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                  <View style={{ 
+                    backgroundColor: '#1e293b', 
+                    paddingHorizontal: 8, 
+                    paddingVertical: 2, 
+                    borderRadius: 4,
+                    borderWidth: 1,
+                    borderColor: '#334155'
+                  }}>
+                    <Text style={{ color: '#94a3b8', fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1 }}>
+                      {pendingRollNode.resolve?.subskill ?? 'hack'}
+                    </Text>
+                  </View>
+                  <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700', marginLeft: 8 }}>
+                    DC {effectiveDC(pendingRollNode.tier, pendingRollNode.resolve)}
+                  </Text>
+                </View>
+                {activePlayer && (
+                  <Text style={{ color: '#64748b', fontSize: 11, marginTop: 4 }}>
+                    Your Modifier: +{modifierFor(activePlayer, pendingRollNode.resolve?.subskill ?? 'hack', state.hackingMode)}
+                  </Text>
+                )}
+              </View>
             ) : null}
             
             {state.pendingAid?.leadId === activePlayer?.id ? (
@@ -782,6 +753,15 @@ export default function GameScreen() {
               style={[styles.modalBtn, styles.modalBtnPrimary]}
               onPress={() => handleRoll(false)}
             >
+              <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                <ChamferedFrame 
+                  width={280} 
+                  height={48} 
+                  chamfer={8} 
+                  stroke="#22d3ee" 
+                  fill="#0e7490" 
+                />
+              </View>
               <Text style={styles.modalBtnText}>
                 🎲 Roll d20{state.pendingAid?.leadId === activePlayer?.id ? ` (+${state.pendingAid.bonus} Aid)` : ''}
               </Text>
@@ -790,15 +770,28 @@ export default function GameScreen() {
               style={[
                 styles.modalBtn,
                 styles.modalBtnSecondary,
-                !activePlayer || activePlayer.resolvePoints < (activePlayer.class === 'support' ? 2 : 1) ? styles.modalBtnDisabled : null,
+                !activePlayer || activePlayer.resolvePoints < 1 ? styles.modalBtnDisabled : null,
               ]}
               onPress={() => handleRoll(true)}
-              disabled={!activePlayer || activePlayer.resolvePoints < (activePlayer.class === 'support' ? 2 : 1)}
+              disabled={!activePlayer || activePlayer.resolvePoints < 1}
             >
+              <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                <ChamferedFrame 
+                  width={280} 
+                  height={48} 
+                  chamfer={8} 
+                  stroke={(!activePlayer || activePlayer.resolvePoints < 1) ? "#475569" : "#a855f7"} 
+                  fill="#1e293b" 
+                />
+              </View>
               <Text style={styles.modalBtnText}>
-                ⭐ Spend RP (auto-success){activePlayer?.class === 'support' ? ' — 2 RP' : ''}
-                {state.pendingAid?.leadId === activePlayer?.id ? ` (+${state.pendingAid.bonus} Aid ignored)` : ''}
+                ⭐ Spend RP (auto-success)
               </Text>
+              {state.pendingAid?.leadId === activePlayer?.id && (
+                <Text style={[styles.modalBtnText, { color: '#f87171', fontSize: 10, marginTop: 2 }]}>
+                  (+{state.pendingAid.bonus} Aid ignored)
+                </Text>
+              )}
             </Pressable>
             <Pressable
               style={[styles.modalBtn, styles.modalBtnCancel]}
@@ -807,21 +800,35 @@ export default function GameScreen() {
                 setPendingRollNode(null);
               }}
             >
+              <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                <ChamferedFrame 
+                  width={280} 
+                  height={48} 
+                  chamfer={8} 
+                  stroke="#475569" 
+                  fill="#0f172a" 
+                />
+              </View>
               <Text style={styles.modalBtnText}>Cancel</Text>
             </Pressable>
             </View>
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       {/* Planning modal — opt-in. Default flow is 1 action / 0 RP (no modal). */}
-      <Modal visible={!!(planModalOpen && activePlayer?.class === 'lead')} transparent animationType="fade">
-        <View style={styles.modalBackdrop}>
-          <View style={[styles.modal, { width: 340 }]}>
+      <Modal 
+        visible={!!(planModalOpen && activePlayer?.class === 'lead')} 
+        transparent 
+        animationType="fade"
+        onRequestClose={() => setPlanModalOpen(false)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setPlanModalOpen(false)}>
+          <Pressable style={[styles.modal, { width: 340 }]} onPress={() => {}}>
             <View style={StyleSheet.absoluteFill} pointerEvents="none">
               <ChamferedFrame width={340} height={460} chamfer={16} stroke="#22d3ee" fill="#0f172a" />
             </View>
-            <View style={{ padding: 20, gap: 10 }}>
+            <View style={{ padding: 20, gap: 10, alignItems: 'center' }}>
               <Text style={styles.modalTitle}>Plan Your Turn</Text>
               <Text style={styles.modalSub}>
                 {activePlayer?.name}, opt in to more major actions and resolve points.
@@ -900,28 +907,39 @@ export default function GameScreen() {
                 setPlanModalOpen(false);
               }}
             >
+              <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                <ChamferedFrame width={280} height={48} chamfer={8} stroke="#22d3ee" fill="#0e7490" />
+              </View>
               <Text style={styles.modalBtnText}>Confirm Plan</Text>
             </Pressable>
             <Pressable
               style={[styles.modalBtn, styles.modalBtnCancel]}
               onPress={() => setPlanModalOpen(false)}
             >
+              <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                <ChamferedFrame width={280} height={48} chamfer={8} stroke="#475569" fill="#0f172a" />
+              </View>
               <Text style={styles.modalBtnText}>Cancel</Text>
             </Pressable>
             </View>
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       {/* Support action prompt */}
-      <Modal visible={supportUpgradePromptOpen} transparent animationType="fade">
-        <View style={styles.modalBackdrop}>
-          <View style={[styles.modal, { width: 340 }]}>
+      <Modal 
+        visible={supportUpgradePromptOpen} 
+        transparent 
+        animationType="fade"
+        onRequestClose={() => handleSupportAction('cancel')}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => handleSupportAction('cancel')}>
+          <Pressable style={[styles.modal, { width: 400 }]} onPress={() => {}}>
             <View style={StyleSheet.absoluteFill} pointerEvents="none">
-              <ChamferedFrame width={340} height={420} chamfer={16} stroke="#22d3ee" fill="#0f172a" />
+              <ChamferedFrame width={400} height={420} chamfer={16} stroke="#22d3ee" fill="#0f172a" />
             </View>
-            <View style={{ padding: 20, gap: 10 }}>
-              <Text style={styles.modalTitle}>Support Action</Text>
+            <View style={{ padding: 24, gap: 10, alignItems: 'center', width: '100%' }}>
+              <Text style={styles.modalTitle}>Minor Actions</Text>
               <Text style={styles.modalSub}>{activePlayer?.name}, choose a Lead to aid:</Text>
             <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginVertical: 10 }}>
               {state.players
@@ -948,36 +966,48 @@ export default function GameScreen() {
                 ))}
             </View>
             {selectedNode ? (
-              <Text style={styles.modalSub}>
-                Target: {selectedNode.name} (DC {effectiveDC(selectedNode.tier, selectedNode.resolve)})
-              </Text>
+              <View style={{ alignItems: 'center', marginBottom: 10 }}>
+                <Text style={styles.modalSub}>Target: {selectedNode.name}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                  <View style={{ 
+                    backgroundColor: '#1e293b', 
+                    paddingHorizontal: 8, 
+                    paddingVertical: 2, 
+                    borderRadius: 4,
+                    borderWidth: 1,
+                    borderColor: '#334155'
+                  }}>
+                    <Text style={{ color: '#94a3b8', fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1 }}>
+                      {selectedNode.resolve?.subskill ?? 'hack'}
+                    </Text>
+                  </View>
+                  <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700', marginLeft: 8 }}>
+                    DC {effectiveDC(selectedNode.tier, selectedNode.resolve)}
+                  </Text>
+                </View>
+              </View>
             ) : null}
             <Pressable
               style={[styles.modalBtn, styles.modalBtnPrimary]}
               onPress={() => handleSupportAction('aid')}
             >
+              <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                <ChamferedFrame width={280} height={48} chamfer={8} stroke="#22d3ee" fill="#0e7490" />
+              </View>
               <Text style={styles.modalBtnText}>✨ Aid (+2 / +4)</Text>
             </Pressable>
             <Pressable
-              style={[
-                styles.modalBtn,
-                styles.modalBtnSecondary,
-                (!activePlayer || (activePlayer.resolvePoints ?? 0) < 2) ? styles.modalBtnDisabled : null,
-              ]}
-              onPress={() => handleSupportAction('rp')}
-              disabled={!activePlayer || (activePlayer.resolvePoints ?? 0) < 2}
-            >
-              <Text style={styles.modalBtnText}>⭐ Spend RP (auto-success) — 2 RP</Text>
-            </Pressable>
-            <Pressable
               style={[styles.modalBtn, styles.modalBtnCancel]}
-              onPress={() => handleSupportAction('pass')}
+              onPress={() => handleSupportAction('cancel')}
             >
-              <Text style={styles.modalBtnText}>Pass turn</Text>
+              <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                <ChamferedFrame width={280} height={48} chamfer={8} stroke="#475569" fill="#0f172a" />
+              </View>
+              <Text style={styles.modalBtnText}>Cancel</Text>
             </Pressable>
             </View>
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       {/* Animated dice roll result modal */}
@@ -1012,7 +1042,10 @@ export default function GameScreen() {
               <Text style={styles.modalSub}>
                 {state.result === 'win' ? 'You reached root access.' : 'All personas ejected.'}
               </Text>
-              <Pressable style={[styles.modalBtn, styles.modalBtnPrimary]} onPress={handleNewGame}>
+              <Pressable style={[styles.modalBtn, styles.modalBtnPrimary, { marginTop: 10 }]} onPress={handleNewGame}>
+                <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                  <ChamferedFrame width={280} height={48} chamfer={8} stroke="#22d3ee" fill="#0e7490" />
+                </View>
                 <Text style={styles.modalBtnText}>Back to Home</Text>
               </Pressable>
             </View>
@@ -1234,10 +1267,15 @@ const styles = StyleSheet.create({
   modalBtn: {
     padding: 12,
     alignItems: 'center',
+    height: 48,
+    justifyContent: 'center',
+    width: 280,
+    alignSelf: 'center',
+    marginVertical: 4,
   },
-  modalBtnPrimary: { backgroundColor: '#0e7490' },
-  modalBtnSecondary: { backgroundColor: '#1e293b' },
-  modalBtnCancel: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#475569' },
+  modalBtnPrimary: { backgroundColor: 'transparent' },
+  modalBtnSecondary: { backgroundColor: 'transparent' },
+  modalBtnCancel: { backgroundColor: 'transparent', borderWidth: 0, borderColor: 'transparent' },
   modalBtnDisabled: { opacity: 0.4 },
   modalBtnText: { color: '#fff', fontWeight: '700', fontSize: 14, fontFamily: 'Orbitron-Bold' },
   stepperRow: {

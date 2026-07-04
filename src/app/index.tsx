@@ -35,8 +35,17 @@ export default function HomeScreen() {
     })();
   }, [refreshAll]);
 
-  const handlePlaySample = (mapId: string) => {
-    router.push(`/setup?mapId=${mapId}`);
+  const handlePlaySample = (mapId: string, mode: 'basic' | 'dynamic' = 'dynamic') => {
+    router.push(`/setup?mapId=${mapId}&hackingMode=${mode}`);
+  };
+
+  const [hackingModes, setHackingModes] = useState<Record<string, 'basic' | 'dynamic'>>({});
+
+  const toggleMode = (mapId: string) => {
+    setHackingModes(prev => ({
+      ...prev,
+      [mapId]: prev[mapId] === 'basic' ? 'dynamic' : 'basic'
+    }));
   };
 
   return (
@@ -70,79 +79,119 @@ export default function HomeScreen() {
       </View>
 
       <Text style={styles.sectionHeader}>Sample Maps</Text>
-      {SAMPLE_MAPS.map((m) => (
-        <Pressable
-          key={m.id}
-          style={[styles.mapCard, { width: cardWidth }]}
-          onPress={() => handlePlaySample(m.id)}
-          onLayout={(e) => setCardHeights(prev => ({ ...prev, [m.id]: e.nativeEvent.layout.height }))}
-        >
-          <View style={StyleSheet.absoluteFill} pointerEvents="none">
-            {cardHeights[m.id] && (
-              <ChamferedFrame 
-                width={cardWidth} 
-                height={cardHeights[m.id]} 
-                chamfer={16} 
-                stroke="#1e293b" 
-                strokeWidth={2}
-                fill="#0f172a" 
-              />
-            )}
+      {SAMPLE_MAPS.map((m) => {
+        const mode = hackingModes[m.id] || 'dynamic';
+        return (
+          <View key={m.id} style={{ position: 'relative', width: cardWidth }}>
+            <Pressable
+              style={[styles.mapCard, { width: cardWidth }]}
+              onPress={() => handlePlaySample(m.id, mode)}
+              onLayout={(e) => setCardHeights(prev => ({ ...prev, [m.id]: e.nativeEvent.layout.height }))}
+            >
+              <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                {cardHeights[m.id] && (
+                  <ChamferedFrame 
+                    width={cardWidth} 
+                    height={cardHeights[m.id]} 
+                    chamfer={16} 
+                    stroke="#1e293b" 
+                    strokeWidth={2}
+                    fill="#0f172a" 
+                  />
+                )}
+              </View>
+              <Text style={styles.mapName}>{m.name}</Text>
+              <Text style={styles.mapDesc}>{m.description}</Text>
+              <Text style={styles.mapMeta}>
+                {m.nodes.length} nodes • {m.edges.length} edges
+              </Text>
+            </Pressable>
+            
+            <View style={styles.toggleRow}>
+              <Text style={styles.toggleLabel}>Mode:</Text>
+              <Pressable 
+                onPress={() => toggleMode(m.id)}
+                style={[styles.toggleBtn, mode === 'basic' && styles.toggleBtnActive]}
+              >
+                <Text style={styles.toggleBtnText}>Basic</Text>
+              </Pressable>
+              <Pressable 
+                onPress={() => toggleMode(m.id)}
+                style={[styles.toggleBtn, mode === 'dynamic' && styles.toggleBtnActive]}
+              >
+                <Text style={styles.toggleBtnText}>Dynamic</Text>
+              </Pressable>
+            </View>
           </View>
-          <Text style={styles.mapName}>{m.name}</Text>
-          <Text style={styles.mapDesc}>{m.description}</Text>
-          <Text style={styles.mapMeta}>
-            {m.nodes.length} nodes • {m.edges.length} edges
-          </Text>
-        </Pressable>
-      ))}
+        );
+      })}
 
       {allMaps.filter((m) => !m.builtIn).length > 0 && (
         <>
           <Text style={styles.sectionHeader}>Your Maps</Text>
           {allMaps
             .filter((m) => !m.builtIn)
-            .map((m) => (
-              <Pressable
-                key={m.id}
-                style={[styles.mapCard, { width: cardWidth }]}
-                onPress={() => handlePlaySample(m.id)}
-                onLayout={(e) => setCardHeights(prev => ({ ...prev, [m.id]: e.nativeEvent.layout.height }))}
-              >
-                <View style={StyleSheet.absoluteFill} pointerEvents="none">
-                  {cardHeights[m.id] && (
-                    <ChamferedFrame 
-                      width={cardWidth} 
-                      height={cardHeights[m.id]} 
-                      chamfer={16} 
-                      stroke="#1e293b" 
-                      strokeWidth={2}
-                      fill="#0f172a" 
-                    />
-                  )}
-                </View>
-                <Text style={styles.mapName}>{m.name}</Text>
-                <Pressable
-                  style={styles.editBtn}
-                  onLayout={(e) => setCardHeights(prev => ({ ...prev, [m.id + '_edit']: e.nativeEvent.layout.height }))}
-                  onPress={(e) => {
-                    e.stopPropagation?.();
-                    router.push(`/build/${m.id}`);
-                  }}
-                >
-                  <View style={StyleSheet.absoluteFill} pointerEvents="none">
-                    <ChamferedFrame 
-                      width={60} 
-                      height={24} 
-                      chamfer={4} 
-                      stroke="#22d3ee" 
-                      fill="#1e293b" 
-                    />
+            .map((m) => {
+              const mode = hackingModes[m.id] || 'dynamic';
+              return (
+                <View key={m.id} style={{ position: 'relative', width: cardWidth }}>
+                  <Pressable
+                    style={[styles.mapCard, { width: cardWidth }]}
+                    onPress={() => handlePlaySample(m.id, mode)}
+                    onLayout={(e) => setCardHeights(prev => ({ ...prev, [m.id]: e.nativeEvent.layout.height }))}
+                  >
+                    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                      {cardHeights[m.id] && (
+                        <ChamferedFrame 
+                          width={cardWidth} 
+                          height={cardHeights[m.id]} 
+                          chamfer={16} 
+                          stroke="#1e293b" 
+                          strokeWidth={2}
+                          fill="#0f172a" 
+                        />
+                      )}
+                    </View>
+                    <Text style={styles.mapName}>{m.name}</Text>
+                    <Pressable
+                      style={styles.editBtn}
+                      onLayout={(e) => setCardHeights(prev => ({ ...prev, [m.id + '_edit']: e.nativeEvent.layout.height } as any))}
+                      onPress={(e) => {
+                        e.stopPropagation?.();
+                        router.push(`/build/${m.id}`);
+                      }}
+                    >
+                      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                        <ChamferedFrame 
+                          width={60} 
+                          height={24} 
+                          chamfer={4} 
+                          stroke="#22d3ee" 
+                          fill="#1e293b" 
+                        />
+                      </View>
+                      <Text style={styles.editBtnText}>Edit</Text>
+                    </Pressable>
+                  </Pressable>
+
+                  <View style={styles.toggleRow}>
+                    <Text style={styles.toggleLabel}>Mode:</Text>
+                    <Pressable 
+                      onPress={() => toggleMode(m.id)}
+                      style={[styles.toggleBtn, mode === 'basic' && styles.toggleBtnActive]}
+                    >
+                      <Text style={styles.toggleBtnText}>Basic</Text>
+                    </Pressable>
+                    <Pressable 
+                      onPress={() => toggleMode(m.id)}
+                      style={[styles.toggleBtn, mode === 'dynamic' && styles.toggleBtnActive]}
+                    >
+                      <Text style={styles.toggleBtnText}>Dynamic</Text>
+                    </Pressable>
                   </View>
-                  <Text style={styles.editBtnText}>Edit</Text>
-                </Pressable>
-              </Pressable>
-            ))}
+                </View>
+              );
+            })}
         </>
       )}
 
@@ -192,6 +241,37 @@ const styles = StyleSheet.create({
   mapName: { fontSize: 16, fontFamily: 'Orbitron-Bold', color: '#f1f5f9' },
   mapDesc: { fontSize: 12, fontFamily: 'Orbitron', color: '#94a3b8', marginTop: 4 },
   mapMeta: { fontSize: 10, fontFamily: 'Orbitron', color: '#475569', marginTop: 4 },
+  toggleRow: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  toggleLabel: {
+    fontSize: 9,
+    color: '#64748b',
+    fontFamily: 'Orbitron-Bold',
+    textTransform: 'uppercase',
+    marginRight: 2,
+  },
+  toggleBtn: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: '#334155',
+    backgroundColor: '#1e293b',
+  },
+  toggleBtnActive: {
+    borderColor: '#22d3ee',
+    backgroundColor: '#0e7490',
+  },
+  toggleBtnText: {
+    fontSize: 9,
+    color: '#f1f5f9',
+    fontFamily: 'Orbitron-Bold',
+  },
   editBtn: {
     position: 'absolute',
     right: 12,

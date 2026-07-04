@@ -10,8 +10,8 @@
  *  3. User taps Continue to dismiss.
  */
 
-import { useEffect, useState } from 'react';
-import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
+import { useEffect, useState, useRef } from 'react';
+import { Modal, View, Text, Pressable, StyleSheet, Animated } from 'react-native';
 import { ChamferedFrame } from '../ui/ChamferedFrame';
 
 export interface RollResultInfo {
@@ -54,15 +54,24 @@ const KIND_STYLES: Record<RollResultInfo['kind'], { bg: string; border: string; 
 export function ResultModal({ visible, result, rolling, playerName, nodeName, onDismiss }: Props) {
   const [spinningD20, setSpinningD20] = useState(1);
   const [modalSize, setModalSize] = useState({ w: 0, h: 0 });
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
-  // Spin animation: cycle 1..20 while rolling.
+  // Spin animation: cycle random numbers while rolling.
   useEffect(() => {
-    if (!rolling) return;
-    const id = setInterval(() => {
-      setSpinningD20((n) => (n % 20) + 1);
-    }, 60);
-    return () => clearInterval(id);
-  }, [rolling]);
+    if (rolling) {
+      const id = setInterval(() => {
+        setSpinningD20(Math.floor(Math.random() * 20) + 1);
+      }, 60);
+      return () => clearInterval(id);
+    } else if (result) {
+      // When rolling stops, set the final number and trigger the pop animation.
+      setSpinningD20(result.d20);
+      Animated.sequence([
+        Animated.timing(scaleAnim, { toValue: 1.3, duration: 150, useNativeDriver: true }),
+        Animated.spring(scaleAnim, { toValue: 1, friction: 3, tension: 40, useNativeDriver: true })
+      ]).start();
+    }
+  }, [rolling, result, scaleAnim]);
 
   if (!visible) return null;
 
@@ -93,13 +102,19 @@ export function ResultModal({ visible, result, rolling, playerName, nodeName, on
             {playerName} rolls at {result?.nodeName ?? nodeName}
           </Text>
 
-          {rolling ? (
-            <View style={styles.rollingBox}>
-              <Text style={styles.dieLabel}>d20</Text>
-              <Text style={styles.die}>{spinningD20 || '·'}</Text>
+          <View style={styles.rollingBox}>
+            <Text style={styles.dieLabel}>d20</Text>
+            <Animated.Text style={[styles.die, { transform: [{ scale: scaleAnim }] }]}>
+              {result?.d20 === 0 && !rolling ? '⭐' : spinningD20}
+            </Animated.Text>
+            {rolling ? (
               <Text style={styles.rollingText}>Rolling…</Text>
-            </View>
-          ) : null}
+            ) : (
+              <Text style={[styles.rollingText, { color: result ? KIND_STYLES[result.kind].border : '#22d3ee' }]}>
+                {result?.outcomeLabel || 'Settled'}
+              </Text>
+            )}
+          </View>
 
           {showResult && result ? (
             <View style={[styles.resultBox, { backgroundColor: KIND_STYLES[result.kind].bg, borderColor: KIND_STYLES[result.kind].border }]}>
@@ -140,14 +155,12 @@ export function ResultModal({ visible, result, rolling, playerName, nodeName, on
           ) : null}
 
           {showResult ? (
-            <View style={{ width: '100%', height: 48, marginTop: 8 }}>
+            <Pressable style={styles.continueBtn} onPress={onDismiss}>
               <View style={StyleSheet.absoluteFill} pointerEvents="none">
-                <ChamferedFrame width={modalSize.w - 48} height={48} chamfer={10} stroke="#22d3ee" fill="#0e7490" />
+                <ChamferedFrame width={modalSize.w - 48} height={48} chamfer={8} stroke="#22d3ee" fill="#0e7490" />
               </View>
-              <Pressable style={styles.continueBtn} onPress={onDismiss}>
-                <Text style={styles.continueBtnText}>Continue</Text>
-              </Pressable>
-            </View>
+              <Text style={styles.continueBtnText}>Continue</Text>
+            </Pressable>
           ) : null}
         </View>
       </View>
@@ -207,6 +220,7 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 8,
   },
   continueBtnText: { color: '#fff', fontWeight: '800', fontSize: 15, fontFamily: 'Orbitron-Bold' },
 });

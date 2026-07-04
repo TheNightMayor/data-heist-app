@@ -31,7 +31,7 @@ interface GameStore {
   map: FlowMap | null;
   normalizePlayers: (players: Player[]) => Player[];
   dispatch: (action: GameAction) => void;
-  startGame: (map: FlowMap, players: SetupInput[]) => void;
+  startGame: (map: FlowMap, players: SetupInput[], hackingMode: 'basic' | 'dynamic') => void;
   endGame: () => void;
   loadGameFromState: (state: GameState, map: FlowMap) => void;
   persist: () => Promise<void>;
@@ -84,7 +84,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     return copy;
   },
 
-  startGame: (map, players) => {
+  startGame: (map, players, hackingMode) => {
     // Map draft IDs (from setup UI) to newly generated player IDs so pairings survive
     const draftToNewId = new Map<string, string>();
     for (const p of players) {
@@ -128,6 +128,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       id: nanoid(10),
       mapId: map.id,
       mapName: map.name,
+      hackingMode,
       players: normalized,
       // Turn order: derived from initiative sorting (lower acts earlier).
       turnOrder: sorted.map((p) => p.id),

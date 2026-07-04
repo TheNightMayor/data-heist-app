@@ -1,0 +1,286 @@
+[ 2551160ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\index.tsx: Unexpected token, expected "," (158:75)
+
+  156 |                     <Pressable
+  157 |                       style={styles.editBtn}
+> 158 |                       onLayout={(e) => setCardHeights(prev => ({ ...prev, m.id + '_edit' as string: e.nativeEvent.layout.height } as any))}
+      |                                                                            ^
+  159 |                       onPress={(e) => {
+  160 |                         e.stopPropagation?.();
+  161 |                         router.push(`/build/${m.id}`);
+[ 2559751ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\index.tsx: Unexpected token, expected "," (158:75)
+
+  156 |                     <Pressable
+  157 |                       style={styles.editBtn}
+> 158 |                       onLayout={(e) => setCardHeights(prev => ({ ...prev, m.id + '_edit' as string: e.nativeEvent.layout.height } as any))}
+      |                                                                            ^
+  159 |                       onPress={(e) => {
+  160 |                         e.stopPropagation?.();
+  161 |                         router.push(`/build/${m.id}`);
+[ 2564454ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\index.tsx: Unexpected token, expected "," (158:75)
+
+  156 |                     <Pressable
+  157 |                       style={styles.editBtn}
+> 158 |                       onLayout={(e) => setCardHeights(prev => ({ ...prev, m.id + '_edit' as string: e.nativeEvent.layout.height } as any))}
+      |                                                                            ^
+  159 |                       onPress={(e) => {
+  160 |                         e.stopPropagation?.();
+  161 |                         router.push(`/build/${m.id}`);
+[ 2566698ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\index.tsx: Unexpected token, expected "," (158:75)
+
+  156 |                     <Pressable
+  157 |                       style={styles.editBtn}
+> 158 |                       onLayout={(e) => setCardHeights(prev => ({ ...prev, m.id + '_edit' as string: e.nativeEvent.layout.height } as any))}
+      |                                                                            ^
+  159 |                       onPress={(e) => {
+  160 |                         e.stopPropagation?.();
+  161 |                         router.push(`/build/${m.id}`);
+[ 2575833ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\index.tsx: Unexpected token, expected "," (158:75)
+
+  156 |                     <Pressable
+  157 |                       style={styles.editBtn}
+> 158 |                       onLayout={(e) => setCardHeights(prev => ({ ...prev, m.id + '_edit' as string: e.nativeEvent.layout.height } as any))}
+      |                                                                            ^
+  159 |                       onPress={(e) => {
+  160 |                         e.stopPropagation?.();
+  161 |                         router.push(`/build/${m.id}`);
+[ 2579887ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\index.tsx: Unexpected token, expected "," (158:75)
+
+  156 |                     <Pressable
+  157 |                       style={styles.editBtn}
+> 158 |                       onLayout={(e) => setCardHeights(prev => ({ ...prev, m.id + '_edit' as string: e.nativeEvent.layout.height } as any))}
+      |                                                                            ^
+  159 |                       onPress={(e) => {
+  160 |                         e.stopPropagation?.();
+  161 |                         router.push(`/build/${m.id}`);
+[ 2586691ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\index.tsx: Unexpected token, expected "," (158:75)
+
+  156 |                     <Pressable
+  157 |                       style={styles.editBtn}
+> 158 |                       onLayout={(e) => setCardHeights(prev => ({ ...prev, m.id + '_edit' as string: e.nativeEvent.layout.height } as any))}
+      |                                                                            ^
+  159 |                       onPress={(e) => {
+  160 |                         e.stopPropagation?.();
+  161 |                         router.push(`/build/${m.id}`);
+[ 2591942ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\index.tsx: Unexpected token, expected "," (158:75)
+
+  156 |                     <Pressable
+  157 |                       style={styles.editBtn}
+> 158 |                       onLayout={(e) => setCardHeights(prev => ({ ...prev, m.id + '_edit' as string: e.nativeEvent.layout.height } as any))}
+      |                                                                            ^
+  159 |                       onPress={(e) => {
+  160 |                         e.stopPropagation?.();
+  161 |                         router.push(`/build/${m.id}`);
+[ 2592449ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\index.tsx: Unexpected token, expected "," (158:75)
+
+  156 |                     <Pressable
+  157 |                       style={styles.editBtn}
+> 158 |                       onLayout={(e) => setCardHeights(prev => ({ ...prev, m.id + '_edit' as string: e.nativeEvent.layout.height } as any))}
+      |                                                                            ^
+  159 |                       onPress={(e) => {
+  160 |                         e.stopPropagation?.();
+  161 |                         router.push(`/build/${m.id}`);
+[ 2596912ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\index.tsx: Unexpected token, expected "," (158:75)
+
+  156 |                     <Pressable
+  157 |                       style={styles.editBtn}
+> 158 |                       onLayout={(e) => setCardHeights(prev => ({ ...prev, m.id + '_edit' as string: e.nativeEvent.layout.height } as any))}
+      |                                                                            ^
+  159 |                       onPress={(e) => {
+  160 |                         e.stopPropagation?.();
+  161 |                         router.push(`/build/${m.id}`);
+[ 2599524ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\index.tsx: Unexpected token, expected "," (158:75)
+
+  156 |                     <Pressable
+  157 |                       style={styles.editBtn}
+> 158 |                       onLayout={(e) => setCardHeights(prev => ({ ...prev, m.id + '_edit' as string: e.nativeEvent.layout.height } as any))}
+      |                                                                            ^
+  159 |                       onPress={(e) => {
+  160 |                         e.stopPropagation?.();
+  161 |                         router.push(`/build/${m.id}`);
+[ 2605263ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\index.tsx: Unexpected token, expected "," (158:75)
+
+  156 |                     <Pressable
+  157 |                       style={styles.editBtn}
+> 158 |                       onLayout={(e) => setCardHeights(prev => ({ ...prev, m.id + '_edit' as string: e.nativeEvent.layout.height } as any))}
+      |                                                                            ^
+  159 |                       onPress={(e) => {
+  160 |                         e.stopPropagation?.();
+  161 |                         router.push(`/build/${m.id}`);
+[ 2612139ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\index.tsx: Unexpected token, expected "," (158:75)
+
+  156 |                     <Pressable
+  157 |                       style={styles.editBtn}
+> 158 |                       onLayout={(e) => setCardHeights(prev => ({ ...prev, m.id + '_edit' as string: e.nativeEvent.layout.height } as any))}
+      |                                                                            ^
+  159 |                       onPress={(e) => {
+  160 |                         e.stopPropagation?.();
+  161 |                         router.push(`/build/${m.id}`);
+[ 2629680ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\index.tsx: Unexpected token, expected "," (158:75)
+
+  156 |                     <Pressable
+  157 |                       style={styles.editBtn}
+> 158 |                       onLayout={(e) => setCardHeights(prev => ({ ...prev, m.id + '_edit' as string: e.nativeEvent.layout.height } as any))}
+      |                                                                            ^
+  159 |                       onPress={(e) => {
+  160 |                         e.stopPropagation?.();
+  161 |                         router.push(`/build/${m.id}`);
+[ 2631855ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\index.tsx: Unexpected token, expected "," (158:75)
+
+  156 |                     <Pressable
+  157 |                       style={styles.editBtn}
+> 158 |                       onLayout={(e) => setCardHeights(prev => ({ ...prev, m.id + '_edit' as string: e.nativeEvent.layout.height } as any))}
+      |                                                                            ^
+  159 |                       onPress={(e) => {
+  160 |                         e.stopPropagation?.();
+  161 |                         router.push(`/build/${m.id}`);
+[ 2640616ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\index.tsx: Unexpected token, expected "," (158:75)
+
+  156 |                     <Pressable
+  157 |                       style={styles.editBtn}
+> 158 |                       onLayout={(e) => setCardHeights(prev => ({ ...prev, m.id + '_edit' as string: e.nativeEvent.layout.height } as any))}
+      |                                                                            ^
+  159 |                       onPress={(e) => {
+  160 |                         e.stopPropagation?.();
+  161 |                         router.push(`/build/${m.id}`);
+[ 2649545ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\index.tsx: Unexpected token, expected "," (158:75)
+
+  156 |                     <Pressable
+  157 |                       style={styles.editBtn}
+> 158 |                       onLayout={(e) => setCardHeights(prev => ({ ...prev, m.id + '_edit' as string: e.nativeEvent.layout.height } as any))}
+      |                                                                            ^
+  159 |                       onPress={(e) => {
+  160 |                         e.stopPropagation?.();
+  161 |                         router.push(`/build/${m.id}`);
+[ 2652508ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\index.tsx: Unexpected token, expected "," (158:75)
+
+  156 |                     <Pressable
+  157 |                       style={styles.editBtn}
+> 158 |                       onLayout={(e) => setCardHeights(prev => ({ ...prev, m.id + '_edit' as string: e.nativeEvent.layout.height } as any))}
+      |                                                                            ^
+  159 |                       onPress={(e) => {
+  160 |                         e.stopPropagation?.();
+  161 |                         router.push(`/build/${m.id}`);
+[ 2663782ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\index.tsx: Unexpected token, expected "," (158:75)
+
+  156 |                     <Pressable
+  157 |                       style={styles.editBtn}
+> 158 |                       onLayout={(e) => setCardHeights(prev => ({ ...prev, m.id + '_edit' as string: e.nativeEvent.layout.height } as any))}
+      |                                                                            ^
+  159 |                       onPress={(e) => {
+  160 |                         e.stopPropagation?.();
+  161 |                         router.push(`/build/${m.id}`);
+[ 2666366ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\index.tsx: Unexpected token, expected "," (158:75)
+
+  156 |                     <Pressable
+  157 |                       style={styles.editBtn}
+> 158 |                       onLayout={(e) => setCardHeights(prev => ({ ...prev, m.id + '_edit' as string: e.nativeEvent.layout.height } as any))}
+      |                                                                            ^
+  159 |                       onPress={(e) => {
+  160 |                         e.stopPropagation?.();
+  161 |                         router.push(`/build/${m.id}`);
+[ 2669561ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\index.tsx: Unexpected token, expected "," (158:75)
+
+  156 |                     <Pressable
+  157 |                       style={styles.editBtn}
+> 158 |                       onLayout={(e) => setCardHeights(prev => ({ ...prev, m.id + '_edit' as string: e.nativeEvent.layout.height } as any))}
+      |                                                                            ^
+  159 |                       onPress={(e) => {
+  160 |                         e.stopPropagation?.();
+  161 |                         router.push(`/build/${m.id}`);
+[ 2673894ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\index.tsx: Unexpected token, expected "," (158:75)
+
+  156 |                     <Pressable
+  157 |                       style={styles.editBtn}
+> 158 |                       onLayout={(e) => setCardHeights(prev => ({ ...prev, m.id + '_edit' as string: e.nativeEvent.layout.height } as any))}
+      |                                                                            ^
+  159 |                       onPress={(e) => {
+  160 |                         e.stopPropagation?.();
+  161 |                         router.push(`/build/${m.id}`);
+[ 2678276ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\index.tsx: Unexpected token, expected "," (158:75)
+
+  156 |                     <Pressable
+  157 |                       style={styles.editBtn}
+> 158 |                       onLayout={(e) => setCardHeights(prev => ({ ...prev, m.id + '_edit' as string: e.nativeEvent.layout.height } as any))}
+      |                                                                            ^
+  159 |                       onPress={(e) => {
+  160 |                         e.stopPropagation?.();
+  161 |                         router.push(`/build/${m.id}`);
+[ 2680256ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\index.tsx: Unexpected token, expected "," (158:75)
+
+  156 |                     <Pressable
+  157 |                       style={styles.editBtn}
+> 158 |                       onLayout={(e) => setCardHeights(prev => ({ ...prev, m.id + '_edit' as string: e.nativeEvent.layout.height } as any))}
+      |                                                                            ^
+  159 |                       onPress={(e) => {
+  160 |                         e.stopPropagation?.();
+  161 |                         router.push(`/build/${m.id}`);
+[ 2681275ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\index.tsx: Unexpected token, expected "," (158:75)
+
+  156 |                     <Pressable
+  157 |                       style={styles.editBtn}
+> 158 |                       onLayout={(e) => setCardHeights(prev => ({ ...prev, m.id + '_edit' as string: e.nativeEvent.layout.height } as any))}
+      |                                                                            ^
+  159 |                       onPress={(e) => {
+  160 |                         e.stopPropagation?.();
+  161 |                         router.push(`/build/${m.id}`);
+[ 2681814ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\index.tsx: Unexpected token, expected "," (158:75)
+
+  156 |                     <Pressable
+  157 |                       style={styles.editBtn}
+> 158 |                       onLayout={(e) => setCardHeights(prev => ({ ...prev, m.id + '_edit' as string: e.nativeEvent.layout.height } as any))}
+      |                                                                            ^
+  159 |                       onPress={(e) => {
+  160 |                         e.stopPropagation?.();
+  161 |                         router.push(`/build/${m.id}`);
+[ 3634466ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\game\[mapId].tsx: Expected corresponding JSX closing tag for <Pressable>. (1046:10)
+
+  1044 |             </Pressable>
+  1045 |             </View>
+> 1046 |           </View>
+       |           ^
+  1047 |         </View>
+  1048 |       </Modal>
+  1049 |
+[ 3667798ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\game\[mapId].tsx: Expected corresponding JSX closing tag for <Pressable>. (868:10)
+
+  866 |             </Pressable>
+  867 |             </View>
+> 868 |           </View>
+      |           ^
+  869 |         </View>
+  870 |       </Modal>
+  871 |
+[ 3678237ms] SyntaxError: D:\Users\lawre\Documents\Work\data-heist-app\src\app\game\[mapId].tsx: Expected corresponding JSX closing tag for <Pressable>. (978:10)
+
+  976 |             </Pressable>
+  977 |             </View>
+> 978 |           </View>
+      |           ^
+  979 |         </View>
+  980 |       </Modal>
+  981 |
+[ 4708561ms] ReferenceError: toast is not defined
+    at GameScreen (http://localhost:8081/src/app/game/%5BmapId%5D.bundle//&platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable&minify=false&modulesOnly=true&runModule=false&shallow=true:661:18)
+    at Object.react_stack_bottom_frame (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:18829:20)
+    at renderWithHooks (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:9702:22)
+    at updateFunctionComponent (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:11091:19)
+    at beginWork (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:11660:18)
+    at runWithFiberInDEV (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:6179:70)
+    at performUnitOfWork (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:14087:95)
+    at workLoopSync (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:13982:40)
+    at renderRootSync (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:13967:9)
+    at performWorkOnRoot (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:13640:35)
+    at performSyncWorkOnRoot (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:14750:7)
+    at flushSyncWorkAcrossRoots_impl (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:14665:308)
+    at flushSyncWork$1 (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:13770:84)
+    at Object.scheduleRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:5592:9)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:70164:23
+    at Set.forEach (<anonymous>)
+    at Object.performReactRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:70156:32)
+    at Object.performReactRefresh (http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:69922:27)
+    at http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:429:21
+[ 4708561ms] [WARNING] %s
+
+%s
+ An error occurred in the <GameScreen> component. Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries. @ http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable:70533

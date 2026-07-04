@@ -26,7 +26,8 @@ interface NodeActionPanelProps {
   otherLeadsExist?: boolean;
   aidBonus?: number;
   isReachable?: boolean;
-  modifiers?: { deceive: number; hack: number; process: number };
+  modifiers?: { deceive: number; hack: number; process: number; total: number };
+  hackingMode?: 'basic' | 'dynamic';
 }
 
 export function NodeActionPanel({
@@ -51,6 +52,7 @@ export function NodeActionPanel({
   aidBonus,
   isReachable = true,
   modifiers,
+  hackingMode = 'dynamic',
 }: NodeActionPanelProps) {
   const catColors: Record<FlowNode['category'], { fill: string; border: string; icon: string }> = {
     module: { fill: '#1e3a8a', border: '#60a5fa', icon: '📦' },
@@ -115,7 +117,8 @@ export function NodeActionPanel({
             {isReachable ? node.name : 'Unknown Host'}
           </Text>
           <Text style={styles.meta}>
-            DC {dc} • {subskill[0].toUpperCase() + subskill.slice(1)}
+            DC {dc} 
+            {hackingMode === 'dynamic' && ` • ${subskill[0].toUpperCase() + subskill.slice(1)}`}
             {successesRequired > 0 ? ` • ${successes}/${successesRequired}` : ''}
           </Text>
         </View>
@@ -136,24 +139,35 @@ export function NodeActionPanel({
 
       {isReachable && (
         <View style={styles.modifiersRow}>
-          <View style={styles.modItem}>
-            <Text style={styles.modLabel}>Hack</Text>
-            <Text style={[styles.modValue, subskill === 'hack' && styles.modValueHighlight]}>
-              +{modifiers?.hack ?? 0}
-            </Text>
-          </View>
-          <View style={styles.modItem}>
-            <Text style={styles.modLabel}>Deceive</Text>
-            <Text style={[styles.modValue, subskill === 'deceive' && styles.modValueHighlight]}>
-              +{modifiers?.deceive ?? 0}
-            </Text>
-          </View>
-          <View style={styles.modItem}>
-            <Text style={styles.modLabel}>Process</Text>
-            <Text style={[styles.modValue, subskill === 'process' && styles.modValueHighlight]}>
-              +{modifiers?.process ?? 0}
-            </Text>
-          </View>
+          {hackingMode === 'dynamic' ? (
+            <>
+              <View style={styles.modItem}>
+                <Text style={styles.modLabel}>Hack</Text>
+                <Text style={[styles.modValue, subskill === 'hack' && styles.modValueHighlight]}>
+                  +{modifiers?.hack ?? 0}
+                </Text>
+              </View>
+              <View style={styles.modItem}>
+                <Text style={styles.modLabel}>Deceive</Text>
+                <Text style={[styles.modValue, subskill === 'deceive' && styles.modValueHighlight]}>
+                  +{modifiers?.deceive ?? 0}
+                </Text>
+              </View>
+              <View style={styles.modItem}>
+                <Text style={styles.modLabel}>Process</Text>
+                <Text style={[styles.modValue, subskill === 'process' && styles.modValueHighlight]}>
+                  +{modifiers?.process ?? 0}
+                </Text>
+              </View>
+            </>
+          ) : (
+            <View style={[styles.modItem, { flex: 1 }]}>
+              <Text style={styles.modLabel}>Computers Mod</Text>
+              <Text style={[styles.modValue, styles.modValueHighlight]}>
+                +{modifiers?.total ?? 0}
+              </Text>
+            </View>
+          )}
         </View>
       )}
 
@@ -162,57 +176,93 @@ export function NodeActionPanel({
           <>
             {canPlanTurn ? (
               <Pressable style={[styles.btn, styles.planBtn]} onPress={onPlanTurn}>
+                <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                  <ChamferedFrame width={236} height={32} chamfer={6} stroke="#475569" fill="#1e293b" />
+                </View>
                 <Text style={styles.btnText}>Plan Turn</Text>
               </Pressable>
             ) : null}
             
-            <Pressable 
-              style={[
-                styles.btn, 
-                styles.majorBtn,
-                majorDisabled ? styles.btnDisabled : null
-              ]} 
-              onPress={onMajorAction}
-              disabled={majorDisabled}
-            >
-              <Text style={styles.btnText}>
-                Major Action{playerClass === 'lead' && (aidBonus ?? 0) > 0 ? ` (+${aidBonus} Aid)` : ''}
-              </Text>
-            </Pressable>
-
-            <Pressable 
-              style={[
-                styles.btn, 
-                styles.supportBtn, 
-                (minorActionsTaken > 0 || (playerClass === 'lead' && !otherLeadsExist)) ? styles.btnDisabled : null
-              ]} 
-              onPress={onSupportAction}
-              disabled={minorActionsTaken > 0 || (playerClass === 'lead' && !otherLeadsExist)}
-            >
-              <Text style={styles.btnText}>
-                {(playerClass === 'lead' && !otherLeadsExist) ? 'No Options Available' : 'Minor Action'}
-              </Text>
-            </Pressable>
-
-            {playerClass === 'support' && actionsCommitted === 0 ? (
               <Pressable 
-                style={[styles.btn, styles.buyBtn, (actionsTaken > 0 || rp < 1) ? styles.btnDisabled : null]} 
-                onPress={onBuyMajorAction}
-                disabled={actionsTaken > 0 || rp < 1}
+                style={[
+                  styles.btn, 
+                  styles.majorBtn,
+                  majorDisabled ? styles.btnDisabled : null
+                ]} 
+                onPress={onMajorAction}
+                disabled={majorDisabled}
               >
-                <Text style={styles.btnText}>Buy Major Action (1RP)</Text>
+                <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                  <ChamferedFrame 
+                    width={PANEL_WIDTH - 24} 
+                    height={32} 
+                    chamfer={6} 
+                    stroke={majorDisabled ? "#334155" : "#22d3ee"} 
+                    fill={majorDisabled ? "#0f172a" : "#0891b2"} 
+                  />
+                </View>
+                <Text style={styles.btnText}>
+                  Major Action{playerClass === 'lead' && (aidBonus ?? 0) > 0 ? ` (+${aidBonus} Aid)` : ''}
+                </Text>
               </Pressable>
-            ) : null}
 
-            {playerClass === 'support' && actionsCommitted > 0 && actionsTaken === 0 ? (
-              <Pressable style={[styles.btn, styles.refundBtn]} onPress={onRefundMajorAction}>
-                <Text style={styles.btnText}>Refund Major Action</Text>
+              <Pressable 
+                style={[
+                  styles.btn, 
+                  styles.supportBtn, 
+                  (minorActionsTaken > 0 || (playerClass === 'lead' && !otherLeadsExist)) ? styles.btnDisabled : null
+                ]} 
+                onPress={onSupportAction}
+                disabled={minorActionsTaken > 0 || (playerClass === 'lead' && !otherLeadsExist)}
+              >
+                <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                  <ChamferedFrame 
+                    width={PANEL_WIDTH - 24} 
+                    height={32} 
+                    chamfer={6} 
+                    stroke={(minorActionsTaken > 0 || (playerClass === 'lead' && !otherLeadsExist)) ? "#334155" : "#a78bfa"} 
+                    fill={(minorActionsTaken > 0 || (playerClass === 'lead' && !otherLeadsExist)) ? "#0f172a" : "#7c3aed"} 
+                  />
+                </View>
+                <Text style={styles.btnText}>
+                  {(playerClass === 'lead' && !otherLeadsExist) ? 'No Options Available' : 'Minor Action'}
+                </Text>
               </Pressable>
-            ) : null}
 
-            <Pressable style={[styles.btn, styles.endBtn]} onPress={onEndTurn}>
-              <Text style={styles.btnText}>End Turn</Text>
-            </Pressable>
+              {playerClass === 'support' && actionsCommitted === 0 ? (
+                <Pressable 
+                  style={[styles.btn, styles.buyBtn, (actionsTaken > 0 || rp < 1) ? styles.btnDisabled : null]} 
+                  onPress={onBuyMajorAction}
+                  disabled={actionsTaken > 0 || rp < 1}
+                >
+                  <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                    <ChamferedFrame 
+                      width={PANEL_WIDTH - 24} 
+                      height={32} 
+                      chamfer={6} 
+                      stroke={(actionsTaken > 0 || rp < 1) ? "#334155" : "#22d3ee"} 
+                      fill={(actionsTaken > 0 || rp < 1) ? "#0f172a" : "#0e7490"} 
+                    />
+                  </View>
+                  <Text style={styles.btnText}>Buy Major Action (1RP)</Text>
+                </Pressable>
+              ) : null}
+
+              {playerClass === 'support' && actionsCommitted > 0 && actionsTaken === 0 ? (
+                <Pressable style={[styles.btn, styles.refundBtn]} onPress={onRefundMajorAction}>
+                  <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                    <ChamferedFrame width={PANEL_WIDTH - 24} height={32} chamfer={6} stroke="#475569" fill="#334155" />
+                  </View>
+                  <Text style={styles.btnText}>Refund Major Action</Text>
+                </Pressable>
+              ) : null}
+
+              <Pressable style={[styles.btn, styles.endBtn]} onPress={onEndTurn}>
+                <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                  <ChamferedFrame width={PANEL_WIDTH - 24} height={32} chamfer={6} stroke="#f87171" fill="#7f1d1d" />
+                </View>
+                <Text style={styles.btnText}>End Turn</Text>
+              </Pressable>
           </>
         ) : (
           <View style={styles.deniedBox}>
@@ -264,10 +314,11 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   btn: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 0,
+    height: 32,
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    marginVertical: 2,
   },
   btnText: {
     color: '#fff',
@@ -276,29 +327,19 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   planBtn: {
-    backgroundColor: '#334155',
-    borderWidth: 1,
-    borderColor: '#475569',
   },
   majorBtn: {
-    backgroundColor: '#0891b2', // cyan-600
   },
   btnDisabled: {
-    opacity: 0.3,
+    opacity: 0.8,
   },
   buyBtn: {
-    backgroundColor: '#22d3ee',
-    borderWidth: 1,
-    borderColor: '#0891b2',
   },
   refundBtn: {
-    backgroundColor: '#475569',
   },
   supportBtn: {
-    backgroundColor: '#7c3aed', // violet-600
   },
   endBtn: {
-    backgroundColor: '#7f1d1d', // red-900
     marginTop: 4,
   },
   statsRow: {

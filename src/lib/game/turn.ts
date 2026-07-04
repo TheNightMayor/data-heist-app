@@ -235,7 +235,7 @@ function rollResolve(
 
   const dc = effectiveDC(node.tier, node.resolve);
   const subskill = node.resolve?.subskill ?? 'hack';
-  const baseModifier = modifierFor(player, subskill);
+  const baseModifier = modifierFor(player, subskill, state.hackingMode);
   const penalty = turnPenalty(state.actionsTaken, effectiveRPCommitted);
   const modifier = baseModifier + penalty + (action.aidBonus ?? 0);
 

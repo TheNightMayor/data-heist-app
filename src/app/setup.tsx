@@ -48,7 +48,8 @@ interface DraftPlayer {
 }
 
 export default function SetupScreen() {
-  const { mapId } = useLocalSearchParams<{ mapId: string }>();
+  const { mapId, hackingMode: modeParam } = useLocalSearchParams<{ mapId: string, hackingMode?: 'basic' | 'dynamic' }>();
+  const hackingMode = modeParam || 'dynamic';
   const router = useRouter();
   const startGame = useGameStore((s) => s.startGame);
 
@@ -61,8 +62,8 @@ export default function SetupScreen() {
     let name2 = getRandomName();
     while (name2 === name1) name2 = getRandomName();
     return [
-      { id: leadId, name: name1, class: 'lead', computersRanks: 4, computersModifier: 4, resolvePoints: 3, deceiveModifier: 4, hackModifier: 4, processModifier: 4, personaModifier: 0, personaModifierLimit: 1 },
-      { id: supportId, name: name2, class: 'support', computersRanks: 4, computersModifier: 4, resolvePoints: 3, deceiveModifier: 4, hackModifier: 4, processModifier: 4, personaModifier: 0, personaModifierLimit: 1, pairedLeadId: leadId },
+      { id: leadId, name: name1, class: 'lead', computersRanks: 1, computersModifier: 5, resolvePoints: 3, deceiveModifier: 5, hackModifier: 5, processModifier: 5, personaModifier: 0, personaModifierLimit: 0 },
+      { id: supportId, name: name2, class: 'support', computersRanks: 0, computersModifier: 2, resolvePoints: 3, deceiveModifier: 2, hackModifier: 2, processModifier: 2, personaModifier: 0, personaModifierLimit: 0, pairedLeadId: leadId },
     ];
   });
 
@@ -162,14 +163,14 @@ export default function SetupScreen() {
         id: nanoid(6), 
         name: getRandomName(), 
         class: 'lead', 
-        computersRanks: 4, 
-        computersModifier: 4, 
+        computersRanks: 1, 
+        computersModifier: 5, 
         resolvePoints: 3, 
-        deceiveModifier: 4, 
-        hackModifier: 4, 
-        processModifier: 4,
+        deceiveModifier: 5, 
+        hackModifier: 5, 
+        processModifier: 5,
         personaModifier: 0,
-        personaModifierLimit: 1
+        personaModifierLimit: 0
       },
     ]);
   };
@@ -216,7 +217,7 @@ export default function SetupScreen() {
       personaModifierLimit: p.personaModifierLimit,
       pairedLeadId: p.class === 'support' ? (p.pairedLeadId || firstLead?.id) : undefined,
     }));
-    startGame(map, input);
+    startGame(map, input, hackingMode);
     router.push(`/game/${map.id}`);
   };
 
@@ -344,7 +345,7 @@ export default function SetupScreen() {
               <View style={styles.row}>
                 <Pressable
                   style={styles.stepBtn}
-                  onPress={() => updatePlayer(p.id, { computersRanks: Math.max(1, p.computersRanks - 1) })}
+                  onPress={() => updatePlayer(p.id, { computersRanks: Math.max(0, p.computersRanks - 1) })}
                 >
                   <Text style={styles.stepBtnText}>−</Text>
                 </Pressable>
@@ -375,76 +376,82 @@ export default function SetupScreen() {
                 </Pressable>
               </View>
             </View>
-            <View style={styles.statCol}>
-              <Text style={styles.label}>Persona Mod</Text>
-              <View style={[styles.row, { height: 32 }]}>
-                <Text style={[styles.value, { color: pointsUsed > totalBudget ? '#f43f5e' : '#a855f7' }]}>
-                  {pointsUsed} / {totalBudget}
-                </Text>
+            {hackingMode === 'dynamic' && (
+              <View style={styles.statCol}>
+                <Text style={styles.label}>Persona Mod</Text>
+                <View style={[styles.row, { height: 32 }]}>
+                  <Text style={[styles.value, { color: pointsUsed > totalBudget ? '#f43f5e' : '#a855f7' }]}>
+                    {pointsUsed} / {totalBudget}
+                  </Text>
+                </View>
               </View>
-            </View>
+            )}
           </View>
 
-          <View style={[styles.statsRow, { marginTop: 8 }]}>
-            <View style={styles.statCol}>
-              <Text style={styles.label}>Hack Mod</Text>
-              <View style={styles.row}>
-                <Pressable
-                  style={styles.stepBtn}
-                  onPress={() => updatePlayer(p.id, { hackModifier: Math.max(p.computersModifier - 3, p.hackModifier - 1) })}
-                >
-                  <Text style={styles.stepBtnText}>−</Text>
-                </Pressable>
-                <Text style={styles.value}>{p.hackModifier}</Text>
-                <Pressable
-                  style={styles.stepBtn}
-                  onPress={() => updatePlayer(p.id, { hackModifier: Math.min(p.computersModifier + 3, p.hackModifier + 1) })}
-                >
-                  <Text style={styles.stepBtnText}>+</Text>
-                </Pressable>
+          {hackingMode === 'dynamic' && (
+            <View style={[styles.statsRow, { marginTop: 8 }]}>
+              <View style={styles.statCol}>
+                <Text style={styles.label}>Hack Mod</Text>
+                <View style={styles.row}>
+                  <Pressable
+                    style={styles.stepBtn}
+                    onPress={() => updatePlayer(p.id, { hackModifier: Math.max(p.computersModifier - 3, p.hackModifier - 1) })}
+                  >
+                    <Text style={styles.stepBtnText}>−</Text>
+                  </Pressable>
+                  <Text style={styles.value}>{p.hackModifier}</Text>
+                  <Pressable
+                    style={styles.stepBtn}
+                    onPress={() => updatePlayer(p.id, { hackModifier: Math.min(p.computersModifier + 3, p.hackModifier + 1) })}
+                  >
+                    <Text style={styles.stepBtnText}>+</Text>
+                  </Pressable>
+                </View>
+              </View>
+              <View style={styles.statCol}>
+                <Text style={styles.label}>Deceive Mod</Text>
+                <View style={styles.row}>
+                  <Pressable
+                    style={styles.stepBtn}
+                    onPress={() => updatePlayer(p.id, { deceiveModifier: Math.max(p.computersModifier - 3, p.deceiveModifier - 1) })}
+                  >
+                    <Text style={styles.stepBtnText}>−</Text>
+                  </Pressable>
+                  <Text style={styles.value}>{p.deceiveModifier}</Text>
+                  <Pressable
+                    style={styles.stepBtn}
+                    onPress={() => updatePlayer(p.id, { deceiveModifier: Math.min(p.computersModifier + 3, p.deceiveModifier + 1) })}
+                  >
+                    <Text style={styles.stepBtnText}>+</Text>
+                  </Pressable>
+                </View>
+              </View>
+              <View style={styles.statCol}>
+                <Text style={styles.label}>Process Mod</Text>
+                <View style={styles.row}>
+                  <Pressable
+                    style={styles.stepBtn}
+                    onPress={() => updatePlayer(p.id, { processModifier: Math.max(p.computersModifier - 3, p.processModifier - 1) })}
+                  >
+                    <Text style={styles.stepBtnText}>−</Text>
+                  </Pressable>
+                  <Text style={styles.value}>{p.processModifier}</Text>
+                  <Pressable
+                    style={styles.stepBtn}
+                    onPress={() => updatePlayer(p.id, { processModifier: Math.min(p.computersModifier + 3, p.processModifier + 1) })}
+                  >
+                    <Text style={styles.stepBtnText}>+</Text>
+                  </Pressable>
+                </View>
               </View>
             </View>
-            <View style={styles.statCol}>
-              <Text style={styles.label}>Deceive Mod</Text>
-              <View style={styles.row}>
-                <Pressable
-                  style={styles.stepBtn}
-                  onPress={() => updatePlayer(p.id, { deceiveModifier: Math.max(p.computersModifier - 3, p.deceiveModifier - 1) })}
-                >
-                  <Text style={styles.stepBtnText}>−</Text>
-                </Pressable>
-                <Text style={styles.value}>{p.deceiveModifier}</Text>
-                <Pressable
-                  style={styles.stepBtn}
-                  onPress={() => updatePlayer(p.id, { deceiveModifier: Math.min(p.computersModifier + 3, p.deceiveModifier + 1) })}
-                >
-                  <Text style={styles.stepBtnText}>+</Text>
-                </Pressable>
-              </View>
-            </View>
-            <View style={styles.statCol}>
-              <Text style={styles.label}>Process Mod</Text>
-              <View style={styles.row}>
-                <Pressable
-                  style={styles.stepBtn}
-                  onPress={() => updatePlayer(p.id, { processModifier: Math.max(p.computersModifier - 3, p.processModifier - 1) })}
-                >
-                  <Text style={styles.stepBtnText}>−</Text>
-                </Pressable>
-                <Text style={styles.value}>{p.processModifier}</Text>
-                <Pressable
-                  style={styles.stepBtn}
-                  onPress={() => updatePlayer(p.id, { processModifier: Math.min(p.computersModifier + 3, p.processModifier + 1) })}
-                >
-                  <Text style={styles.stepBtnText}>+</Text>
-                </Pressable>
-              </View>
-            </View>
-          </View>
+          )}
 
-          <Text style={styles.hint}>
-            Updating Total Mod sets all sub-modifiers
-          </Text>
+          {hackingMode === 'dynamic' && (
+            <Text style={styles.hint}>
+              Updating Total Mod sets all sub-modifiers
+            </Text>
+          )}
           {p.class === 'support' && (
             <View>
               <Text style={[styles.label, { marginTop: 8 }]}>Paired Lead</Text>

@@ -55,6 +55,8 @@ export interface FlowMap {
   updatedAt: string;
   /** True if bundled with the app (cannot be deleted). */
   builtIn?: boolean;
+  /** 'basic' uses Total Mod for all checks; 'dynamic' uses specific sub-skills. */
+  hackingMode?: 'basic' | 'dynamic';
 }
 
 /** Default node factory used by Build mode. */

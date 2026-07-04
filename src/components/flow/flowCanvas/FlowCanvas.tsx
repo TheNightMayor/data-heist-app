@@ -103,6 +103,8 @@ interface Props {
   minorActionsTaken?: number;
   otherLeadsExist?: boolean;
   aidBonus?: number;
+  hackingMode?: 'basic' | 'dynamic';
+  modifiers?: { deceive: number; hack: number; process: number; total: number };
 }
 
 export function FlowCanvas({ 
@@ -132,6 +134,8 @@ export function FlowCanvas({
   minorActionsTaken,
   otherLeadsExist,
   aidBonus,
+  hackingMode,
+  modifiers,
 }: Props) {
   const { width: windowWidth } = useWindowDimensions();
   const isSmallScreen = windowWidth < 768;
@@ -538,6 +542,8 @@ export function FlowCanvas({
                         minorActionsTaken={minorActionsTaken ?? 0}
                         otherLeadsExist={otherLeadsExist}
                         aidBonus={aidBonus}
+                        hackingMode={hackingMode}
+                        modifiers={modifiers}
                       />
                     )}
                   </React.Fragment>

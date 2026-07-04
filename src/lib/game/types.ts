@@ -70,6 +70,8 @@ export interface GameState {
   id: string;
   mapId: string;
   mapName: string;
+  /** 'basic' uses Total Mod for all checks; 'dynamic' uses specific sub-skills. */
+  hackingMode: 'basic' | 'dynamic';
   players: Player[];
   /** Order players take turns. */
   turnOrder: string[];
@@ -117,8 +119,9 @@ export function maxCPFor(ranks: number): number {
   return 12 + 2 * ranks;
 }
 
-/** Helper to get a player's modifier for a given subskill. */
-export function modifierFor(player: Player, subskill: Subskill): number {
+/** Helper to get a player's modifier for a given subskill, respecting hacking mode. */
+export function modifierFor(player: Player, subskill: Subskill, hackingMode: 'basic' | 'dynamic' = 'dynamic'): number {
+  if (hackingMode === 'basic') return player.computersModifier;
   switch (subskill) {
     case 'deceive':
       return player.deceiveModifier;
