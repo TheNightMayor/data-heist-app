@@ -14,6 +14,21 @@ import type { FlowMap } from '@/lib/flow/types';
 import { useGameStore } from '@/stores/gameStore';
 import { ChamferedFrame } from '@/components/ui/ChamferedFrame';
 
+const RANDOM_NAMES = [
+  'Case', 'Molly', 'Armitage', 'Riviera', 'Hideo', 'Wintermute', 'Neuromancer',
+  'Deckard', 'Rachel', 'Gaff', 'Sebastian', 'Trinity', 'Neo', 'Morpheus',
+  'Oracle', 'Cipher', 'Switch', 'Apoc', 'Mouse', 'Tank', 'Dozer', 'Murphy',
+  'Lewis', 'Robo', 'Motoko', 'Batou', 'Ishikawa', 'Saito', 'Pazu', 'Borma',
+  'Tachikoma', 'Seven', 'V', 'Johnny', 'Jackie', 'T-Bug', 'Dex', 'Evelyn',
+  'Judy', 'Panam', 'River', 'Kerry', 'Alt', 'Rogue', 'Saburo', 'Hanako', 'Yorinobu',
+  'Asha', 'Blue-17', 'Emene-3', 'Flick', 'Garro', 'Melody', 'Naga', 'Olas', 'Stringer', 'Twenty', 'Yose', 'Chiskisk', 'Kishara', 'Kuriya', 'Zao', 'Domash', 'Hesori', 'Kima', 'Kopalo', 'Maenala', 'Nomae', 'Oraeus', 'Shess', 'Soryn', 'Taeon', 'Varikuara', 'Coot', 'Drithik', 'Hivonyx', 'Keskodai', 'Remora', 'Tarsith',  'Darisk', 'Gorlai', 'Radenka', 'Shobquor', 'Bena', 'Coponisa', 'Cors', 'Goba', 'Ketch', 'Kib', 'Lolo', 'Niknik', 'Quig', 'Resk', 'Sim', 'Twik', 'Raia', 'Obozaya', 'Navasi', 'Altronus', 'Dolgrin', 'Grunyar', 'Harsk', 'Kazmuk', 'Morgrym', 'Agna', 'Bodill', 'Ingra', 'Kotri', 'Rusalka', 'Caladrel', 'Helas', 'Lariel', 'Myon', 'Rion', 'Saelhn', 'Seltyiel', 'Aerel', 'Amari', 'Kyra', 'Merisiel', 'Aball', 'Bim', 'Fibb', 'Hook', 'Jiggle', 'Fizzle', 'Pippen', 'Whirley', 'Calrel', 'Elenia', 'Lari', 'Myros', 'Riona', 'Sael', 'Dench', 'Krayst', 'Shump', 'Thokk', 'Toof', 'Ghorza', 'Muruk', 'Volen', 'Almar', 'Corrin', 'Dale', 'Eldon', 'Link', 'Milo', 'Pip', 'Roscoe', 'Tobin', 'Wendy',
+  'Pixi Sprocket', 'BeeBopp', 'Gregophory', 'Eberhart', 'Zenbot', 'Reverand Ace O\'Trades', 'Patsy Brine', 'The Eaten One', 'CAD', 'Jiit-Jiit', 'Kathshana', 'Irma Silverhand', 'Namfoodle', 
+];
+
+function getRandomName() {
+  return RANDOM_NAMES[Math.floor(Math.random() * RANDOM_NAMES.length)];
+}
+
 interface DraftPlayer {
   id: string;
   name: string;
@@ -34,9 +49,12 @@ export default function SetupScreen() {
   const [players, setPlayers] = useState<DraftPlayer[]>(() => {
     const leadId = nanoid(6);
     const supportId = nanoid(6);
+    const name1 = getRandomName();
+    let name2 = getRandomName();
+    while (name2 === name1) name2 = getRandomName();
     return [
-      { id: leadId, name: 'Alice', class: 'lead', computersRanks: 4, resolvePoints: 3 },
-      { id: supportId, name: 'Bob', class: 'support', computersRanks: 4, resolvePoints: 3, pairedLeadId: leadId },
+      { id: leadId, name: name1, class: 'lead', computersRanks: 4, resolvePoints: 3 },
+      { id: supportId, name: name2, class: 'support', computersRanks: 4, resolvePoints: 3, pairedLeadId: leadId },
     ];
   });
 
@@ -69,11 +87,6 @@ export default function SetupScreen() {
         return tentative.map((p) => (p.id === id ? { ...p, class: 'support', pairedLeadId: paired } : p));
       }
 
-      // If patch converts a lead away (to support) or removes a lead, ensure any supports paired to that lead are reassigned
-      if (existing.class === 'lead' && (patch.class === 'support' || patch.class === 'support')) {
-        // Should have been handled above (conversion to support requires another lead). Safe no-op here.
-      }
-
       // If patch converts someone to lead, or general updates, ensure every support has a valid pairedLeadId
       const validLeadIds = new Set(leadsAll.map((l) => l.id));
       const firstLead = leadsAll[0];
@@ -91,7 +104,7 @@ export default function SetupScreen() {
     if (players.length >= 4) return;
     setPlayers((ps) => [
       ...ps,
-      { id: nanoid(6), name: `Player ${ps.length + 1}`, class: 'lead', computersRanks: 4, resolvePoints: 3 },
+      { id: nanoid(6), name: getRandomName(), class: 'lead', computersRanks: 4, resolvePoints: 3 },
     ]);
   };
 
@@ -174,11 +187,19 @@ export default function SetupScreen() {
             )}
           </View>
           <Text style={styles.label}>Name</Text>
-          <TextInput
-            style={styles.input}
-            value={p.name}
-            onChangeText={(name) => updatePlayer(p.id, { name })}
-          />
+          <View style={styles.nameRow}>
+            <TextInput
+              style={[styles.input, { flex: 1, marginBottom: 0 }]}
+              value={p.name}
+              onChangeText={(name) => updatePlayer(p.id, { name })}
+            />
+            <Pressable
+              style={styles.randomBtn}
+              onPress={() => updatePlayer(p.id, { name: getRandomName() })}
+            >
+              <Text style={styles.randomBtnText}>🎲</Text>
+            </Pressable>
+          </View>
           <View style={styles.statsRow}>
             <View style={styles.statCol}>
               <Text style={styles.label}>Class</Text>
@@ -322,6 +343,15 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 16, color: '#f1f5f9', fontFamily: 'Orbitron-Bold' },
   remove: { color: '#f87171', fontSize: 12, fontFamily: 'Orbitron-Bold' },
   label: { fontSize: 11, color: '#64748b', fontFamily: 'Orbitron-Bold', textTransform: 'uppercase' },
+  nameRow: { flexDirection: 'row', gap: 8, marginBottom: 4 },
+  randomBtn: {
+    backgroundColor: '#1e293b',
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  randomBtnText: { fontSize: 16 },
   input: {
     backgroundColor: '#1e293b',
     color: '#f1f5f9',
@@ -366,6 +396,9 @@ const styles = StyleSheet.create({
     borderRadius: 0,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  startBtnDisabled: {
+    opacity: 0.5,
   },
   startBtnText: { color: '#fff', fontFamily: 'Orbitron-Bold', fontSize: 16 },
 });
