@@ -3,7 +3,7 @@
  */
 
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView } from 'react-native';
-import type { FlowNode, NodeCategory } from '@/lib/flow/types';
+import type { CountermeasureType, FlowNode, NodeCategory } from '@/lib/flow/types';
 import { ChamferedFrame } from '../ui/ChamferedFrame';
 
 interface Props {
@@ -11,13 +11,24 @@ interface Props {
   onUpdate: (patch: Partial<FlowNode>) => void;
   onDelete: () => void;
   onClose: () => void;
+  availableNodes?: FlowNode[];
+  targetNodeIds?: Set<string>;
+  onToggleTarget?: (nodeId: string) => void;
 }
 
-export function NodeEditor({ node, onUpdate, onDelete, onClose }: Props) {
+export function NodeEditor({ node, onUpdate, onDelete, onClose, availableNodes = [], targetNodeIds = new Set(), onToggleTarget }: Props) {
   if (!node) return null;
+  const countermeasureTypes: { value: CountermeasureType; label: string }[] = [
+    { value: 'wipe', label: 'Wipe' },
+    { value: 'feedback', label: 'Feedback' },
+    { value: 'fake-shell', label: 'Fake Shell' },
+    { value: 'alarm', label: 'Alarm' },
+    { value: 'lockout', label: 'Lockout' },
+    { value: 'shock-grid', label: 'Shock Grid' },
+  ];
   return (
     <View style={styles.editor}>
-       <View style={StyleSheet.absoluteFill} pointerEvents="none" style={{ top: -1 }}>
+      <View style={{ ...StyleSheet.absoluteFill, top: -1, pointerEvents: 'none' }}>
           <ChamferedFrame width={1200} height={300} chamfer={20} stroke="#22d3ee" fill="#0f172a" strokeWidth={2} />
        </View>
       <View style={styles.header}>
@@ -36,7 +47,7 @@ export function NodeEditor({ node, onUpdate, onDelete, onClose }: Props) {
 
         <Text style={styles.label}>Category</Text>
         <View style={styles.row}>
-          {(['module', 'countermeasure', 'gateway'] as NodeCategory[]).map((c) => (
+          {(['module', 'countermeasure', 'access'] as NodeCategory[]).map((c) => (
             <Pressable
               key={c}
               style={[styles.pill, node.category === c && styles.pillActive]}
@@ -46,6 +57,38 @@ export function NodeEditor({ node, onUpdate, onDelete, onClose }: Props) {
             </Pressable>
           ))}
         </View>
+
+        {node.category === 'countermeasure' ? (
+          <>
+            <Text style={styles.label}>Countermeasure</Text>
+            <View style={styles.row}>
+              {countermeasureTypes.map((type) => (
+                <Pressable
+                  key={type.value}
+                  style={[styles.pill, node.countermeasureType === type.value && styles.pillActive]}
+                  onPress={() => onUpdate({ countermeasureType: type.value })}
+                >
+                  <Text style={styles.pillText}>{type.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text style={styles.label}>Targets</Text>
+            <View style={styles.connectionList}>
+              {availableNodes.filter((candidate) => candidate.id !== node.id).map((candidate) => {
+                const targeted = targetNodeIds.has(candidate.id);
+                return (
+                  <Pressable
+                    key={candidate.id}
+                    style={[styles.connectionPill, targeted && styles.connectionPillActive]}
+                    onPress={() => onToggleTarget?.(candidate.id)}
+                  >
+                    <Text style={styles.pillText}>{targeted ? '✓ ' : ''}{candidate.name}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </>
+        ) : null}
 
         <Text style={styles.label}>Tier (1–10) → DC</Text>
         <View style={styles.row}>
@@ -62,7 +105,7 @@ export function NodeEditor({ node, onUpdate, onDelete, onClose }: Props) {
           style={[styles.toggle, node.hazard && styles.toggleActive]}
           onPress={() => onUpdate({ hazard: !node.hazard })}
         >
-          <Text style={styles.toggleText}>⚠ Hazard (skippable on beat-by-10+)</Text>
+          <Text style={styles.toggleText}>Hazard (skippable on beat-by-10+)</Text>
         </Pressable>
 
         <Pressable
@@ -106,6 +149,15 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   row: { flexDirection: 'row', gap: 8, alignItems: 'center', marginTop: 4 },
+  connectionList: { gap: 6, marginTop: 4 },
+  connectionPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#1e293b',
+    borderWidth: 1,
+    borderColor: '#475569',
+  },
+  connectionPillActive: { borderColor: '#22d3ee', backgroundColor: '#0e7490' },
   pill: {
     paddingHorizontal: 12,
     paddingVertical: 6,

@@ -25,7 +25,7 @@ export default function BuildIndexScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>Your Maps</Text>
         <View style={{ width: 100, height: 36 }}>
-          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
             <ChamferedFrame width={100} height={36} chamfer={6} stroke="#22d3ee" fill="#0e7490" />
           </View>
           <Pressable style={styles.newBtn} onPress={handleNew}>
@@ -43,7 +43,7 @@ export default function BuildIndexScreen() {
             onPress={() => router.push(`/build/${item.id}`)}
             onLayout={(e) => setRowHeights(prev => ({ ...prev, [item.id]: e.nativeEvent.layout.height }))}
           >
-            <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
               {rowHeights[item.id] && (
                 <ChamferedFrame 
                   width={cardWidth} 

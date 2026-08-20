@@ -34,4 +34,25 @@ describe('turn order pairing', () => {
       expect(idx).toBeLessThan(leadIndex);
     }
   });
+
+  it('starts basic mode with one lead player', () => {
+    const store = useGameStore;
+    store.getState().endGame();
+
+    const map = { id: 'map-basic', name: 'Basic Map' } as any;
+    const players = [
+      { name: 'LeadAlice', class: 'lead', computersRanks: 1, draftId: 'd-lead' },
+      { name: 'SupportBob', class: 'support', computersRanks: 1, pairedLeadId: 'd-lead', draftId: 'd-support' },
+    ] as any;
+
+    store.getState().startGame(map, players, 'basic');
+    const state = store.getState().state!;
+
+    expect(state.players).toHaveLength(1);
+    expect(state.players[0].class).toBe('lead');
+    expect(state.players[0].computersRanks).toBe(0);
+    expect(state.players[0].currentCP).toBe(0);
+    expect(state.players[0].maxCP).toBe(0);
+    expect(state.turnOrder).toEqual([state.players[0].id]);
+  });
 });

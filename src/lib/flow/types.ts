@@ -3,7 +3,8 @@
  * Used by both Build mode (edit) and Game mode (play).
  */
 
-export type NodeCategory = 'module' | 'countermeasure' | 'gateway';
+export type NodeCategory = 'module' | 'countermeasure' | 'access';
+export type CountermeasureType = 'wipe' | 'feedback' | 'fake-shell' | 'alarm' | 'lockout' | 'shock-grid';
 
 export type Subskill = 'deceive' | 'hack' | 'process';
 
@@ -27,7 +28,7 @@ export interface FlowNode {
   category: NodeCategory;
   /** Tier (1–10) determines base DC: 13 + 4 × tier. */
   tier: number;
-  /** Hazard-flagged gateways can be skipped after a beat-by-10+ roll. */
+  /** Hazard-flagged access nodes can be skipped after a beat-by-10+ roll. */
   hazard?: boolean;
   /** Marks the win-condition node. Exactly one per map. */
   isRootAccess?: boolean;
@@ -35,6 +36,10 @@ export interface FlowNode {
   resolve?: ObjectiveResolve;
   /** Countdown for countermeasure nodes (e.g. Wipe = 3 phases). */
   countdown?: number;
+  /** Variant used to identify the countermeasure's eventual gameplay effect. */
+  countermeasureType?: CountermeasureType;
+  /** Explicit nodes affected by this countermeasure, independent of graph edges. */
+  targetNodeIds?: string[];
   /** Optional flavor text shown when the node is tapped. */
   description?: string;
 }
@@ -57,6 +62,8 @@ export interface FlowMap {
   builtIn?: boolean;
   /** 'basic' uses Total Mod for all checks; 'dynamic' uses specific sub-skills. */
   hackingMode?: 'basic' | 'dynamic';
+  /** Optional map-wide failure limit. When absent, cumulative failures are not tracked or shown. */
+  cumulativeFailureLimit?: number;
 }
 
 /** Default node factory used by Build mode. */
@@ -74,6 +81,8 @@ export function createNode(partial: Partial<FlowNode> & Pick<FlowNode, 'id' | 'x
     isRootAccess: partial.isRootAccess,
     resolve,
     countdown: partial.countdown,
+    countermeasureType: partial.countermeasureType ?? (category === 'countermeasure' ? 'wipe' : undefined),
+    targetNodeIds: partial.targetNodeIds,
     description: partial.description,
   };
 }
@@ -84,7 +93,7 @@ function defaultResolveFor(category: NodeCategory): ObjectiveResolve {
       return { subskill: 'hack', dcModifier: 0, successesRequired: 1 };
     case 'countermeasure':
       return { subskill: 'hack', dcModifier: 0, successesRequired: 1 };
-    case 'gateway':
+    case 'access':
       return { subskill: 'hack', dcModifier: -2, successesRequired: 1 };
   }
 }
@@ -95,7 +104,7 @@ function defaultNameFor(category: NodeCategory): string {
       return 'Data Module';
     case 'countermeasure':
       return 'Firewall';
-    case 'gateway':
-      return 'Gateway';
+    case 'access':
+      return 'Access';
   }
 }

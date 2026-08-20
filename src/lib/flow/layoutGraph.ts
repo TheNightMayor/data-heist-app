@@ -2,7 +2,7 @@
  * layoutGraph — BFS-based auto-layout for FlowMaps.
  *
  * Computes pixel positions for every node in a FlowMap, anchored at the
- * start gateway and fanning upward through topological levels. Pure
+ * start access and fanning upward through topological levels. Pure
  * function with no React dependencies so it can be tested in isolation
  * and reused by any renderer.
  *
@@ -50,10 +50,10 @@ export function layoutGraph(map: FlowMap): LayoutResult {
     return { positions, startId: null, levelCount: 0 };
   }
 
-  // Find start node: prefer gateway category, leftmost in the original map.
-  const gateways = map.nodes.filter((n) => n.category === 'gateway');
-  const start = gateways.length > 0
-    ? gateways.reduce((a, b) => (a.x < b.x ? a : b))
+  // Find start node: prefer access category, leftmost in the original map.
+  const accessNodes = map.nodes.filter((n) => n.category === 'access');
+  const start = accessNodes.length > 0
+    ? accessNodes.reduce((a, b) => (a.x < b.x ? a : b))
     : map.nodes.reduce((a, b) => (a.x < b.x ? a : b));
   const startId = start.id;
 

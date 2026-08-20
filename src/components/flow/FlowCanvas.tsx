@@ -5,7 +5,7 @@
  * Responsibilities (this file):
  *  - Compute and apply BFS layout to the flow graph.
  *  - Manage pan + pinch gestures via shared values.
- *  - Center the camera on a focus node (initial mount = start gateway
+ *  - Center the camera on a focus node (initial mount = start access
  *    in the lower-third; subsequent focuses = dead center).
  *  - Compose the child visual layers: grid, decorative stubs, edges,
  *    active-edge highlight, and per-node overlays.
@@ -30,6 +30,7 @@ import Animated, {
   withTiming,
   Easing,
 } from 'react-native-reanimated';
+import type { SharedValue } from 'react-native-reanimated';
 import type { FlowMap, FlowNode, FlowEdge } from '@/lib/flow/types';
 import type { NodeStatus } from '@/lib/flow/reachability';
 import { GRID_SIZE } from '@/lib/flow/layout';
@@ -167,6 +168,7 @@ export function FlowCanvas({
   // Without this, picking the start node as the active target would
   // re-trigger the lower-third framing on every focus change.
   const hasInitializedFocus = useRef(false);
+  const lastTargetId = useRef<string | null>(null);
   useEffect(() => {
     if (activeId) setFocusId(activeId);
   }, [activeId]);
@@ -260,7 +262,7 @@ export function FlowCanvas({
                 </Defs>
                 <Rect x="0" y="0" width={CANVAS_WIDTH} height={CANVAS_HEIGHT} fill="url(#grid)" />
                 {/* Decorative stub branches — fake traces ending in small PCB vias */}
-                <StubBranches positionedNodes={positionedNodes} />
+                <StubBranches positionedNodes={positionedNodes} positionedEdges={positionedEdges} />
                 {/* Edges — circuit-style right-angle paths with rounded corners */}
                 {positionedEdges.map((edge) => {
                   const from = nodeById.get(edge.fromNodeId);
@@ -272,7 +274,7 @@ export function FlowCanvas({
                   const sy = from.y; // bottom edge of source
                   const tx2 = to.x + NODE_WIDTH / 2;
                   const ty2 = to.y + NODE_WIDTH; // top edge of target
-                  const d = circuitPath(sx, sy, tx2, ty2);
+                  const { d } = circuitPath(sx, sy, tx2, ty2);
                   return (
                     <G key={edge.id}>
                       <Path
@@ -286,7 +288,7 @@ export function FlowCanvas({
                     </G>
                   );
                 })}
-                <TravelLine nodes={positionedNodes} edges={positionedEdges} activeId={activeId ?? null} />
+                <TravelLine nodes={positionedNodes} edges={positionedEdges} selectedId={null} />
               </Svg>
 
               {positionedNodes.map((node) => {
@@ -340,18 +342,12 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: 6,
-    backgroundColor: 'rgba(148, 163, 184, 0.18)',
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
+    boxShadow: '0px 10px 16px rgba(0, 0, 0, 0.75)',
     pointerEvents: 'none',
   },
   // Outer bezel base shadow strip — adds depth at the bottom edge.
   monitorBase: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.7)',
     height: 14,
     backgroundColor: 'rgba(0, 0, 0, 0.45)',
     borderBottomLeftRadius: 0,

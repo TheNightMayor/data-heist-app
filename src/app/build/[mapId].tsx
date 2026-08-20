@@ -20,6 +20,7 @@ export default function BuildMapScreen() {
     removeNode,
     addNode,
     addEdge,
+    removeEdge,
     setName,
     saveCurrent,
     dirty,
@@ -51,7 +52,7 @@ export default function BuildMapScreen() {
     <View style={styles.container}>
       <View style={styles.topbar}>
         <View style={{ flex: 1, height: 36 }}>
-          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
             <ChamferedFrame width={windowWidth - 110} height={36} chamfer={6} stroke="#1e293b" fill="#0f172a" />
           </View>
           <TextInput
@@ -63,7 +64,7 @@ export default function BuildMapScreen() {
           />
         </View>
         <View style={{ width: 80, height: 36 }}>
-          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
             <ChamferedFrame width={80} height={36} chamfer={6} stroke="#22d3ee" fill="#0e7490" />
           </View>
           <Pressable style={styles.saveBtn} onPress={() => saveCurrent()}>
@@ -106,7 +107,7 @@ export default function BuildMapScreen() {
         />
         {connectFromId && (
           <View style={styles.connectBanner}>
-            <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
               <ChamferedFrame width={windowWidth - 16} height={44} chamfer={8} stroke="#22d3ee" fill="rgba(15,23,42,0.95)" />
             </View>
             <Text style={styles.connectBannerText}>
@@ -124,7 +125,7 @@ export default function BuildMapScreen() {
       {selectedNode && (
         <View style={styles.bottomBar}>
           <View style={{ flex: 1, height: 40 }}>
-            <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
               <ChamferedFrame width={(windowWidth - 32) / 2} height={40} chamfer={8} stroke="#334155" fill="#1e293b" />
             </View>
             <Pressable style={styles.actionBtn} onPress={() => setConnectFromId(selectedNode.id)}>
@@ -132,7 +133,7 @@ export default function BuildMapScreen() {
             </Pressable>
           </View>
           <View style={{ flex: 1, height: 40 }}>
-            <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
               <ChamferedFrame width={(windowWidth - 32) / 2} height={40} chamfer={8} stroke="#334155" fill="#1e293b" />
             </View>
             <Pressable style={styles.actionBtn} onPress={() => setSelectedNode(null)}>
@@ -143,7 +144,17 @@ export default function BuildMapScreen() {
       )}
 
       <NodeEditor
-        node={selectedNode}
+        node={current.nodes.find((candidate) => candidate.id === selectedNode?.id) ?? selectedNode}
+        availableNodes={current.nodes}
+        targetNodeIds={new Set((current.nodes.find((candidate) => candidate.id === selectedNode?.id) ?? selectedNode)?.targetNodeIds ?? [])}
+        onToggleTarget={(targetId) => {
+          if (!selectedNode) return;
+          const currentNode = current.nodes.find((candidate) => candidate.id === selectedNode.id);
+          const targetNodeIds = new Set(currentNode?.targetNodeIds ?? []);
+          if (targetNodeIds.has(targetId)) targetNodeIds.delete(targetId);
+          else targetNodeIds.add(targetId);
+          updateNode(selectedNode.id, { targetNodeIds: [...targetNodeIds] });
+        }}
         onUpdate={(patch) => {
           if (selectedNode) updateNode(selectedNode.id, patch);
         }}

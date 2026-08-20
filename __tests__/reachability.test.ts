@@ -6,9 +6,9 @@ const map: FlowMap = {
   name: 'Test',
   updatedAt: '',
   nodes: [
-    { id: 'a', name: 'A', x: 0, y: 0, category: 'gateway', tier: 1, resolve: { subskill: 'hack', dcModifier: 0, successesRequired: 1 } },
+    { id: 'a', name: 'A', x: 0, y: 0, category: 'access', tier: 1, resolve: { subskill: 'hack', dcModifier: 0, successesRequired: 1 } },
     { id: 'b', name: 'B', x: 1, y: 0, category: 'module', tier: 1, resolve: { subskill: 'hack', dcModifier: 0, successesRequired: 1 } },
-    { id: 'c', name: 'C', x: 2, y: 0, category: 'gateway', tier: 1, hazard: true, resolve: { subskill: 'hack', dcModifier: 0, successesRequired: 1 } },
+    { id: 'c', name: 'C', x: 2, y: 0, category: 'access', tier: 1, hazard: true, resolve: { subskill: 'hack', dcModifier: 0, successesRequired: 1 } },
     { id: 'd', name: 'D', x: 3, y: 0, category: 'module', tier: 1, resolve: { subskill: 'hack', dcModifier: 0, successesRequired: 1 } },
   ],
   edges: [

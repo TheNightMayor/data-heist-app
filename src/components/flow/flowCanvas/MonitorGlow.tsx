@@ -19,7 +19,6 @@ export function MonitorGlow({
 }) {
   return (
     <View
-      pointerEvents="none"
       style={{
         position: 'absolute',
         top: 0,
@@ -27,6 +26,7 @@ export function MonitorGlow({
         right: 0,
         bottom: 0,
         zIndex: 5,
+        pointerEvents: 'none',
       }}
     >
       <Svg

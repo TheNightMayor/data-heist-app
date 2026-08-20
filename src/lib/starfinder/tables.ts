@@ -36,8 +36,8 @@ export const OBJECTIVE_PRESETS: Record<string, ObjectiveResolve> = {
   firewall: { subskill: 'hack', dcModifier: 0, successesRequired: 1 },
   // Countermeasure (counterhacker) — multi-success, dangerous
   counterhacker: { subskill: 'deceive', dcModifier: 0, successesRequired: 2 },
-  // Gateway — easiest, one success
-  gateway: { subskill: 'hack', dcModifier: -2, successesRequired: 1 },
+  // Access — easiest, one success
+  access: { subskill: 'hack', dcModifier: -2, successesRequired: 1 },
 };
 
 /** Subskill labels for UI. */

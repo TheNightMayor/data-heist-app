@@ -10,15 +10,15 @@ const sampleMapA: FlowMap = {
   name: 'Datacenter (Tutorial)',
   description: 'A linear spine with one branching fork — learn reachability, planning, aid, and countermeasures.',
   builtIn: true,
-  updatedAt: '2026-06-26T00:00:00.000Z',
+  updatedAt: '2026-08-21T00:00:00.000Z',
   nodes: [
-    // Single starting gateway.
+    // Single starting access node.
     {
       id: 'tut-n1',
-      name: 'Reception',
+      name: 'Access',
       x: 80,
       y: 200,
-      category: 'gateway',
+      category: 'access',
       tier: 1,
       resolve: { subskill: 'hack', dcModifier: -2, successesRequired: 1 },
     },
@@ -30,19 +30,22 @@ const sampleMapA: FlowMap = {
       y: 200,
       category: 'module',
       tier: 2,
-      resolve: { subskill: 'hack', dcModifier: 0, successesRequired: 1 },
+      resolve: { subskill: 'hack', dcModifier: -4, successesRequired: 1 },
     },
     // Branching fork: a hard countermeasure with a deadline.
-    // DC 29 with successesRequired: 2 — needs Plan Turn + Aid to clear.
+    // DC 21 with successesRequired: 2.
     {
       id: 'tut-n3',
-      name: 'Honeyvault Trap',
+      name: 'Wipe',
       x: 280,
       y: 360,
       category: 'countermeasure',
       tier: 3,
       countdown: 2,
-      resolve: { subskill: 'deceive', dcModifier: 4, successesRequired: 2 },
+      countermeasureType: 'wipe',
+      targetNodeIds: ['tut-n5'],
+      description: 'Wipes downstream nodes after 3 failures or a critical failure',
+      resolve: { subskill: 'deceive', dcModifier: -4, successesRequired: 2 },
     },
     // Win condition: clearing Records DB ends the heist.
     {
@@ -53,9 +56,9 @@ const sampleMapA: FlowMap = {
       category: 'module',
       tier: 3,
       isRootAccess: true,
-      resolve: { subskill: 'hack', dcModifier: 0, successesRequired: 1 },
+      resolve: { subskill: 'hack', dcModifier: -6, successesRequired: 1 },
     },
-    // Reward behind the trap — easy once you clear Honeyvault.
+    // Reward behind the countermeasure.
     {
       id: 'tut-n5',
       name: 'Data Cache',
@@ -63,7 +66,7 @@ const sampleMapA: FlowMap = {
       y: 360,
       category: 'module',
       tier: 1,
-      resolve: { subskill: 'hack', dcModifier: 0, successesRequired: 1 },
+      resolve: { subskill: 'hack', dcModifier: -7, successesRequired: 1 },
     },
   ],
   edges: [
@@ -86,7 +89,7 @@ const sampleMapB: FlowMap = {
       name: 'External Endpoint',
       x: 80,
       y: 320,
-      category: 'gateway',
+      category: 'access',
       tier: 1,
       resolve: { subskill: 'hack', dcModifier: -2, successesRequired: 1 },
     },
@@ -113,7 +116,7 @@ const sampleMapB: FlowMap = {
       name: 'IDS (Hazard)',
       x: 400,
       y: 320,
-      category: 'gateway',
+      category: 'access',
       tier: 2,
       hazard: true,
       resolve: { subskill: 'hack', dcModifier: -2, successesRequired: 1 },

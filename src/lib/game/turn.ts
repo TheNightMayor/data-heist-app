@@ -209,7 +209,7 @@ function planTurn(
 function rollResolve(
   state: GameState,
   action: Extract<GameAction, { type: 'ROLL_RESOLVE' }>,
-  _map?: FlowMap,
+  map?: FlowMap,
 ): GameState {
   const player = state.players.find((p) => p.id === action.playerId);
   if (!player) return state;
@@ -218,8 +218,9 @@ function rollResolve(
   // Secondary hackers (Support) must ALWAYS spend 1 RP to perform a Resolve action.
   // If they bought a major action using SUPPORT_BUY_ACTION, they already paid.
   const isSupport = player.class === 'support';
-  const baselineCost = (isSupport && state.actionsCommitted === 0) ? 1 : 0;
-  const rpCost = baselineCost + (action.spendRP ? 1 : 0);
+  const spendRP = state.hackingMode === 'dynamic' && Boolean(action.spendRP);
+  const baselineCost = state.hackingMode === 'dynamic' && (isSupport && state.actionsCommitted === 0) ? 1 : 0;
+  const rpCost = baselineCost + (spendRP ? 1 : 0);
 
   if (rpCost > 0 && player.resolvePoints < rpCost) {
     return state;
@@ -243,11 +244,11 @@ function rollResolve(
     d20: action.d20,
     modifier,
     dc,
-    spendRP: action.spendRP,
+    spendRP,
   });
 
   let updatedPlayers = state.players;
-  if (outcome.kind === 'nat1' && outcome.cpDamageRoll !== undefined) {
+  if (state.hackingMode === 'dynamic' && outcome.kind === 'nat1' && outcome.cpDamageRoll !== undefined) {
     const damage = outcome.cpDamageRoll <= 3 ? 1 : 0;
     if (damage > 0) {
       updatedPlayers = updatedPlayers.map((p) =>
@@ -270,12 +271,35 @@ function rollResolve(
   const existing = newObjectives[node.id] ?? {
     nodeId: node.id,
     successes: 0,
+    failures: 0,
     countdown: node.countdown,
   };
+  const failed = outcome.kind === 'failure' || outcome.kind === 'nat1';
   newObjectives[node.id] = {
     ...existing,
     successes: existing.successes + applied,
+    failures: (existing.failures ?? 0) + (failed ? 1 : 0),
   };
+
+  const hiddenNodeIds = [...(state.hiddenNodeIds ?? [])];
+  const wipingNodeIds = [...(state.wipingNodeIds ?? [])];
+  const wipeTriggered =
+    failed &&
+    node.category === 'countermeasure' &&
+    node.countermeasureType === 'wipe' &&
+    (newObjectives[node.id].failures === 3 || outcome.kind === 'nat1');
+  if (
+    wipeTriggered &&
+    map
+  ) {
+    const targetIds = node.targetNodeIds?.length
+      ? node.targetNodeIds
+      : map.edges.filter((edge) => edge.fromNodeId === node.id).map((edge) => edge.toNodeId);
+    for (const targetId of targetIds) {
+      if (!hiddenNodeIds.includes(targetId)) hiddenNodeIds.push(targetId);
+      if (!wipingNodeIds.includes(targetId)) wipingNodeIds.push(targetId);
+    }
+  }
 
   const visited = state.visitedNodeIds.includes(node.id)
     ? state.visitedNodeIds
@@ -297,7 +321,7 @@ function rollResolve(
       outcome: outcome.kind,
       successesGained: applied,
       cpLost:
-        outcome.kind === 'nat1' && outcome.cpDamageRoll !== undefined && outcome.cpDamageRoll <= 3
+        state.hackingMode === 'dynamic' && outcome.kind === 'nat1' && outcome.cpDamageRoll !== undefined && outcome.cpDamageRoll <= 3
           ? 1
           : 0,
       rpSpent: rpCost,
@@ -311,7 +335,7 @@ function rollResolve(
     finished = true;
     result = 'win';
   }
-  if (updatedPlayers.every((p) => p.ejected || p.currentCP <= 0)) {
+  if (state.hackingMode === 'dynamic' && updatedPlayers.every((p) => p.ejected || p.currentCP <= 0)) {
     finished = true;
     result = 'lose';
   }
@@ -319,15 +343,19 @@ function rollResolve(
   // Consume a committed major action.
   const actionsTaken = state.actionsTaken + 1;
 
-  // We no longer auto-advance when actions are exhausted.
-  // The player MUST click "End Turn" manually.
-  const nextPhase: typeof state.phase = 'resolved';
+  // Simple mode has one action per turn and no End Turn control. Let the
+  // game screen advance it automatically after the result is recorded.
+  const nextPhase: typeof state.phase = state.hackingMode === 'basic' && !finished
+    ? 'advancing'
+    : 'resolved';
 
   return {
     ...state,
     players: updatedPlayers,
     visitedNodeIds: visited,
     objectives: newObjectives,
+    hiddenNodeIds,
+    wipingNodeIds,
     log,
     finished,
     result,
@@ -473,6 +501,19 @@ function supportAid(
     );
   }
 
+  const failed = outcome.kind === 'nat1' || outcome.kind === 'failure';
+  const objectives = { ...state.objectives };
+  const existing = objectives[target.id] ?? {
+    nodeId: target.id,
+    successes: 0,
+    failures: 0,
+    countdown: target.countdown,
+  };
+  objectives[target.id] = {
+    ...existing,
+    failures: (existing.failures ?? 0) + (failed ? 1 : 0),
+  };
+
   const log: GameLogEntry[] = [
     {
       turn: state.turn,
@@ -498,6 +539,7 @@ function supportAid(
   return {
     ...state,
     players: updatedPlayers,
+    objectives,
     log,
     pendingAid,
     minorActionsTaken: state.minorActionsTaken + 1,
@@ -510,3 +552,4 @@ declare module './types' {
     hazardSkipActive?: boolean;
   }
 }
+

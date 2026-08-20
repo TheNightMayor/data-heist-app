@@ -14,13 +14,13 @@ interface Props {
 
 export function NodePalette({ onPick, active }: Props) {
   const items: { category: NodeCategory; label: string; icon: string; color: string }[] = [
-    { category: 'module', label: 'Module', icon: '📦', color: '#1e3a8a' },
-    { category: 'countermeasure', label: 'Firewall', icon: '🛡', color: '#7f1d1d' },
-    { category: 'gateway', label: 'Gateway', icon: '🔀', color: '#374151' },
+    { category: 'module', label: 'Module', icon: 'M', color: '#1e3a8a' },
+    { category: 'countermeasure', label: 'Firewall', icon: 'C', color: '#7f1d1d' },
+    { category: 'access', label: 'Access', icon: 'A', color: '#1e3a8a' },
   ];
   return (
     <View style={styles.palette}>
-      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
         <ChamferedFrame width={110} height={145} chamfer={8} stroke="#1e293b" fill="rgba(15,23,42,0.95)" />
       </View>
       <Text style={styles.title}>Add Node</Text>

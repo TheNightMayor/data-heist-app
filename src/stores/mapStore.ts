@@ -101,13 +101,14 @@ export const useMapStore = create<MapStore>((set, get) => ({
           y: snapped.y,
           category,
           tier: 1,
+          countermeasureType: 'wipe',
           countdown: 3,
         };
         break;
-      case 'gateway':
+      case 'access':
         newNode = {
           id,
-          name: `Gateway ${cur.nodes.length + 1}`,
+          name: `Access ${cur.nodes.length + 1}`,
           x: snapped.x,
           y: snapped.y,
           category,

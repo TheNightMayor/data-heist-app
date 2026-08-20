@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
+import Svg, { Defs, Polygon, RadialGradient, Rect, Stop } from 'react-native-svg';
 import type { FlowNode } from '@/lib/flow/types';
 import { effectiveDC } from '@/lib/starfinder/tables';
 import { ChamferedFrame } from '../ui/ChamferedFrame';
@@ -8,6 +9,7 @@ import { ChamferedFrame } from '../ui/ChamferedFrame';
 interface NodeActionPanelProps {
   node: FlowNode;
   successes: number;
+  failures: number;
   canPlanTurn: boolean;
   onPlanTurn: () => void;
   onMajorAction: () => void;
@@ -28,11 +30,13 @@ interface NodeActionPanelProps {
   isReachable?: boolean;
   modifiers?: { deceive: number; hack: number; process: number; total: number };
   hackingMode?: 'basic' | 'dynamic';
+  closing?: boolean;
 }
 
 export function NodeActionPanel({
   node,
   successes,
+  failures,
   canPlanTurn,
   onPlanTurn,
   onMajorAction,
@@ -53,26 +57,94 @@ export function NodeActionPanel({
   isReachable = true,
   modifiers,
   hackingMode = 'dynamic',
+  closing = false,
 }: NodeActionPanelProps) {
+  const [descriptionOpen, setDescriptionOpen] = useState(false);
+  const [drawerMounted, setDrawerMounted] = useState(false);
+  const [drawerSize, setDrawerSize] = useState({ width: 0, height: 0 });
   const catColors: Record<FlowNode['category'], { fill: string; border: string; icon: string }> = {
-    module: { fill: '#1e3a8a', border: '#60a5fa', icon: '📦' },
-    countermeasure: { fill: '#7f1d1d', border: '#f87171', icon: '🛡' },
-    gateway: { fill: '#374151', border: '#9ca3af', icon: '🔀' },
+    module: { fill: '#1e3a8a', border: '#60a5fa', icon: 'M' },
+    countermeasure: { fill: '#7f1d1d', border: '#f87171', icon: 'C' },
+    access: { fill: '#1e3a8a', border: '#60a5fa', icon: 'A' },
   };
   const cat = catColors[node.category];
   const dc = effectiveDC(node.tier, node.resolve);
   const subskill = node.resolve?.subskill ?? 'hack';
   const successesRequired = node.resolve?.successesRequired ?? 0;
+  const requiredSuccesses = successesRequired || 1;
+  const failuresRequired = 3;
+  const basicOutcome = hackingMode === 'basic'
+    ? successes >= requiredSuccesses
+      ? 'success'
+      : failures >= failuresRequired
+        ? 'failure'
+        : null
+    : null;
+  const outcomeBorderColor = basicOutcome === 'success'
+    ? 'rgba(52, 211, 153, 0.4)'
+    : basicOutcome === 'failure'
+      ? 'rgba(248, 113, 113, 0.4)'
+      : '#475569';
 
   const glowColor = isReachable ? '#22d3ee' : '#ef4444';
 
   const effectiveCommitted = playerClass === 'lead' 
     ? (actionsCommitted > 0 ? actionsCommitted : 1)
     : actionsCommitted;
-  const majorDisabled = !isReachable || (playerClass === 'support' && actionsCommitted === 0) || actionsTaken >= effectiveCommitted;
+  const majorDisabled = !isReachable || basicOutcome !== null || (playerClass === 'support' && actionsCommitted === 0) || actionsTaken >= effectiveCommitted;
 
   const PANEL_WIDTH = 260;
-  const PANEL_HEIGHT = isReachable ? 320 : 160;
+  const PANEL_HEIGHT = isReachable ? (hackingMode === 'basic' ? 220 : 320) : 160;
+  const actionFrameWidth = hackingMode === 'basic' ? PANEL_WIDTH - 40 : PANEL_WIDTH - 24;
+  const drawerChamfer = Math.min(8, drawerSize.width / 2, drawerSize.height / 2);
+  const verticalProgress = useSharedValue(0);
+  const horizontalProgress = useSharedValue(0);
+  const revealOpacity = useSharedValue(1);
+  const contentOpacity = useSharedValue(0);
+  const drawerProgress = useSharedValue(0);
+
+  React.useEffect(() => {
+    if (closing) {
+      contentOpacity.value = withTiming(0, { duration: 180 });
+      revealOpacity.value = 1;
+      horizontalProgress.value = withTiming(0, { duration: 240 });
+      verticalProgress.value = withDelay(240, withTiming(0, { duration: 180 }));
+      return;
+    }
+
+    verticalProgress.value = withTiming(1, { duration: 180 });
+    horizontalProgress.value = withDelay(180, withTiming(1, { duration: 240 }));
+    revealOpacity.value = withDelay(360, withTiming(0, { duration: 160 }));
+    contentOpacity.value = withDelay(360, withTiming(1, { duration: 180 }));
+  }, [closing, contentOpacity, horizontalProgress, revealOpacity, verticalProgress]);
+
+  React.useEffect(() => {
+    if (descriptionOpen) {
+      setDrawerMounted(true);
+      drawerProgress.value = withTiming(1, { duration: 240 });
+      return;
+    }
+
+    if (drawerMounted) {
+      drawerProgress.value = withTiming(0, { duration: 240 }, (finished) => {
+        if (finished) runOnJS(setDrawerMounted)(false);
+      });
+    }
+  }, [descriptionOpen, drawerMounted, drawerProgress]);
+
+  const verticalRevealStyle = useAnimatedStyle(() => ({
+    opacity: revealOpacity.value,
+    transform: [{ scaleY: verticalProgress.value }],
+  }));
+  const horizontalRevealStyle = useAnimatedStyle(() => ({
+    opacity: revealOpacity.value,
+    transform: [{ scaleX: horizontalProgress.value }],
+  }));
+  const dotRevealStyle = useAnimatedStyle(() => ({ opacity: closing ? 1 : revealOpacity.value }));
+  const contentStyle = useAnimatedStyle(() => ({ opacity: contentOpacity.value }));
+  const drawerStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: (1 - drawerProgress.value) * -12 }],
+  }));
 
   return (
     <Pressable style={[
@@ -84,16 +156,20 @@ export function NodeActionPanel({
         top: node.y + 110,      
       }
     ]}>
-      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <Animated.View style={[styles.verticalReveal, verticalRevealStyle, { pointerEvents: 'none' }]} />
+      <Animated.View style={[styles.horizontalReveal, horizontalRevealStyle, { pointerEvents: 'none' }]} />
+      <Animated.View style={[styles.centerRevealDot, dotRevealStyle, { pointerEvents: 'none' }]} />
+      <Animated.View style={[styles.panelContent, contentStyle]}>
+      <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
         <ChamferedFrame 
           width={PANEL_WIDTH} 
           height={PANEL_HEIGHT} 
           chamfer={16} 
-          stroke="#475569" 
+            stroke={basicOutcome === null ? '#475569' : outcomeBorderColor} 
           strokeWidth={8} 
-          fill="rgba(2, 6, 23, 0.95)" 
+            fill={basicOutcome === 'success' ? 'rgba(6, 78, 59, 0.88)' : basicOutcome === 'failure' ? 'rgba(127, 29, 29, 0.88)' : 'rgba(2, 6, 23, 0.95)'} 
         />
-        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
           <Svg width="100%" height="100%" viewBox="0 0 1 1" preserveAspectRatio="none">
             <Defs>
               <RadialGradient id="panelGlow" cx="0.5" cy="0" r="1.2" fx="0.5" fy="0">
@@ -107,37 +183,92 @@ export function NodeActionPanel({
         </View>
       </View>
 
-      {isReachable && <Text style={styles.playerLabel}>{playerName} ({playerClass})</Text>}
-      <View style={styles.header}>
-        <View style={[styles.iconBox, { backgroundColor: cat.fill, borderColor: cat.border }]}>
-          <Text style={styles.icon}>{cat.icon}</Text>
+      {isReachable && hackingMode === 'basic' ? (
+        <View style={[styles.basicPlayerHeader, basicOutcome ? styles.outcomeFaded : null]}>
+          <Text style={styles.basicPlayerName}>{playerName}</Text>
+          <Text style={styles.basicComputers}>COMPUTERS +{modifiers?.total ?? 0}</Text>
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.name} numberOfLines={1}>
-            {isReachable ? node.name : 'Unknown Host'}
-          </Text>
-          <Text style={styles.meta}>
-            DC {dc} 
-            {hackingMode === 'dynamic' && ` • ${subskill[0].toUpperCase() + subskill.slice(1)}`}
-            {successesRequired > 0 ? ` • ${successes}/${successesRequired}` : ''}
-          </Text>
-        </View>
-      </View>
+      ) : isReachable ? (
+        <Text style={styles.playerLabel}>{playerName} ({playerClass})</Text>
+      ) : null}
 
-      {isReachable && (
+      <View style={[
+        isReachable && hackingMode === 'basic' ? styles.basicDetailsCard : null,
+        !isReachable ? styles.deniedContainer : null,
+      ]}>
+      {isReachable && hackingMode === 'basic' && (
+        <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
+          <ChamferedFrame
+            width={PANEL_WIDTH - 24}
+            height={164}
+            chamfer={12}
+            stroke={outcomeBorderColor}
+            strokeWidth={2}
+            fill="rgba(15, 23, 42, 0.68)"
+          />
+        </View>
+      )}
+      {isReachable && hackingMode === 'basic' ? (
+        <View style={[styles.basicNodeHeader, basicOutcome ? styles.outcomeFaded : null]}>
+          <View style={[styles.iconBox, { backgroundColor: cat.fill, borderColor: cat.border }]}>
+            <Text style={styles.icon}>{cat.icon}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.name} numberOfLines={1}>
+              {isReachable ? node.name : 'Unknown Host'}
+            </Text>
+            <Text style={styles.meta}>
+              {node.category.toUpperCase()} • DC {dc}
+            </Text>
+          </View>
+        </View>
+      ) : isReachable ? (
+        <View style={styles.header}>
+          <View style={[styles.iconBox, { backgroundColor: cat.fill, borderColor: cat.border }]}>
+            <Text style={styles.icon}>{cat.icon}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.name} numberOfLines={1}>
+              {isReachable ? node.name : 'Unknown Host'}
+            </Text>
+            <Text style={styles.meta}>
+              DC {dc}
+              {` • ${subskill[0].toUpperCase() + subskill.slice(1)}`}
+              {successesRequired > 0 ? ` • ${successes}/${successesRequired}` : ''}
+            </Text>
+          </View>
+        </View>
+      ) : null}
+
+      {isReachable && hackingMode === 'dynamic' && (
+        <View style={styles.progressDrawer}>
+          <View style={styles.progressLine}>
+            <Text style={styles.progressLabel}>SUCCESSES</Text>
+            <Text style={styles.progressValue}>{successes}/{successesRequired || 1}</Text>
+          </View>
+          <View style={styles.progressLine}>
+            <Text style={styles.progressLabel}>FAILURES</Text>
+            <Text style={[styles.progressValue, styles.failureValue]}>{failures}/{failuresRequired}</Text>
+          </View>
+        </View>
+      )}
+
+      {isReachable && hackingMode === 'dynamic' && (
         <View style={styles.statsRow}>
           <View style={styles.statLine}>
             <Text style={styles.statLabel}>RP</Text>
             <Text style={styles.statValue}>{rp}</Text>
           </View>
-          <View style={styles.statLine}>
-            <Text style={styles.statLabel}>CP</Text>
-            <Text style={styles.statValue}>{cp}/{maxCp}</Text>
-          </View>
+          {hackingMode === 'dynamic' && (
+            <View style={styles.statLine}>
+              <Text style={styles.statLabel}>CP</Text>
+              <Text style={styles.statValue}>{cp}/{maxCp}</Text>
+            </View>
+          )}
         </View>
       )}
 
-      {isReachable && (
+      {isReachable && hackingMode === 'dynamic' && (
         <View style={styles.modifiersRow}>
           {hackingMode === 'dynamic' ? (
             <>
@@ -171,12 +302,25 @@ export function NodeActionPanel({
         </View>
       )}
 
-      <View style={styles.actions}>
+      <View style={[styles.actions, basicOutcome ? styles.outcomeActions : null]}>
         {isReachable ? (
+          basicOutcome ? (
+            <View style={[
+              styles.outcomeMessage,
+              basicOutcome === 'success' ? styles.successOutcomeMessage : styles.failureOutcomeMessage,
+            ]}>
+              <Text style={[
+                styles.outcomeMessageText,
+                basicOutcome === 'success' ? styles.successOutcomeText : styles.failureOutcomeText,
+              ]}>
+                {basicOutcome === 'success' ? 'Successfully hacked!' : 'Hack failed - node locked'}
+              </Text>
+            </View>
+          ) : (
           <>
             {canPlanTurn ? (
               <Pressable style={[styles.btn, styles.planBtn]} onPress={onPlanTurn}>
-                <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
                   <ChamferedFrame width={236} height={32} chamfer={6} stroke="#475569" fill="#1e293b" />
                 </View>
                 <Text style={styles.btnText}>Plan Turn</Text>
@@ -192,9 +336,9 @@ export function NodeActionPanel({
                 onPress={onMajorAction}
                 disabled={majorDisabled}
               >
-                <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
                   <ChamferedFrame 
-                    width={PANEL_WIDTH - 24} 
+                    width={actionFrameWidth} 
                     height={32} 
                     chamfer={6} 
                     stroke={majorDisabled ? "#334155" : "#22d3ee"} 
@@ -202,11 +346,13 @@ export function NodeActionPanel({
                   />
                 </View>
                 <Text style={styles.btnText}>
-                  Major Action{playerClass === 'lead' && (aidBonus ?? 0) > 0 ? ` (+${aidBonus} Aid)` : ''}
+                  {hackingMode === 'basic'
+                    ? node.category === 'countermeasure' ? 'Hack Countermeasure' : `Hack ${node.name}`
+                    : `Major Action${playerClass === 'lead' && (aidBonus ?? 0) > 0 ? ` (+${aidBonus} Aid)` : ''}`}
                 </Text>
               </Pressable>
 
-              <Pressable 
+              {hackingMode === 'dynamic' && <Pressable 
                 style={[
                   styles.btn, 
                   styles.supportBtn, 
@@ -215,7 +361,7 @@ export function NodeActionPanel({
                 onPress={onSupportAction}
                 disabled={minorActionsTaken > 0 || (playerClass === 'lead' && !otherLeadsExist)}
               >
-                <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
                   <ChamferedFrame 
                     width={PANEL_WIDTH - 24} 
                     height={32} 
@@ -227,7 +373,7 @@ export function NodeActionPanel({
                 <Text style={styles.btnText}>
                   {(playerClass === 'lead' && !otherLeadsExist) ? 'No Options Available' : 'Minor Action'}
                 </Text>
-              </Pressable>
+              </Pressable>}
 
               {playerClass === 'support' && actionsCommitted === 0 ? (
                 <Pressable 
@@ -235,7 +381,7 @@ export function NodeActionPanel({
                   onPress={onBuyMajorAction}
                   disabled={actionsTaken > 0 || rp < 1}
                 >
-                  <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                  <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
                     <ChamferedFrame 
                       width={PANEL_WIDTH - 24} 
                       height={32} 
@@ -250,26 +396,103 @@ export function NodeActionPanel({
 
               {playerClass === 'support' && actionsCommitted > 0 && actionsTaken === 0 ? (
                 <Pressable style={[styles.btn, styles.refundBtn]} onPress={onRefundMajorAction}>
-                  <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                  <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
                     <ChamferedFrame width={PANEL_WIDTH - 24} height={32} chamfer={6} stroke="#475569" fill="#334155" />
                   </View>
                   <Text style={styles.btnText}>Refund Major Action</Text>
                 </Pressable>
               ) : null}
 
-              <Pressable style={[styles.btn, styles.endBtn]} onPress={onEndTurn}>
-                <View style={StyleSheet.absoluteFill} pointerEvents="none">
+              {hackingMode === 'dynamic' && <Pressable style={[styles.btn, styles.endBtn]} onPress={onEndTurn}>
+                <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
                   <ChamferedFrame width={PANEL_WIDTH - 24} height={32} chamfer={6} stroke="#f87171" fill="#7f1d1d" />
                 </View>
                 <Text style={styles.btnText}>End Turn</Text>
-              </Pressable>
+              </Pressable>}
           </>
+          )
         ) : (
           <View style={styles.deniedBox}>
             <Text style={styles.deniedText}>ACCESS DENIED</Text>
             <Text style={styles.deniedSubtext}>PRECEDING NODE SECURE</Text>
           </View>
         )}
+      </View>
+
+      {isReachable && hackingMode === 'basic' && (
+        <View style={[styles.basicProgressCard, basicOutcome ? styles.outcomeFaded : null]}>
+          <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
+            <ChamferedFrame
+              width={actionFrameWidth}
+              height={52}
+              chamfer={8}
+              stroke={outcomeBorderColor}
+              strokeWidth={1}
+              fill="rgba(15, 23, 42, 0.72)"
+            />
+          </View>
+          <View style={styles.basicProgressRow}>
+            <View style={styles.basicProgressItem}>
+              <Text style={styles.progressLabel}>SUCCESSES</Text>
+              <Text style={styles.progressValue}>{successes}/{requiredSuccesses}</Text>
+            </View>
+            <View style={styles.basicProgressItem}>
+              <Text style={styles.progressLabel}>FAILURES</Text>
+              <Text style={[styles.progressValue, styles.failureValue]}>{failures}/{failuresRequired}</Text>
+            </View>
+          </View>
+        </View>
+      )}
+      </View>
+      </Animated.View>
+      <View style={styles.descriptionArea}>
+        {drawerMounted && (
+          <Animated.View
+            style={[styles.descriptionDrawer, drawerStyle, { pointerEvents: descriptionOpen ? 'auto' : 'none' }]}
+            onLayout={(event) => {
+              const { width, height } = event.nativeEvent.layout;
+              if (width !== drawerSize.width || height !== drawerSize.height) {
+                setDrawerSize({ width, height });
+              }
+            }}
+          >
+            <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
+              <Svg
+                width="100%"
+                height="100%"
+                viewBox={`0 0 ${drawerSize.width || 1} ${drawerSize.height || 1}`}
+                preserveAspectRatio="none"
+              >
+                <Polygon
+                  points={`0,0 ${drawerSize.width},0 ${drawerSize.width},${drawerSize.height - drawerChamfer} ${drawerSize.width - drawerChamfer},${drawerSize.height} ${drawerChamfer},${drawerSize.height} 0,${drawerSize.height - drawerChamfer}`}
+                  fill="rgba(15, 23, 42, 0.98)"
+                  stroke="#475569"
+                  strokeWidth={1}
+                />
+              </Svg>
+            </View>
+            <Text style={styles.descriptionText}>
+              {node.description || 'No description available.'}
+            </Text>
+          </Animated.View>
+        )}
+        <Pressable
+          accessibilityLabel={descriptionOpen ? 'Close node description' : 'Open node description'}
+          style={styles.infoButton}
+          onPress={() => setDescriptionOpen((open) => !open)}
+        >
+          <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
+            <Svg width={28} height={18} viewBox="0 0 28 18">
+              <Polygon
+                points="0,0 28,0 23,18 5,18"
+                fill="rgba(15, 23, 42, 0.98)"
+                stroke="#64748b"
+                strokeWidth={1}
+              />
+            </Svg>
+          </View>
+          <Text style={styles.infoButtonText}>i</Text>
+        </Pressable>
       </View>
     </Pressable>
   );
@@ -282,6 +505,123 @@ const styles = StyleSheet.create({
     padding: 12,
     zIndex: 100,
   },
+  panelContent: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    padding: 12,
+    zIndex: 2,
+  },
+  verticalReveal: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: '50%',
+    width: 2,
+    marginLeft: -1,
+    backgroundColor: '#22d3ee',
+  },
+  horizontalReveal: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: '50%',
+    height: 2,
+    marginTop: -1,
+    backgroundColor: '#22d3ee',
+  },
+  centerRevealDot: {
+    position: 'absolute',
+    left: '50%',
+    top: '50%',
+    width: 6,
+    height: 6,
+    marginLeft: -3,
+    marginTop: -3,
+    borderRadius: 3,
+    backgroundColor: '#67e8f9',
+  },
+  infoButton: {
+    width: 28,
+    height: 18,
+    marginRight: 12,
+    zIndex: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  infoButtonText: {
+    color: '#cbd5e1',
+    fontSize: 14,
+    fontFamily: 'Orbitron-Bold',
+  },
+  descriptionArea: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    zIndex: 0,
+    alignItems: 'flex-end',
+  },
+  descriptionDrawer: {
+    position: 'absolute',
+    top: 0,
+    width: '92%',
+    alignSelf: 'center',
+    padding: 12,
+  },
+  descriptionText: {
+    color: '#cbd5e1',
+    fontSize: 11,
+    lineHeight: 17,
+    fontFamily: 'Orbitron',
+  },
+  outcomeFaded: {
+    opacity: 0.45,
+  },
+  outcomeMessage: {
+    position: 'absolute',
+    top: -16,
+    left: 0,
+    right: 0,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    zIndex: 200,
+    elevation: 20,
+  },
+  successOutcomeMessage: {
+    left: -20,
+    right: -20,
+    backgroundColor: 'rgba(6, 78, 59, 0.9)',
+    borderWidth: 2,
+    borderColor: '#34d399',
+    minHeight: 72,
+  },
+  failureOutcomeMessage: {
+    left: -20,
+    right: -20,
+    backgroundColor: 'rgba(127, 29, 29, 0.9)',
+    borderWidth: 2,
+    borderColor: '#f87171',
+    minHeight: 72,
+  },
+  outcomeMessageText: {
+    fontSize: 12,
+    fontFamily: 'Orbitron-Bold',
+    textTransform: 'uppercase',
+    textAlign: 'center',
+  },
+  successOutcomeText: {
+    color: '#34d399',
+    fontSize: 24,
+  },
+  failureOutcomeText: {
+    color: '#f87171',
+    fontSize: 24,
+  },
   playerLabel: {
     fontSize: 9,
     color: '#22d3ee',
@@ -289,6 +629,37 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: 6,
+  },
+  basicPlayerHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  basicPlayerName: {
+    color: '#f1f5f9',
+    fontSize: 14,
+    fontFamily: 'Orbitron-Bold',
+  },
+  basicComputers: {
+    color: '#22d3ee',
+    fontSize: 10,
+    fontFamily: 'Orbitron-Bold',
+  },
+  basicNodeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+    marginLeft: 8,
+  },
+  basicDetailsCard: {
+    height: 164,
+    padding: 8,
+  },
+  deniedContainer: {
+    flex: 1,
+    justifyContent: 'center',
   },
   header: {
     flexDirection: 'row',
@@ -299,6 +670,37 @@ const styles = StyleSheet.create({
     borderBottomColor: '#334155',
     paddingBottom: 8,
   },
+  progressDrawer: {
+    position: 'absolute',
+    right: -78,
+    top: 12,
+    width: 76,
+    padding: 8,
+    gap: 8,
+    backgroundColor: 'rgba(15, 23, 42, 0.96)',
+    borderWidth: 1,
+    borderColor: '#475569',
+    borderLeftWidth: 0,
+  },
+  basicProgressCard: {
+    height: 52,
+    marginTop: 6,
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+  },
+  basicProgressRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  basicProgressItem: {
+    alignItems: 'center',
+    minWidth: 88,
+  },
+  progressLine: { gap: 2 },
+  progressLabel: { color: '#94a3b8', fontSize: 8, fontFamily: 'Orbitron-Bold' },
+  progressValue: { color: '#22d3ee', fontSize: 14, fontFamily: 'Orbitron-Bold' },
+  failureValue: { color: '#f87171' },
   iconBox: {
     width: 32,
     height: 32,
@@ -311,7 +713,11 @@ const styles = StyleSheet.create({
   name: { fontSize: 14, color: '#f1f5f9', fontFamily: 'Orbitron-Bold' },
   meta: { fontSize: 11, color: '#94a3b8', marginTop: 1, fontFamily: 'Orbitron' },
   actions: {
+    position: 'relative',
     gap: 6,
+  },
+  outcomeActions: {
+    minHeight: 36,
   },
   btn: {
     height: 32,

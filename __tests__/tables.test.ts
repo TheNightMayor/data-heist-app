@@ -17,7 +17,7 @@ describe('DC tables', () => {
 
   test('effectiveDC adds objective modifier', () => {
     expect(effectiveDC(1)).toBe(17);
-    expect(effectiveDC(1, OBJECTIVE_PRESETS.gateway)).toBe(15); // gateway is -2
+    expect(effectiveDC(1, OBJECTIVE_PRESETS.access)).toBe(15); // access is -2
     expect(effectiveDC(3, OBJECTIVE_PRESETS.hardenedModule)).toBe(25);
   });
 

@@ -5,7 +5,7 @@
  * Responsibilities (this file):
  *  - Compute and apply BFS layout to the flow graph.
  *  - Manage pan + pinch gestures via shared values.
- *  - Center the camera on a focus node (initial mount = start gateway
+ *  - Center the camera on a focus node (initial mount = start access
  *    in the lower-third; subsequent focuses = dead center).
  *  - Compose the child visual layers: grid, decorative stubs, edges,
  *    active-edge highlight, and per-node overlays.
@@ -32,9 +32,11 @@ import Animated, {
   withTiming,
   withRepeat,
   Easing,
+  cancelAnimation,
   runOnJS,
   useAnimatedProps,
 } from 'react-native-reanimated';
+import type { SharedValue } from 'react-native-reanimated';
 import type { FlowMap, FlowNode, FlowEdge } from '@/lib/flow/types';
 import type { NodeStatus } from '@/lib/flow/reachability';
 import { GRID_SIZE } from '@/lib/flow/layout';
@@ -48,7 +50,7 @@ import { NodeActionPanel } from '../NodeActionPanel';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
-function PulsingGlow({ d, pulse }: { d: string; pulse: Animated.SharedValue<number> }) {
+function PulsingGlow({ d, pulse }: { d: string; pulse: SharedValue<number> }) {
   const animatedProps = useAnimatedProps(() => ({
     strokeOpacity: pulse.value * 0.4,
   }));
@@ -69,7 +71,7 @@ interface Props {
   map: FlowMap;
   renderNode: (
     node: FlowNode,
-    info: { status: NodeStatus; progress: number; active: boolean; selected: boolean },
+    info: { status: NodeStatus; progress: number; active: boolean; selected: boolean; concealedOpacity: number; countermeasureAttached: boolean; countermeasureTargeted: boolean; wiping: boolean },
   ) => React.ReactNode;
   reachableIds?: Set<string>;
   selectedId?: string | null;
@@ -81,6 +83,8 @@ interface Props {
   activeId?: string | null;
   /** Per-node visual status. Used for opacity / hit-area gating. */
   statusById?: Record<string, NodeStatus>;
+  progressById?: Record<string, number>;
+  wipingNodeIds?: Set<string>;
   onSelectNode?: (node: FlowNode | null) => void;
   mode: 'build' | 'game';
 
@@ -93,7 +97,7 @@ interface Props {
   onBuyMajorAction?: () => void;
   onRefundMajorAction?: () => void;
   onEndTurn?: () => void;
-  objectives?: Record<string, { successes: number }>;
+  objectives?: Record<string, { successes: number; failures?: number }>;
   playerName?: string;
   rp?: number;
   cp?: number;
@@ -114,6 +118,8 @@ export function FlowCanvas({
   selectedId, 
   activeId, 
   statusById, 
+  progressById,
+  wipingNodeIds,
   onSelectNode, 
   mode,
   activePlayerClass,
@@ -234,8 +240,8 @@ export function FlowCanvas({
 
   useEffect(() => {
     const { width, height } = Dimensions.get('window');
-    // Defaults assume the bezel is 75% wide centered (12.5% insets on each side)
-    setViewRect({ x: width * 0.125, y: 0, width: width * 0.75, height });
+    // Match the centered monitor frame's 15% side margins until onLayout reports its exact size.
+    setViewRect({ x: width * 0.15, y: 0, width: width * 0.7, height });
   }, []);
 
   // Mirror the bezel rect into shared values so the gesture worklet can
@@ -252,32 +258,38 @@ export function FlowCanvas({
   // and updated whenever the user taps a node — so plain clicks pan the
   // camera to the tapped node even when they don't change `activeId`.
   const [focusId, setFocusId] = useState<string | null>(null);
+  const [focusAnimating, setFocusAnimating] = useState(false);
+  const [displayedPanelId, setDisplayedPanelId] = useState<string | null>(selectedId ?? null);
   // `hasInitializedFocus` flips true after the first centering animation
   // runs. It lets us distinguish "first-ever framing" (lower-third start
   // node) from "focus happens to equal start node now" (true center).
   // Without this, picking the start node as the active target would
   // re-trigger the lower-third framing on every focus change.
   const hasInitializedFocus = useRef(false);
+  const lastTargetId = useRef<string | null>(null);
   useEffect(() => {
-    if (activeId) setFocusId(activeId);
+    if (activeId) {
+      setFocusAnimating(true);
+      setFocusId(activeId);
+    }
   }, [activeId]);
 
-  // Wrap the parent's `onSelectNode` so taps also drive `focusId`.
-  const handleSelect = useCallback(
-    (node: FlowNode | null) => {
-      if (node) setFocusId(node.id);
-      onSelectNode?.(node);
-    },
-    [onSelectNode],
-  );
+  useEffect(() => {
+    if (!focusAnimating) return;
+    const timer = setTimeout(() => {
+      setFocusAnimating(false);
+      setDisplayedPanelId(selectedId ?? null);
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [focusAnimating, selectedId]);
 
   // Center the canvas on the focus node (defaulting to the start node).
   // Uses smooth timing animations so the camera glides instead of snapping.
   // Final values are clamped to the current pan bounds so the canvas never
   // settles in a position that would let the user scroll past it.
-  useEffect(() => {
+  const animateToFocus = useCallback((focusTargetId: string | null, force = false) => {
     if (!startId || viewRect.width === 0) return;
-    const targetId = focusId ?? startId;
+    const targetId = focusTargetId ?? startId;
     const target = positionedNodes.find((n) => n.id === targetId)
       ?? positionedNodes.find((n) => n.id === startId);
     if (!target) return;
@@ -288,10 +300,10 @@ export function FlowCanvas({
     // not screen coords. The bezel center is therefore at
     // `(width/2, height/2)` regardless of where the bezel sits on screen.
     // Only the very first framing (mount, no explicit focus yet) puts
-    // the start gateway lower-third so the level graph flows upward.
+    // the start access lower-third so the level graph flows upward.
     // Uses the dead center (or upper-quarter on mobile).
     const desiredX = viewRect.width / 2;
-    const isInitialStart = !hasInitializedFocus.current;
+    const isInitialStart = !hasInitializedFocus.current && !focusTargetId;
 
     const verticalCenter = isSmallScreen ? viewRect.height * 0.25 : viewRect.height / 2;
     const desiredY = isInitialStart
@@ -304,19 +316,47 @@ export function FlowCanvas({
     const bY = Math.max(0, CANVAS_HEIGHT - viewRect.height);
     const newTx = Math.max(-bX, Math.min(0, desiredX - nodeCenterX));
     const newTy = Math.max(-bY, Math.min(0, desiredY - nodeCenterY));
+    if (!force && target.id === lastTargetId.current && hasInitializedFocus.current) return;
+    lastTargetId.current = target.id;
     // Faster initial pan (mount), gentler follow pan on selection.
-    const duration = isInitialStart ? 600 : 420;
-    tx.value = withTiming(newTx, { duration, easing: Easing.inOut(Easing.cubic) });
-    ty.value = withTiming(newTy, { duration, easing: Easing.inOut(Easing.cubic) });
-    scale.value = withTiming(1, { duration: 350, easing: Easing.out(Easing.cubic) }, () => {
-      if (isInitialStart) {
-        runOnJS(setIsReady)(true);
-      }
-    });
+    const duration = isInitialStart ? 600 : 800;
+    const easing = Easing.bezier(0.65, 0, 0.35, 1);
+    cancelAnimation(tx);
+    cancelAnimation(ty);
+    cancelAnimation(scale);
+    tx.value = withTiming(newTx, { duration, easing });
+    ty.value = withTiming(newTy, { duration, easing });
+    if (isInitialStart) setIsReady(true);
     hasInitializedFocus.current = true;
-  }, [startId, positionedNodes, focusId, viewRect, tx, ty, scale, isSmallScreen]);
+  }, [startId, positionedNodes, viewRect.width, viewRect.height, tx, ty, scale, isSmallScreen]);
+
+  useEffect(() => {
+    animateToFocus(focusId);
+  }, [animateToFocus, focusId]);
+
+  const handleSelect = useCallback(
+    (node: FlowNode | null) => {
+      setFocusAnimating(true);
+      if (node) {
+        setFocusId(node.id);
+        animateToFocus(node.id, true);
+      }
+      onSelectNode?.(node);
+    },
+    [animateToFocus, onSelectNode],
+  );
 
   const nodeById = useMemo(() => new Map(positionedNodes.map((n) => [n.id, n])), [positionedNodes]);
+  const adjacentToUnlockedIds = useMemo(() => {
+    const adjacent = new Set<string>();
+    if (mode !== 'game' || !statusById) return adjacent;
+    for (const edge of positionedEdges) {
+      if (statusById[edge.fromNodeId] === 'unlocked') {
+        adjacent.add(edge.toNodeId);
+      }
+    }
+    return adjacent;
+  }, [mode, positionedEdges, statusById]);
 
   return (
     <View style={styles.container}>
@@ -332,20 +372,29 @@ export function FlowCanvas({
       >
         {/* Chamfered Bezel Background */}
         {viewRect.width > 0 && (
-          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+          <>
+            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none' }}>
+              <ChamferedFrame
+                width={viewRect.width}
+                height={viewRect.height}
+                chamfer={isSmallScreen ? 12 : 24}
+                stroke="transparent"
+                strokeWidth={0}
+                fill="rgba(2, 6, 23, 0.96)"
+              />
+            </View>
+            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 20, pointerEvents: 'none' }}>
             <ChamferedFrame
               width={viewRect.width}
               height={viewRect.height}
               chamfer={isSmallScreen ? 12 : 24}
               stroke="#111827"
-              strokeWidth={isSmallScreen ? 10 : 20}
-              fill="rgba(2, 6, 23, 0.96)"
+              strokeWidth={12}
+              fill="transparent"
             />
-          </View>
+            </View>
+          </>
         )}
-        {/* Top sheen + bottom shadow strips add depth to the bezel. */}
-        <View style={[styles.monitorHighlight]} />
-        <View style={[styles.monitorBase]} />
         {/* Soft top + bottom radial glows (SVG-based true radial gradients). */}
         <MonitorGlow width={CANVAS_WIDTH} height={CANVAS_HEIGHT} />
         <View
@@ -359,14 +408,14 @@ export function FlowCanvas({
           ]}>
           {/* Inner Chamfered Frame */}
           {canvasRect.width > 0 && (
-            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 20, pointerEvents: 'none' }}>
               <ChamferedFrame
                 width={canvasRect.width}
                 height={canvasRect.height}
                 chamfer={isSmallScreen ? 8 : 12}
                 stroke="#475569"
-                strokeWidth={isSmallScreen ? 4 : 8}
-                fill="rgba(2, 6, 23, 0.9)"
+                strokeWidth={4}
+                fill="transparent"
               />
             </View>
           )}
@@ -399,24 +448,27 @@ export function FlowCanvas({
                 </Defs>
                 <Rect x="0" y="0" width={CANVAS_WIDTH} height={CANVAS_HEIGHT} fill="url(#grid)" />
 
-                {/* Entry Gateway Decoration (below start node) */}
+                {/* Entry Access Decoration (below start node) */}
                 {startNode && (
                   <G>
+                    <Line
+                      x1={startNode.x + NODE_WIDTH / 2} y1={startNode.y + NODE_WIDTH}
+                      x2={startNode.x + NODE_WIDTH / 2} y2={startNode.y + NODE_WIDTH + 60}
+                      stroke="#22d3ee" strokeWidth={9} strokeOpacity={0.16} strokeLinecap="round"
+                    />
                     <Line 
                       x1={startNode.x + NODE_WIDTH / 2} y1={startNode.y + NODE_WIDTH} 
                       x2={startNode.x + NODE_WIDTH / 2} y2={startNode.y + NODE_WIDTH + 60} 
-                      stroke="#1e293b" strokeWidth={3} strokeDasharray="6 4" 
+                      stroke="#22d3ee" strokeWidth={3} strokeDasharray="6 4"
+                    />
+                    <Circle
+                      cx={startNode.x + NODE_WIDTH / 2} cy={startNode.y + NODE_WIDTH + 80}
+                      r={30} fill="none" stroke="#22d3ee" strokeWidth={8} strokeOpacity={0.16}
                     />
                     <Circle 
                       cx={startNode.x + NODE_WIDTH / 2} cy={startNode.y + NODE_WIDTH + 80} 
-                      r={24} fill="#020617" stroke="#475569" strokeWidth={2} 
+                      r={24} fill="#020617" stroke="#22d3ee" strokeWidth={2} 
                     />
-                    <SvgText 
-                      x={startNode.x + NODE_WIDTH / 2} y={startNode.y + NODE_WIDTH + 87} 
-                      fontSize={18} textAnchor="middle" fill="#94a3b8"
-                    >
-                      🌐
-                    </SvgText>
                     <SvgText 
                       x={startNode.x + NODE_WIDTH / 2} y={startNode.y + NODE_WIDTH + 120} 
                       fontSize={10} textAnchor="middle" fill="#475569" fontWeight="800"
@@ -426,7 +478,7 @@ export function FlowCanvas({
                   </G>
                 )}
 
-                {/* Exit Gateway Decoration (above root node) */}
+                {/* Exit Access Decoration (above root node) */}
                 {rootNode && (
                   <G>
                    <Line 
@@ -438,12 +490,6 @@ export function FlowCanvas({
                       cx={rootNode.x + NODE_WIDTH / 2} cy={rootNode.y - 80} 
                       r={24} fill="#020617" stroke="#22d3ee" strokeWidth={2} 
                     />
-                    <SvgText 
-                      x={rootNode.x + NODE_WIDTH / 2} y={rootNode.y - 73} 
-                      fontSize={18} textAnchor="middle" fill="#22d3ee"
-                    >
-                      🚪
-                    </SvgText>
                     <SvgText 
                       x={rootNode.x + NODE_WIDTH / 2} y={rootNode.y - 115} 
                       fontSize={10} textAnchor="middle" fill="#22d3ee" fontWeight="800"
@@ -480,6 +526,7 @@ export function FlowCanvas({
                       <Path
                         d={d}
                         stroke={strokeColor}
+                        strokeOpacity={isAvailablePath ? 1 : 0.4}
                         strokeWidth={3}
                         fill="none"
                         strokeLinecap="round"
@@ -498,7 +545,12 @@ export function FlowCanvas({
                     </G>
                   );
                 })}
-                <TravelLine nodes={positionedNodes} edges={positionedEdges} activeId={activeId ?? null} />
+                <TravelLine
+                  nodes={positionedNodes}
+                  edges={positionedEdges}
+                  selectedId={selectedId ?? null}
+                  wipingNodeIds={wipingNodeIds}
+                />
               </Svg>
 
               {positionedNodes.map((node) => {
@@ -506,6 +558,18 @@ export function FlowCanvas({
                 const isActive = activeId === node.id;
                 const isSelected = selectedId === node.id;
                 const isReachable = reachableIds ? reachableIds.has(node.id) : true;
+                const countermeasureAttached = positionedEdges.some((edge) => {
+                  if (edge.fromNodeId !== node.id && edge.toNodeId !== node.id) return false;
+                  const from = nodeById.get(edge.fromNodeId);
+                  const to = nodeById.get(edge.toNodeId);
+                  return from?.category === 'countermeasure' || to?.category === 'countermeasure';
+                });
+                const selectedCountermeasure = selectedId ? nodeById.get(selectedId) : undefined;
+                const targetIds = selectedCountermeasure?.category === 'countermeasure'
+                  ? selectedCountermeasure.targetNodeIds?.length
+                    ? selectedCountermeasure.targetNodeIds
+                    : positionedEdges.filter((edge) => edge.fromNodeId === selectedCountermeasure.id).map((edge) => edge.toNodeId)
+                  : [];
                 
                 return (
                   <React.Fragment key={node.id}>
@@ -514,17 +578,30 @@ export function FlowCanvas({
                       reachable={isReachable}
                       selected={isSelected}
                       active={isActive}
+                      adjacentToUnlocked={adjacentToUnlockedIds.has(node.id)}
                       mode={mode}
                       onPress={() => handleSelect(node)}
                     >
-                      {renderNode(node, { status, progress: 0, active: isActive, selected: isSelected })}
+                      {renderNode(node, {
+                        status,
+                        progress: progressById?.[node.id] ?? 0,
+                        active: isActive,
+                        selected: isSelected,
+                        concealedOpacity: adjacentToUnlockedIds.has(node.id) ? 0.4 : 0.14,
+                        countermeasureAttached,
+                        countermeasureTargeted: targetIds.includes(node.id),
+                                              wiping: wipingNodeIds?.has(node.id) ?? false,
+                      })}
                     </NodeOverlay>
 
-                    {isSelected && mode === 'game' && activePlayerClass && (
+                    {node.id === displayedPanelId && mode === 'game' && activePlayerClass && (
                       <NodeActionPanel
+                        key={displayedPanelId}
                         node={node}
+                        closing={focusAnimating}
                         isReachable={isReachable}
                         successes={objectives?.[node.id]?.successes ?? 0}
+                        failures={objectives?.[node.id]?.failures ?? 0}
                         canPlanTurn={canPlanTurn ?? false}
                         onPlanTurn={onPlanTurn ?? (() => {})}
                         onMajorAction={() => onMajorAction?.(node)}
@@ -558,18 +635,16 @@ export function FlowCanvas({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#020617', overflow: 'hidden' },
+  container: { flex: 1, backgroundColor: 'transparent', overflow: 'hidden' },
   // Outer monitor/tablet bezel — about 70% wide (15% margin each side), centered,
   // with vertical insets so it doesn't touch the top or bottom of the screen.
   // Thick layered look with a subtle highlight rim for dimension/texture.
   monitorFrame: {
     flex: 1,
     marginHorizontal: '15%',
+    marginVertical: '4%',
     backgroundColor: 'transparent',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.75,
-    shadowRadius: 16,
+    boxShadow: '0px 10px 16px rgba(0, 0, 0, 0.75)',
     elevation: 10,
     overflow: 'hidden',
   },
@@ -601,10 +676,7 @@ const styles = StyleSheet.create({
     margin: 14,
     backgroundColor: 'transparent',
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.7,
-    shadowRadius: 4,
+    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.7)',
     elevation: 4,
   },
   canvas: {

@@ -26,6 +26,10 @@ export interface ReachabilityState {
    * wired — the trigger that populates this array is TODO.
    */
   permanentlyFailedNodeIds?: Set<string>;
+  /** IDs of nodes concealed by a countermeasure. */
+  hiddenNodeIds?: Set<string>;
+  /** IDs currently showing a Wipe transition; does not affect reachability. */
+  wipingNodeIds?: Set<string>;
 }
 
 /**
@@ -37,6 +41,7 @@ export type NodeStatus =
   | 'visited'
   | 'unlocked'
   | 'blocked'
+  | 'concealed'
   | 'permanently-failed';
 
 /** Has this node accumulated enough successes to count as "completed"? */
@@ -56,6 +61,7 @@ export function isReachable(
 ): boolean {
   // Permanently-failed nodes are never reachable again.
   if (state.permanentlyFailedNodeIds?.has(node.id)) return false;
+  if (state.hiddenNodeIds?.has(node.id)) return false;
 
   // Already-completed (or fully-visited-in-some-form) nodes stay reachable —
   // players can re-tap them for info, to retry after a failure, etc.
@@ -108,6 +114,9 @@ export function nodeStatus(
 ): NodeStatus {
   if (state.permanentlyFailedNodeIds?.has(node.id)) {
     return 'permanently-failed';
+  }
+  if (state.hiddenNodeIds?.has(node.id)) {
+    return 'concealed';
   }
   if (isCompleted(node, state.objectives)) {
     return 'unlocked';

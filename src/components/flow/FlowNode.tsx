@@ -8,11 +8,11 @@
  *    permanently-failed), and a brighter overlay arc fills clockwise from
  *    12 o'clock as the player accrues successes.
  *
- * The category (module / countermeasure / gateway) is now communicated by
+ * The category (module / countermeasure / access) is now communicated by
  * the icon's tint inside the node, so the border alone can signal state.
  */
 
-import { useEffect } from 'react';
+import { memo, useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Circle, G, Polygon, Path } from 'react-native-svg';
 import Animated, {
@@ -20,7 +20,9 @@ import Animated, {
   withRepeat,
   withTiming,
   Easing,
+  cancelAnimation,
   useAnimatedProps,
+  useAnimatedStyle,
 } from 'react-native-reanimated';
 import type { FlowNode as FlowNodeType } from '@/lib/flow/types';
 import type { NodeStatus } from '@/lib/flow/reachability';
@@ -37,6 +39,12 @@ interface Props {
   progress?: number;
   active?: boolean;
   selected?: boolean;
+  outcome?: 'success' | 'failure';
+  concealed?: boolean;
+  concealedOpacity?: number;
+  countermeasureAttached?: boolean;
+  countermeasureTargeted?: boolean;
+  wiping?: boolean;
 }
 
 const NODE_SIZE = 100;
@@ -61,23 +69,34 @@ const RING_COLORS: Record<NodeStatus, string> = {
   visited: '#fbbf24',          // amber-400
   unlocked: '#22d3ee',         // light blue
   blocked: '#475569',          // slate-600
+  concealed: '#475569',        // slate-600
   'permanently-failed': '#f87171', // red-400
 };
 
 /** Inner-box tint per category. The border is reserved for state. */
 const CATEGORY_COLORS = {
-  module: { fill: '#1e3a8a', border: '#60a5fa', icon: '📦' },
-  countermeasure: { fill: '#7f1d1d', border: '#f87171', icon: '🛡' },
-  gateway: { fill: '#374151', border: '#9ca3af', icon: '🔀' },
+  module: { fill: '#1e3a8a', border: '#60a5fa', icon: 'M' },
+  countermeasure: { fill: '#7f1d1d', border: '#f87171', icon: 'C' },
+  access: { fill: '#1e3a8a', border: '#60a5fa', icon: 'A' },
 } as const;
 
-export function FlowNodeView({ node, mode, status = 'available', progress = 0, active, selected }: Props) {
+export const FlowNodeView = memo(function FlowNodeView({ node, mode, status = 'available', progress = 0, active, selected, outcome, concealed = false, concealedOpacity = 1, countermeasureAttached = false, countermeasureTargeted = false, wiping = false }: Props) {
   const cat = CATEGORY_COLORS[node.category];
 
   const isUnlocked = status === 'unlocked';
-  const hexStrokeColor = isUnlocked ? '#22d3ee' : RING_COLORS[status];
+  const outcomeFill = concealed
+    ? '#1e293b'
+    : outcome === 'success' ? '#166534' : outcome === 'failure' ? '#991b1b' : cat.fill;
+  const outcomeStroke = outcome === 'success' ? '#34d399' : outcome === 'failure' ? '#f87171' : null;
+  const hexStrokeColor = countermeasureTargeted
+    ? '#22d3ee'
+    : concealed
+      ? '#475569'
+      : outcomeStroke ?? (countermeasureAttached ? '#22d3ee' : (isUnlocked ? '#22d3ee' : RING_COLORS[status]));
 
   const pulse = useSharedValue(0);
+  const dashOffset = useSharedValue(0);
+  const wipeOpacity = useSharedValue(1);
   useEffect(() => {
     if (isUnlocked) {
       pulse.value = withRepeat(
@@ -89,6 +108,17 @@ export function FlowNodeView({ node, mode, status = 'available', progress = 0, a
       pulse.value = 0;
     }
   }, [isUnlocked, pulse]);
+
+  useEffect(() => {
+    cancelAnimation(dashOffset);
+    dashOffset.value = countermeasureTargeted
+      ? withRepeat(withTiming(300, { duration: 24000, easing: Easing.linear }), -1, false)
+      : 0;
+  }, [countermeasureTargeted, dashOffset]);
+
+  useEffect(() => {
+    wipeOpacity.value = withTiming(wiping ? 0 : 1, { duration: 900 });
+  }, [wipeOpacity, wiping]);
 
   const animatedHexProps = useAnimatedProps(() => {
     return {
@@ -102,9 +132,13 @@ export function FlowNodeView({ node, mode, status = 'available', progress = 0, a
       strokeWidth: isUnlocked ? 4 + pulse.value * 8 : 0,
     };
   });
+  const animatedTargetProps = useAnimatedProps(() => ({
+    strokeDashoffset: dashOffset.value,
+  }));
+  const wipeStyle = useAnimatedStyle(() => ({ opacity: wipeOpacity.value }));
 
   return (
-    <View style={[styles.wrapper, active && styles.wrapperActive]}>
+    <Animated.View style={[styles.wrapper, active && styles.wrapperActive, wipeStyle]}>
       <View style={styles.node}>
         <Svg width={NODE_SIZE} height={NODE_SIZE} style={styles.hexagonSvg}>
           <AnimatedPolygon
@@ -115,27 +149,47 @@ export function FlowNodeView({ node, mode, status = 'available', progress = 0, a
           />
           <AnimatedPolygon
             points={HEX_POINTS}
-            fill={cat.fill}
-            fillOpacity={0.8}
+            fill={outcomeFill}
+            fillOpacity={concealed ? 0.8 * concealedOpacity : 0.8}
+            stroke="#475569"
+            strokeOpacity={concealed ? 0.8 : 1}
+            animatedProps={animatedHexProps}
+          />
+          <AnimatedPolygon
+            points={HEX_POINTS}
+            fill="transparent"
             stroke={hexStrokeColor}
+            strokeOpacity={countermeasureTargeted ? 1 : 0}
+            strokeWidth={3}
+            strokeDasharray={countermeasureTargeted ? '10 20' : undefined}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            animatedProps={animatedTargetProps}
+          />
+          <AnimatedPolygon
+            points={HEX_POINTS}
+            fill="transparent"
+            stroke={hexStrokeColor}
+            strokeOpacity={countermeasureTargeted ? 0 : (concealed ? 0.8 : 1)}
             animatedProps={animatedHexProps}
           />
         </Svg>
-        <View style={styles.hexContent} pointerEvents="none">
-          <Text style={styles.icon}>{cat.icon}</Text>
-          <Text style={styles.label}>{node.name}</Text>
-          {node.hazard && <Text style={styles.hazard}>⚠</Text>}
-          {node.isRootAccess && <Text style={styles.root}>★</Text>}
-        </View>
+        {!concealed && (
+          <View style={[styles.hexContent, concealed ? { opacity: concealedOpacity } : null, styles.noPointerEvents]}>
+            <Text style={styles.icon}>{cat.icon}</Text>
+            <Text style={styles.label}>{node.name}</Text>
+            {node.hazard && <Text style={styles.hazard}>!</Text>}
+          </View>
+        )}
         {(selected || active) && mode === 'game' && (
           <View style={{ position: 'absolute', top: -4, left: -4 }}>
             <ChamferedFrame width={108} height={108} openCenter={true} />
           </View>
         )}
       </View>
-    </View>
+    </Animated.View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   wrapper: {
@@ -156,10 +210,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 18,
     zIndex: 1,
-    textShadowColor: 'rgba(34, 211, 238, 0.6)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 6,
   },
+  noPointerEvents: { pointerEvents: 'none' },
   node: {
     width: NODE_SIZE,
     height: NODE_SIZE,
@@ -173,6 +225,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     left: 0,
+    overflow: 'visible',
   },
   hexContent: {
     position: 'absolute',

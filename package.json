@@ -9,6 +9,7 @@
     "expo": "~56.0.12",
     "expo-constants": "~56.0.18",
     "expo-font": "~56.0.7",
+    "expo-gl": "~56.0.6",
     "expo-linking": "~56.0.14",
     "expo-router": "^56.2.11",
     "expo-splash-screen": "~56.0.12",
@@ -22,11 +23,13 @@
     "react-native-safe-area-context": "~5.7.0",
     "react-native-svg": "^15.15.5",
     "react-native-web": "^0.21.2",
+    "three": "^0.185.1",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
     "@types/react": "~19.2.2",
+    "@types/three": "^0.185.4",
     "jest": "^30.4.2",
     "ts-jest": "^29.4.11",
     "typescript": "~6.0.3"

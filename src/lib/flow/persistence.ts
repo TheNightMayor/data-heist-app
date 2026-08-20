@@ -9,11 +9,21 @@ import type { FlowMap } from './types';
 
 const MAPS_KEY = 'data-heist.maps.v1';
 
+function migrateMap(map: FlowMap): FlowMap {
+  return {
+    ...map,
+    nodes: map.nodes.map((node) => ({
+      ...node,
+      category: (node.category as string) === 'gateway' ? 'access' : node.category,
+    })),
+  } as FlowMap;
+}
+
 export async function loadAllMaps(): Promise<FlowMap[]> {
   try {
     const raw = await AsyncStorage.getItem(MAPS_KEY);
     if (!raw) return [];
-    return JSON.parse(raw) as FlowMap[];
+    return (JSON.parse(raw) as FlowMap[]).map(migrateMap);
   } catch (e) {
     console.warn('loadAllMaps failed', e);
     return [];
@@ -31,7 +41,7 @@ export async function loadMap(id: string): Promise<FlowMap | null> {
     return bundled;
   }
 
-  return stored ?? bundled ?? null;
+  return stored ? migrateMap(stored) : bundled ?? null;
 }
 
 export async function saveMap(map: FlowMap): Promise<void> {

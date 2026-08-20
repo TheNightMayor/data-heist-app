@@ -19,6 +19,8 @@ interface SetupInput {
   deceiveModifier?: number;
   hackModifier?: number;
   processModifier?: number;
+  personaModifier?: number;
+  personaModifierLimit?: number;
   resolvePoints?: number;
   /** For Support class: which Lead ID is paired. */
   pairedLeadId?: string;
@@ -31,7 +33,7 @@ interface GameStore {
   map: FlowMap | null;
   normalizePlayers: (players: Player[]) => Player[];
   dispatch: (action: GameAction) => void;
-  startGame: (map: FlowMap, players: SetupInput[], hackingMode: 'basic' | 'dynamic') => void;
+  startGame: (map: FlowMap, players: SetupInput[], hackingMode?: 'basic' | 'dynamic') => void;
   endGame: () => void;
   loadGameFromState: (state: GameState, map: FlowMap) => void;
   persist: () => Promise<void>;
@@ -84,16 +86,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
     return copy;
   },
 
-  startGame: (map, players, hackingMode) => {
+  startGame: (map, players, hackingMode = 'dynamic') => {
+    const playersForMode = hackingMode === 'basic'
+      ? [players.find((p) => p.class === 'lead') ?? players[0]].filter(Boolean)
+      : players;
     // Map draft IDs (from setup UI) to newly generated player IDs so pairings survive
     const draftToNewId = new Map<string, string>();
-    for (const p of players) {
+    for (const p of playersForMode) {
       draftToNewId.set(p.draftId ?? nanoid(6), nanoid(8));
     }
 
-    const builtPlayers: Player[] = players.map((p) => {
+    const builtPlayers: Player[] = playersForMode.map((p) => {
       const mod = p.computersModifier ?? p.computersRanks;
-      const max = maxCPFor(p.computersRanks);
+      const ranks = hackingMode === 'basic' ? 0 : p.computersRanks;
+      const max = hackingMode === 'basic' ? 0 : maxCPFor(ranks);
       const newId = draftToNewId.get(p.draftId ?? '');
       return {
         id: newId ?? nanoid(8),
@@ -101,14 +107,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
         class: p.class,
         pairedSupportIds: [],
         pairedLeadId: p.pairedLeadId ? draftToNewId.get(p.pairedLeadId) : undefined,
-        computersRanks: p.computersRanks,
+        computersRanks: ranks,
         computersModifier: mod,
         deceiveModifier: p.deceiveModifier ?? mod,
         hackModifier: p.hackModifier ?? mod,
         processModifier: p.processModifier ?? mod,
         personaModifier: p.personaModifier ?? 0,
-        personaModifierLimit: p.personaModifierLimit ?? Math.floor(p.computersRanks / 3),
-        resolvePoints: p.resolvePoints ?? 3,
+        personaModifierLimit: p.personaModifierLimit ?? Math.floor(ranks / 3),
+        resolvePoints: hackingMode === 'basic' ? 0 : (p.resolvePoints ?? 3),
         currentCP: max,
         maxCP: max,
         ejected: false,
@@ -142,6 +148,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       minorActionsTaken: 0,
       visitedNodeIds: [],
       permanentlyFailedNodeIds: [],
+      hiddenNodeIds: [],
+      wipingNodeIds: [],
       objectives: {},
       log: [],
       finished: false,

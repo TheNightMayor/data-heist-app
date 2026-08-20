@@ -15,6 +15,7 @@ import { FlowNodeView } from '@/components/flow/FlowNode';
 import { ResultModal, type RollResultInfo } from '@/components/game/ResultModal';
 import { useGameStore } from '@/stores/gameStore';
 import { loadMap } from '@/lib/flow/persistence';
+import { listGames } from '@/lib/game/persistence';
 import { reachableNodes, nodeStatus, nodeProgress } from '@/lib/flow/reachability';
 import { effectiveDC } from '@/lib/starfinder/tables';
 import { resolve, type Outcome } from '@/lib/resolution';
@@ -22,6 +23,8 @@ import { modifierFor } from '@/lib/game/types';
 import { turnPenalty } from '@/lib/game/turn';
 import type { FlowNode } from '@/lib/flow/types';
 import { ChamferedFrame } from '@/components/ui/ChamferedFrame';
+import { ScreenBackdrop } from '@/components/ui/ScreenBackdrop';
+import { Toast, type ToastKind } from '@/components/ui/Toast';
 
 /**
  * Renders a row of action pips for the currently active player.
@@ -132,7 +135,7 @@ function CurrentTargetPanel({
   if (!targetNode) {
     return (
       <View style={panelStyles.empty}>
-        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
           <ChamferedFrame width={120} height={42} chamfer={6} stroke="#1e293b" fill="#0f172a" strokeWidth={1} />
         </View>
         <Text style={panelStyles.emptyText}>select node</Text>
@@ -140,9 +143,9 @@ function CurrentTargetPanel({
     );
   }
   const catColors: Record<FlowNode['category'], { fill: string; border: string; icon: string }> = {
-    module: { fill: '#1e3a8a', border: '#60a5fa', icon: '📦' },
-    countermeasure: { fill: '#7f1d1d', border: '#f87171', icon: '🛡' },
-    gateway: { fill: '#374151', border: '#9ca3af', icon: '🔀' },
+    module: { fill: '#1e3a8a', border: '#60a5fa', icon: 'M' },
+    countermeasure: { fill: '#7f1d1d', border: '#f87171', icon: 'C' },
+    access: { fill: '#1e3a8a', border: '#60a5fa', icon: 'A' },
   };
   const cat = catColors[targetNode.category];
   const dc = effectiveDC(targetNode.tier, targetNode.resolve);
@@ -151,7 +154,7 @@ function CurrentTargetPanel({
 
   return (
     <View style={[panelStyles.panel]}>
-      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
         <ChamferedFrame width={240} height={52} chamfer={8} stroke={cat.border} fill="#0f172a" />
       </View>
       <View style={[panelStyles.iconBox, { backgroundColor: cat.fill, borderColor: cat.border }]}>
@@ -203,17 +206,26 @@ const panelStyles = StyleSheet.create({
 export default function GameScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const isSmallScreen = windowWidth < 768;
+  const rollModalWidth = 400;
+  const rollButtonWidth = 272;
 
   const { mapId } = useLocalSearchParams<{ mapId: string }>();
   const router = useRouter();
-  const { state, map, dispatch, persist, endGame } = useGameStore();
+  const { state, map, dispatch, persist, endGame, loadGameFromState, startGame } = useGameStore();
 
   const [selectedNode, setSelectedNode] = useState<FlowNode | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [supportUpgradePromptOpen, setSupportUpgradePromptOpen] = useState(false);
   const [selectedLeadId, setSelectedLeadId] = useState<string | undefined>(undefined);
   const [pendingRollNode, setPendingRollNode] = useState<FlowNode | null>(null);
   const [pendingRollKind, setPendingRollKind] = useState<'lead' | 'support-self'>('lead');
+  const [toast, setToast] = useState<{ visible: boolean; message: string; detail?: string; kind: ToastKind }>({
+    visible: false,
+    message: '',
+    kind: 'info',
+  });
+  const [rollModalSize, setRollModalSize] = useState({ width: 0, height: 0 });
   const [planActions, setPlanActions] = useState(1);
   const [planRP, setPlanRP] = useState(0);
   const [planModalOpen, setPlanModalOpen] = useState(false);
@@ -222,15 +234,33 @@ export default function GameScreen() {
     rolling: false,
     info: null,
   });
+  const [booting, setBooting] = useState(true);
 
-  // Boot: if no game state, redirect to setup.
+  // Boot: restore the saved session for this map before falling back to setup.
   useEffect(() => {
-    if (!state && mapId) {
-      loadMap(mapId).then((m) => {
-        if (m) router.replace(`/setup?mapId=${m.id}`);
-      });
+    if (!mapId || state) {
+      if (state) setBooting(false);
+      return;
     }
-  }, [state, mapId, router]);
+
+    let cancelled = false;
+    (async () => {
+      const [savedMap, games] = await Promise.all([loadMap(mapId), listGames()]);
+      if (cancelled) return;
+
+      const savedGame = [...games].reverse().find((game) => game.mapId === mapId);
+      if (savedMap && savedGame) {
+        loadGameFromState(savedGame, savedMap);
+      } else if (savedMap) {
+        router.replace(`/setup?mapId=${savedMap.id}`);
+      }
+      setBooting(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [state, mapId, router, loadGameFromState]);
 
   // Persist on every state change.
   useEffect(() => {
@@ -268,6 +298,8 @@ export default function GameScreen() {
       visitedNodeIds: new Set(state.visitedNodeIds),
       hazardSkipActive: !!state.hazardSkipActive,
       permanentlyFailedNodeIds: new Set(state.permanentlyFailedNodeIds),
+      hiddenNodeIds: new Set(state.hiddenNodeIds ?? []),
+      wipingNodeIds: new Set(state.wipingNodeIds ?? []),
       objectives: state.objectives,
     });
   }, [map, state]);
@@ -284,6 +316,8 @@ export default function GameScreen() {
           visitedNodeIds: new Set(state.visitedNodeIds),
           hazardSkipActive: !!state.hazardSkipActive,
           permanentlyFailedNodeIds: new Set(state.permanentlyFailedNodeIds),
+          hiddenNodeIds: new Set(state.hiddenNodeIds ?? []),
+          wipingNodeIds: new Set(state.wipingNodeIds ?? []),
           objectives: state.objectives,
         },
         map,
@@ -310,13 +344,21 @@ export default function GameScreen() {
     return state?.pendingAid?.leadId === activePlayerId ? state.pendingAid.bonus : 0;
   }, [activePlayer?.class, activePlayerId, state?.pendingAid]);
 
-  if (!state || !map) {
+  if (booting || !state || !map) {
     return (
       <View style={styles.loading}>
         <Text style={styles.loadingText}>Loading game…</Text>
       </View>
     );
   }
+
+  const cumulativeFailureLimit = map.cumulativeFailureLimit;
+  const totalFailures = cumulativeFailureLimit === undefined
+    ? 0
+    : Object.values(state.objectives).reduce(
+      (total, objective) => total + (objective.failures ?? 0),
+      0,
+    );
 
   const onSelectNode = (node: FlowNode | null) => {
     if (!node) {
@@ -345,7 +387,9 @@ export default function GameScreen() {
     if (!node || !activePlayer) return;
 
     // Pre-calculate RP cost for validation.
-    const rpCost = (kind === 'support-self' ? 1 : 0) + (spendRP ? 1 : 0);
+    const rpCost = state.hackingMode === 'dynamic'
+      ? (kind === 'support-self' ? 1 : 0) + (spendRP ? 1 : 0)
+      : 0;
     if (rpCost > activePlayer.resolvePoints) {
       showToast(`Requires ${rpCost} Resolve Points`, undefined, 'failure');
       return;
@@ -374,7 +418,7 @@ export default function GameScreen() {
     modifier += aidBonus;
 
     // Pre-compute the outcome so we can show it after the rolling animation.
-    const outcome: Outcome = resolve({ d20, modifier, dc, spendRP });
+    const outcome: Outcome = resolve({ d20, modifier, dc, spendRP: state.hackingMode === 'dynamic' && spendRP });
 
     const applied = Math.min(outcome.successes, node.resolve?.successesRequired ?? 1);
 
@@ -388,7 +432,7 @@ export default function GameScreen() {
       detailString = 'RP spent — no roll needed';
     } else if (outcome.kind === 'nat20') {
       resultKind = 'success';
-      outcomeLabel = 'Natural 20!';
+      outcomeLabel = 'Critical Success!';
     } else if (outcome.kind === 'major-success') {
       resultKind = 'success';
       outcomeLabel = 'Major Success';
@@ -400,20 +444,20 @@ export default function GameScreen() {
       outcomeLabel = 'Failure';
     } else if (outcome.kind === 'nat1') {
       resultKind = 'critical';
-      outcomeLabel = 'Natural 1!';
-      if (outcome.cpDamageRoll !== undefined && outcome.cpDamageRoll <= 3) {
+      outcomeLabel = 'Critical Failure';
+      if (state.hackingMode === 'dynamic' && outcome.cpDamageRoll !== undefined && outcome.cpDamageRoll <= 3) {
         detailString = 'Lost 1 CP to countermeasure';
       }
     }
 
     const info: RollResultInfo = {
-      d20: spendRP ? 0 : d20,
+      d20: state.hackingMode === 'dynamic' && spendRP ? 0 : d20,
       modifier,
       baseModifier,
       penalty: penalty !== 0 ? penalty : undefined,
       aidBonus: aidBonus !== 0 ? aidBonus : undefined,
       dc,
-      total: spendRP ? dc : outcome.total,
+      total: state.hackingMode === 'dynamic' && spendRP ? dc : outcome.total,
       outcomeLabel,
       successes: applied,
       kind: resultKind,
@@ -426,10 +470,10 @@ export default function GameScreen() {
 
     // Show the rolling animation for all outcomes (including RP spend for "calculating" feel).
     setResultModal({ visible: true, rolling: true, info });
-    // Switch from rolling to result after 3200ms (4x longer than 800ms).
+    // Switch from rolling to result after a short roll.
     setTimeout(() => {
       setResultModal((prev) => ({ ...prev, rolling: false }));
-    }, 3200);
+    }, 1800);
 
     // Dispatch the actual game state change.
     dispatch({
@@ -562,17 +606,60 @@ export default function GameScreen() {
     setSelectedNode(null);
   };
 
+  const showToast = (message: string, detail: string | undefined, kind: ToastKind) => {
+    setToast({ visible: true, message, detail, kind });
+  };
+
   const handleNewGame = () => {
     endGame();
     router.replace('/');
   };
 
+  const handleResetMap = () => {
+    if (!state || !map) return;
+    setHeaderMenuOpen(false);
+    startGame(
+      map,
+      state.players.map((player) => ({
+        name: player.name,
+        class: player.class,
+        computersRanks: player.computersRanks,
+        computersModifier: player.computersModifier,
+        deceiveModifier: player.deceiveModifier,
+        hackModifier: player.hackModifier,
+        processModifier: player.processModifier,
+        personaModifier: player.personaModifier,
+        personaModifierLimit: player.personaModifierLimit,
+        resolvePoints: player.resolvePoints,
+        pairedLeadId: player.pairedLeadId,
+      })),
+      state.hackingMode,
+    );
+    setSelectedNode(null);
+    setPendingRollNode(null);
+    setModalOpen(false);
+    setResultModal({ visible: false, rolling: false, info: null });
+  };
+
+  const handleBack = () => {
+    setHeaderMenuOpen(false);
+    router.back();
+  };
+
   return (
     <View style={styles.container}>
+      <ScreenBackdrop />
+      <Toast
+        visible={toast.visible}
+        message={toast.message}
+        detail={toast.detail}
+        kind={toast.kind}
+        onHide={() => setToast((current) => ({ ...current, visible: false }))}
+      />
       <View style={{ flex: 1 }}>
         {/* Header — Turn Order, Round and Objectives */}
         <View style={styles.header}>
-        <View style={styles.headerRow}>
+        {state.hackingMode === 'dynamic' && <View style={styles.headerRow}>
           <ScrollView
             horizontal={true}
             showsHorizontalScrollIndicator={false}
@@ -596,7 +683,7 @@ export default function GameScreen() {
                         {p.name}
                       </Text>
                       <Text style={styles.miniPlayerStats}>
-                        RP {p.resolvePoints} • CP {p.currentCP}/{p.maxCP}
+                        {state.hackingMode === 'dynamic' ? `RP ${p.resolvePoints} • CP ${p.currentCP}/${p.maxCP}` : 'COMPUTERS'}
                       </Text>
                       {p.ejected ? <Text style={styles.ejected}>EJECTED</Text> : null}
                     </View>
@@ -617,20 +704,58 @@ export default function GameScreen() {
             <Text style={styles.roundLabel}>ROUND</Text>
             <Text style={styles.roundValue}>{state.round + 1}</Text>
           </View>
-        </View>
+        </View>}
 
         <View style={styles.statRow}>
+          {cumulativeFailureLimit !== undefined ? (
+            <View style={[styles.statBox, styles.failuresStatBox]}>
+              <Text style={styles.statLabel}>TOTAL FAILURES</Text>
+              <Text style={[styles.statValue, { color: '#f87171' }]}>{totalFailures}/{cumulativeFailureLimit}</Text>
+            </View>
+          ) : null}
           {Object.entries(state.objectives || {}).map(([id, obj]) => {
             const node = map?.nodes.find((n) => n.id === id);
             return (
               <View key={id} style={styles.statBox}>
                 <Text style={styles.statLabel}>{node?.name || id}</Text>
                 <Text style={styles.statValue}>
-                  {obj.successes}/{node?.resolve?.successesRequired || 1}
+                  <Text style={styles.successStatValue}>
+                    {obj.successes}/{node?.resolve?.successesRequired || 1}
+                  </Text>
+                  {' • '}
+                  <Text style={styles.failureStatValue}>{obj.failures ?? 0}/3</Text>
                 </Text>
               </View>
             );
           })}
+        </View>
+
+        <View style={styles.headerMenu}>
+          <Pressable
+            accessibilityLabel="Open game menu"
+            style={styles.menuButton}
+            onPress={() => setHeaderMenuOpen((open) => !open)}
+          >
+            <View style={styles.menuLine} />
+            <View style={styles.menuLine} />
+            <View style={styles.menuLine} />
+          </Pressable>
+          {headerMenuOpen ? (
+            <View style={styles.menuPanel}>
+              <Pressable style={styles.menuItem} onPress={handleResetMap}>
+                <Text style={styles.menuItemText}>Reset Map</Text>
+              </Pressable>
+              <Pressable style={styles.menuItem} onPress={handleBack}>
+                <Text style={styles.menuItemText}>Back</Text>
+              </Pressable>
+              <Pressable style={styles.menuItem} onPress={handleNewGame}>
+                <Text style={styles.menuItemText}>Main Menu</Text>
+              </Pressable>
+              <Pressable style={[styles.menuItem, styles.menuItemDisabled]} disabled>
+                <Text style={[styles.menuItemText, styles.menuItemDisabledText]}>Options</Text>
+              </Pressable>
+            </View>
+          ) : null}
         </View>
       </View>
 
@@ -643,10 +768,11 @@ export default function GameScreen() {
           activeId={activeTargetId}
           statusById={statusById}
           progressById={progressById}
+          wipingNodeIds={resultModal.visible ? new Set<string>() : new Set(state.wipingNodeIds ?? [])}
           selectedId={selectedNode?.id}
           onSelectNode={onSelectNode}
           activePlayerClass={activePlayer?.class}
-          canPlanTurn={activePlayer?.class === 'lead' && state.actionsTaken === 0 && state.actionsCommitted <= 1}
+          canPlanTurn={state.hackingMode === 'dynamic' && activePlayer?.class === 'lead' && state.actionsTaken === 0 && state.actionsCommitted <= 1}
           onPlanTurn={() => setPlanModalOpen(true)}
           onMajorAction={(node) => openRollForNode(node, activePlayer?.class === 'support' ? 'support-self' : 'lead')}
           onSupportAction={() => setSupportUpgradePromptOpen(true)}
@@ -678,6 +804,18 @@ export default function GameScreen() {
               progress={info.progress}
               active={info.active}
               selected={info.selected}
+              concealed={info.status === 'blocked' || info.status === 'concealed'}
+              concealedOpacity={info.concealedOpacity}
+              countermeasureAttached={info.countermeasureAttached}
+              countermeasureTargeted={info.countermeasureTargeted}
+              wiping={info.wiping}
+              outcome={state.hackingMode === 'basic'
+                ? state.objectives[n.id]?.successes >= (n.resolve?.successesRequired ?? 1)
+                  ? 'success'
+                  : (state.objectives[n.id]?.failures ?? 0) >= 3
+                    ? 'failure'
+                    : undefined
+                : undefined}
             />
           )}
         />
@@ -685,7 +823,7 @@ export default function GameScreen() {
 
       {/* Pre-roll modal */}
       <Modal 
-        visible={modalOpen} 
+        visible={false}
         transparent 
         animationType="fade"
         onRequestClose={() => {
@@ -700,22 +838,44 @@ export default function GameScreen() {
             setPendingRollNode(null);
           }}
         >
-          <Pressable style={[styles.modal, { width: 400, alignItems: 'center' }]} onPress={() => {}}>
-            <View style={StyleSheet.absoluteFill} pointerEvents="none">
-              <ChamferedFrame 
-                width={400} 
-                height={420} 
-                chamfer={16} 
-                stroke="#475569" 
-                strokeWidth={2} 
-                fill="#1e293b" 
-              />
+          <Pressable
+            style={[
+              styles.modal,
+              {
+                width: rollModalWidth,
+                alignItems: 'center',
+                opacity: rollModalSize.width > 0 ? 1 : 0,
+              },
+            ]}
+            onLayout={(event) => {
+              const { width, height } = event.nativeEvent.layout;
+              setRollModalSize({ width, height });
+            }}
+            onPress={() => {}}
+          >
+            <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
+              {rollModalSize.width > 0 && rollModalSize.height > 0 ? (
+                <ChamferedFrame
+                  width={rollModalSize.width}
+                  height={rollModalSize.height}
+                  chamfer={16}
+                  stroke="#475569"
+                  strokeWidth={2}
+                  fill="#1e293b"
+                />
+              ) : null}
             </View>
             <View style={{ padding: 24, alignItems: 'center', width: '100%' }}>
-            <Text style={styles.modalTitle}>Major Actions</Text>
+            <Text style={styles.modalTitle}>
+              {state.hackingMode === 'basic'
+                ? pendingRollNode?.name ?? 'Hack Action'
+                : 'Major Actions'}
+            </Text>
             {pendingRollNode ? (
               <View style={{ alignItems: 'center', marginBottom: 15 }}>
-                <Text style={styles.modalSub}>{pendingRollNode.name}</Text>
+                <Text style={styles.modalSub}>
+                  {state.hackingMode === 'basic' ? 'Computers Skill Check' : pendingRollNode.name}
+                </Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
                   <View style={{ 
                     backgroundColor: '#1e293b', 
@@ -744,18 +904,18 @@ export default function GameScreen() {
             {state.pendingAid?.leadId === activePlayer?.id ? (
               <View style={styles.aidBanner}>
                 <Text style={styles.aidBannerText}>
-                  ✨ Receiving +{state.pendingAid.bonus} Aid from Support hacker
+                  Receiving +{state.pendingAid!.bonus} Aid from Support hacker
                 </Text>
               </View>
             ) : null}
 
             <Pressable
-              style={[styles.modalBtn, styles.modalBtnPrimary]}
+              style={[styles.modalBtn, styles.modalBtnPrimary, { width: rollButtonWidth }]}
               onPress={() => handleRoll(false)}
             >
-              <View style={StyleSheet.absoluteFill} pointerEvents="none">
+              <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
                 <ChamferedFrame 
-                  width={280} 
+                  width={rollButtonWidth} 
                   height={48} 
                   chamfer={8} 
                   stroke="#22d3ee" 
@@ -763,21 +923,22 @@ export default function GameScreen() {
                 />
               </View>
               <Text style={styles.modalBtnText}>
-                🎲 Roll d20{state.pendingAid?.leadId === activePlayer?.id ? ` (+${state.pendingAid.bonus} Aid)` : ''}
+                Roll d20{state.pendingAid?.leadId === activePlayer?.id ? ` (+${state.pendingAid!.bonus} Aid)` : ''}
               </Text>
             </Pressable>
-            <Pressable
+            {state.hackingMode === 'dynamic' && <Pressable
               style={[
                 styles.modalBtn,
                 styles.modalBtnSecondary,
+                { width: rollButtonWidth },
                 !activePlayer || activePlayer.resolvePoints < 1 ? styles.modalBtnDisabled : null,
               ]}
               onPress={() => handleRoll(true)}
               disabled={!activePlayer || activePlayer.resolvePoints < 1}
             >
-              <View style={StyleSheet.absoluteFill} pointerEvents="none">
+              <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
                 <ChamferedFrame 
-                  width={280} 
+                  width={rollButtonWidth} 
                   height={48} 
                   chamfer={8} 
                   stroke={(!activePlayer || activePlayer.resolvePoints < 1) ? "#475569" : "#a855f7"} 
@@ -785,24 +946,24 @@ export default function GameScreen() {
                 />
               </View>
               <Text style={styles.modalBtnText}>
-                ⭐ Spend RP (auto-success)
+                Spend RP (auto-success)
               </Text>
               {state.pendingAid?.leadId === activePlayer?.id && (
                 <Text style={[styles.modalBtnText, { color: '#f87171', fontSize: 10, marginTop: 2 }]}>
-                  (+{state.pendingAid.bonus} Aid ignored)
+                  (+{state.pendingAid!.bonus} Aid ignored)
                 </Text>
               )}
-            </Pressable>
+            </Pressable>}
             <Pressable
-              style={[styles.modalBtn, styles.modalBtnCancel]}
+              style={[styles.modalBtn, styles.modalBtnCancel, { width: rollButtonWidth }]}
               onPress={() => {
                 setModalOpen(false);
                 setPendingRollNode(null);
               }}
             >
-              <View style={StyleSheet.absoluteFill} pointerEvents="none">
+              <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
                 <ChamferedFrame 
-                  width={280} 
+                  width={rollButtonWidth} 
                   height={48} 
                   chamfer={8} 
                   stroke="#475569" 
@@ -825,7 +986,7 @@ export default function GameScreen() {
       >
         <Pressable style={styles.modalBackdrop} onPress={() => setPlanModalOpen(false)}>
           <Pressable style={[styles.modal, { width: 340 }]} onPress={() => {}}>
-            <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
               <ChamferedFrame width={340} height={460} chamfer={16} stroke="#22d3ee" fill="#0f172a" />
             </View>
             <View style={{ padding: 20, gap: 10, alignItems: 'center' }}>
@@ -857,8 +1018,7 @@ export default function GameScreen() {
             </View>
             <Text style={styles.helperText}>Each action after the first adds −5 (cumulative).</Text>
 
-            {/* RP stepper */}
-            <View style={styles.stepperRow}>
+            {state.hackingMode === 'dynamic' && <View style={styles.stepperRow}>
               <Text style={styles.stepperLabel}>Resolve Points</Text>
               <View style={styles.stepperCtl}>
                 <Pressable
@@ -882,10 +1042,10 @@ export default function GameScreen() {
                   <Text style={styles.stepperBtnText}>+</Text>
                 </Pressable>
               </View>
-            </View>
-            <Text style={styles.helperText}>
+            </View>}
+            {state.hackingMode === 'dynamic' && <Text style={styles.helperText}>
               Each RP reduces the cumulative penalty by 5. Free top-up during the turn (no action spent).
-            </Text>
+            </Text>}
 
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Final penalty at action {planActions}:</Text>
@@ -907,7 +1067,7 @@ export default function GameScreen() {
                 setPlanModalOpen(false);
               }}
             >
-              <View style={StyleSheet.absoluteFill} pointerEvents="none">
+              <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
                 <ChamferedFrame width={280} height={48} chamfer={8} stroke="#22d3ee" fill="#0e7490" />
               </View>
               <Text style={styles.modalBtnText}>Confirm Plan</Text>
@@ -916,7 +1076,7 @@ export default function GameScreen() {
               style={[styles.modalBtn, styles.modalBtnCancel]}
               onPress={() => setPlanModalOpen(false)}
             >
-              <View style={StyleSheet.absoluteFill} pointerEvents="none">
+              <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
                 <ChamferedFrame width={280} height={48} chamfer={8} stroke="#475569" fill="#0f172a" />
               </View>
               <Text style={styles.modalBtnText}>Cancel</Text>
@@ -935,7 +1095,7 @@ export default function GameScreen() {
       >
         <Pressable style={styles.modalBackdrop} onPress={() => handleSupportAction('cancel')}>
           <Pressable style={[styles.modal, { width: 400 }]} onPress={() => {}}>
-            <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
               <ChamferedFrame width={400} height={420} chamfer={16} stroke="#22d3ee" fill="#0f172a" />
             </View>
             <View style={{ padding: 24, gap: 10, alignItems: 'center', width: '100%' }}>
@@ -991,16 +1151,16 @@ export default function GameScreen() {
               style={[styles.modalBtn, styles.modalBtnPrimary]}
               onPress={() => handleSupportAction('aid')}
             >
-              <View style={StyleSheet.absoluteFill} pointerEvents="none">
+              <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
                 <ChamferedFrame width={280} height={48} chamfer={8} stroke="#22d3ee" fill="#0e7490" />
               </View>
-              <Text style={styles.modalBtnText}>✨ Aid (+2 / +4)</Text>
+              <Text style={styles.modalBtnText}>Aid (+2 / +4)</Text>
             </Pressable>
             <Pressable
               style={[styles.modalBtn, styles.modalBtnCancel]}
               onPress={() => handleSupportAction('cancel')}
             >
-              <View style={StyleSheet.absoluteFill} pointerEvents="none">
+              <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
                 <ChamferedFrame width={280} height={48} chamfer={8} stroke="#475569" fill="#0f172a" />
               </View>
               <Text style={styles.modalBtnText}>Cancel</Text>
@@ -1011,13 +1171,28 @@ export default function GameScreen() {
       </Modal>
 
       {/* Animated dice roll result modal */}
-      {resultModal.visible ? (
+      {(modalOpen || resultModal.visible) ? (
         <ResultModal
-          visible={resultModal.visible}
-          rolling={resultModal.rolling}
-          result={resultModal.info}
+          visible={modalOpen || resultModal.visible}
+          rolling={resultModal.visible && resultModal.rolling}
+          result={resultModal.visible ? resultModal.info : null}
           playerName={activePlayer?.name ?? 'Player'}
           nodeName={pendingRollNode?.name ?? 'Target'}
+          hackingMode={state.hackingMode}
+          preRoll={modalOpen && pendingRollNode ? {
+            title: state.hackingMode === 'basic' ? pendingRollNode.name : 'Major Actions',
+            subtitle: state.hackingMode === 'basic' ? 'Computers Skill Check' : pendingRollNode.name,
+            subskill: pendingRollNode.resolve?.subskill ?? 'hack',
+            dc: effectiveDC(pendingRollNode.tier, pendingRollNode.resolve),
+            modifier: activePlayer ? modifierFor(activePlayer, pendingRollNode.resolve?.subskill ?? 'hack', state.hackingMode) : 0,
+            aidBonus: state.pendingAid?.leadId === activePlayer?.id ? state.pendingAid!.bonus : undefined,
+            canSpendRP: !!activePlayer && activePlayer.resolvePoints >= 1,
+            onRoll: handleRoll,
+            onCancel: () => {
+              setModalOpen(false);
+              setPendingRollNode(null);
+            },
+          } : undefined}
           onDismiss={dismissResultModal}
         />
       ) : null}
@@ -1026,7 +1201,7 @@ export default function GameScreen() {
       <Modal visible={!!state.finished} transparent animationType="fade">
         <View style={styles.modalBackdrop}>
           <View style={[styles.modal, { width: 340 }]}>
-            <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
               <ChamferedFrame 
                 width={340} 
                 height={240} 
@@ -1037,13 +1212,13 @@ export default function GameScreen() {
             </View>
             <View style={{ padding: 20, gap: 10 }}>
               <Text style={styles.modalTitle}>
-                {state.result === 'win' ? '🎉 Heist Successful!' : '💀 Heist Failed'}
+                {state.result === 'win' ? 'Heist Successful!' : 'Heist Failed'}
               </Text>
               <Text style={styles.modalSub}>
                 {state.result === 'win' ? 'You reached root access.' : 'All personas ejected.'}
               </Text>
               <Pressable style={[styles.modalBtn, styles.modalBtnPrimary, { marginTop: 10 }]} onPress={handleNewGame}>
-                <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
                   <ChamferedFrame width={280} height={48} chamfer={8} stroke="#22d3ee" fill="#0e7490" />
                 </View>
                 <Text style={styles.modalBtnText}>Back to Home</Text>
@@ -1058,14 +1233,71 @@ export default function GameScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#020617' },
+  container: { flex: 1, backgroundColor: 'transparent' },
   loading: { flex: 1, backgroundColor: '#020617', alignItems: 'center', justifyContent: 'center' },
   loadingText: { color: '#94a3b8', fontSize: 16 },
   header: {
-    padding: 12,
-    backgroundColor: '#0f172a',
+    position: 'absolute',
+    top: '11%',
+    left: '15%',
+    right: '15%',
+    zIndex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    backgroundColor: 'rgba(15, 23, 42, 0.72)',
+    borderTopWidth: 1,
     borderBottomWidth: 1,
     borderColor: '#1e293b',
+  },
+  headerMenu: {
+    position: 'absolute',
+    top: '50%',
+    right: 24,
+    marginTop: -18,
+    zIndex: 20,
+    alignItems: 'flex-end',
+  },
+  menuButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+    borderWidth: 1,
+    borderColor: '#334155',
+    gap: 4,
+  },
+  menuLine: {
+    width: 16,
+    height: 2,
+    backgroundColor: '#22d3ee',
+  },
+  menuPanel: {
+    width: 144,
+    marginTop: 6,
+    padding: 4,
+    backgroundColor: '#0f172a',
+    borderWidth: 1,
+    borderColor: '#475569',
+  },
+  menuItem: {
+    minHeight: 34,
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1e293b',
+  },
+  menuItemText: {
+    color: '#cbd5e1',
+    fontSize: 11,
+    fontFamily: 'Orbitron-Bold',
+    textTransform: 'uppercase',
+  },
+  menuItemDisabled: {
+    borderBottomWidth: 0,
+  },
+  menuItemDisabledText: {
+    color: '#475569',
   },
   headerRow: {
     flexDirection: 'row',
@@ -1087,6 +1319,8 @@ const styles = StyleSheet.create({
     paddingRight: 12,
   },
   miniPlayerChip: {
+    width: 108,
+    flexShrink: 0,
     backgroundColor: '#1e293b',
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -1125,6 +1359,8 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   roundChip: {
+    width: 76,
+    flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#1e293b',
@@ -1149,7 +1385,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   statBox: {
-    flex: 1,
+    width: 132,
+    flexGrow: 0,
+    flexShrink: 0,
     paddingHorizontal: 10,
     paddingVertical: 6,
     backgroundColor: '#1e293b',
@@ -1157,8 +1395,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#334155',
   },
+  failuresStatBox: {
+    marginLeft: 8,
+  },
   statLabel: { fontSize: 9, color: '#64748b', fontWeight: '700', textTransform: 'uppercase' },
   statValue: { fontSize: 14, color: '#22d3ee', fontWeight: '800' },
+  successStatValue: { color: '#34d399' },
+  failureStatValue: { color: '#f87171' },
   topbar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1169,14 +1412,6 @@ const styles = StyleSheet.create({
   },
   turnLabel: { fontSize: 10, color: '#64748b', textTransform: 'uppercase', fontWeight: '700' },
   activeName: { fontSize: 16, color: '#f1f5f9', fontWeight: '800' },
-  statBox: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    backgroundColor: '#1e293b',
-    alignItems: 'center',
-  },
-  statLabel: { fontSize: 9, color: '#64748b', fontWeight: '700' },
-  statValue: { fontSize: 14, color: '#22d3ee', fontWeight: '800' },
   endBtn: {
     paddingHorizontal: 12,
     paddingVertical: 8,

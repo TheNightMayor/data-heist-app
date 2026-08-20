@@ -49,6 +49,7 @@ export type PhaseStatus =
 export interface ObjectiveProgress {
   nodeId: string;
   successes: number;
+  failures?: number;
   /** Current countdown if this is a countermeasure with a timer. */
   countdown?: number;
 }
@@ -105,6 +106,10 @@ export interface GameState {
    * the map. The trigger that populates this is TODO — wiring only.
    */
   permanentlyFailedNodeIds: string[];
+  /** Node IDs concealed by a countermeasure such as Wipe. */
+  hiddenNodeIds?: string[];
+  /** Node IDs currently showing the Wipe transition. */
+  wipingNodeIds?: string[];
   /** Active objectives and their progress. */
   objectives: Record<string, ObjectiveProgress>;
   /** Recent actions for the log panel. */

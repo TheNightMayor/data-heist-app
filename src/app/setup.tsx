@@ -9,10 +9,57 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { nanoid } from 'nanoid';
+import Svg, { Path } from 'react-native-svg';
 import { loadMap } from '@/lib/flow/persistence';
 import type { FlowMap } from '@/lib/flow/types';
 import { useGameStore } from '@/stores/gameStore';
 import { ChamferedFrame } from '@/components/ui/ChamferedFrame';
+import { ScreenBackdrop } from '@/components/ui/ScreenBackdrop';
+
+function BackChevron() {
+  return (
+    <Svg width={14} height={12} viewBox="0 0 14 12" aria-hidden>
+      <Path d="M13 1 L9 6 L13 11 M7 1 L3 6 L7 11" fill="none" stroke="#cffafe" strokeWidth={1.5} strokeLinecap="square" />
+    </Svg>
+  );
+}
+
+function RandomNameButton({ onPress }: { onPress: () => void }) {
+  return (
+    <Pressable style={({ pressed }) => [styles.randomBtn, styles.randomBtnShadow, pressed && styles.randomBtnPressed]} onPress={onPress}>
+      {({ pressed }) => (
+        <>
+          <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
+            <ChamferedFrame width={78} height={30} chamfer={6} stroke="#22d3ee" fill={pressed ? '#155e75' : '#0e7490'} />
+          </View>
+          <Text style={[styles.randomBtnText, pressed && styles.randomBtnTextPressed]}>RANDOM</Text>
+        </>
+      )}
+    </Pressable>
+  );
+}
+
+function StepperButton({ onPress, children }: { onPress: () => void; children: string }) {
+  const isDecrement = children === '−';
+  const framePath = isDecrement
+    ? 'M6 0 H30 V30 H6 L0 24 V6 Z'
+    : 'M0 0 H24 L30 6 V24 L24 30 H0 Z';
+
+  return (
+    <Pressable style={({ pressed }) => [styles.stepBtn, pressed && styles.stepBtnPressed]} onPress={onPress}>
+      {({ pressed }) => (
+        <>
+          <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
+            <Svg width={30} height={30} viewBox="0 0 30 30">
+              <Path d={framePath} stroke="#22d3ee" strokeWidth={2} fill={pressed ? '#155e75' : '#0e7490'} strokeLinejoin="miter" />
+            </Svg>
+          </View>
+          <Text style={styles.stepBtnText}>{children}</Text>
+        </>
+      )}
+    </Pressable>
+  );
+}
 
 const RANDOM_NAMES = [
   'Case', 'Molly', 'Armitage', 'Riviera', 'Hideo', 'Wintermute', 'Neuromancer',
@@ -61,10 +108,11 @@ export default function SetupScreen() {
     const name1 = getRandomName();
     let name2 = getRandomName();
     while (name2 === name1) name2 = getRandomName();
-    return [
+    const initialPlayers: DraftPlayer[] = [
       { id: leadId, name: name1, class: 'lead', computersRanks: 1, computersModifier: 5, resolvePoints: 3, deceiveModifier: 5, hackModifier: 5, processModifier: 5, personaModifier: 0, personaModifierLimit: 0 },
       { id: supportId, name: name2, class: 'support', computersRanks: 0, computersModifier: 2, resolvePoints: 3, deceiveModifier: 2, hackModifier: 2, processModifier: 2, personaModifier: 0, personaModifierLimit: 0, pairedLeadId: leadId },
     ];
+    return hackingMode === 'basic' ? initialPlayers.slice(0, 1) : initialPlayers;
   });
 
   useEffect(() => {
@@ -75,6 +123,7 @@ export default function SetupScreen() {
 
   const updatePlayer = (id: string, patch: Partial<DraftPlayer>) => {
     setPlayers((ps) => {
+      if (hackingMode === 'basic' && patch.class === 'support') return ps;
       const existing = ps.find((p) => p.id === id);
       if (!existing) return ps;
 
@@ -156,6 +205,7 @@ export default function SetupScreen() {
   };
 
   const addPlayer = () => {
+    if (hackingMode === 'basic') return;
     if (players.length >= 4) return;
     setPlayers((ps) => [
       ...ps,
@@ -222,24 +272,43 @@ export default function SetupScreen() {
   };
 
   const { width: windowWidth } = useWindowDimensions();
-  const cardWidth = Math.min(windowWidth - 32, 560);
+  const cardWidth = Math.min(windowWidth - 56, 560);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+    <View style={styles.screen}>
+      <ScreenBackdrop />
+      <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
       <View style={styles.contentWrapper}>
-      <View style={styles.headerRow}>
-        <Pressable 
-          style={({ pressed }) => [
-            styles.backBtn,
-            pressed && { opacity: 0.7 }
-          ]} 
-          onPress={() => router.push('/')}
-        >
-          <Text style={styles.backBtnText}>← MAPS</Text>
-        </Pressable>
-        <Text style={styles.title}>Setup</Text>
+      <View
+        style={[styles.headerCard, { width: cardWidth }]}
+        onLayout={(e) => setCardHeights(prev => ({ ...prev, setupHeader: e.nativeEvent.layout.height }))}
+      >
+        {cardHeights.setupHeader && (
+          <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
+            <ChamferedFrame width={cardWidth} height={cardHeights.setupHeader} chamfer={16} stroke="#22d3ee" strokeWidth={2} fill="#0b1f2a" />
+          </View>
+        )}
+        <View style={styles.headerRow}>
+          <Pressable
+            style={({ pressed }) => [styles.backBtn, styles.backBtnShadow, pressed && styles.backBtnPressed]}
+            onPress={() => router.push('/')}
+          >
+            {({ pressed }) => (
+              <>
+                <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
+                  <ChamferedFrame width={96} height={30} chamfer={6} stroke="#22d3ee" fill={pressed ? '#155e75' : '#0e7490'} />
+                </View>
+                <View style={styles.backBtnContent}>
+                  <BackChevron />
+                  <Text style={styles.backBtnText}>MAPS</Text>
+                </View>
+              </>
+            )}
+          </Pressable>
+          <Text style={styles.title}>Setup</Text>
+        </View>
+        {map && <Text style={styles.mapLabel}>Map: {map.name}</Text>}
       </View>
-      {map && <Text style={styles.mapLabel}>Map: {map.name}</Text>}
 
       {players.map((p, i) => {
         const pointsUsed = 
@@ -255,136 +324,96 @@ export default function SetupScreen() {
         return (
         <View 
           key={p.id} 
-          style={[styles.card, { width: cardWidth }]}
+          style={[styles.card, hackingMode === 'basic' && styles.basicCard, { width: cardWidth }]}
           onLayout={(e) => {
             const h = e.nativeEvent.layout.height;
             setCardHeights(prev => ({ ...prev, [p.id]: h }));
           }}
         >
-          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
              {cardHeights[p.id] && (
                <ChamferedFrame 
                  width={cardWidth} 
                  height={cardHeights[p.id]} 
                  chamfer={16}
-                 stroke="#334155"
+                 stroke="#22d3ee"
                  strokeWidth={2}
                  fill="#1e293b"
                />
              )}
           </View>
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Player {i + 1}</Text>
+            {hackingMode === 'dynamic' && <Text style={styles.cardTitle}>Player {i + 1}</Text>}
             {players.length > 1 && (
               <Pressable onPress={() => removePlayer(p.id)}>
                 <Text style={styles.remove}>Remove</Text>
               </Pressable>
             )}
           </View>
-          <Text style={styles.label}>Name</Text>
-          <View style={styles.nameRow}>
-            <TextInput
-              style={[styles.input, { flex: 1, marginBottom: 0 }]}
-              value={p.name}
-              onChangeText={(name) => updatePlayer(p.id, { name })}
-            />
-            <Pressable
-              style={styles.randomBtn}
-              onPress={() => updatePlayer(p.id, { name: getRandomName() })}
-            >
-              <Text style={styles.randomBtnText}>🎲</Text>
-            </Pressable>
-          </View>
-          <View style={styles.statsRow}>
-            <View style={styles.statCol}>
-              <Text style={styles.label}>Class</Text>
-              <View style={styles.row}>
-                <Pressable
-                  style={[styles.pill, p.class === 'lead' && styles.pillActive]}
-                  onPress={() => updatePlayer(p.id, { class: 'lead' })}
-                >
-                  <Text style={styles.pillText}>Lead</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.pill, p.class === 'support' && styles.pillActive]}
-                  onPress={() => updatePlayer(p.id, { class: 'support' })}
-                >
-                  <Text style={styles.pillText}>Support</Text>
-                </Pressable>
+          {hackingMode === 'basic' ? (
+            <View style={styles.basicIdentityRow}>
+              <View style={styles.basicNameCol}>
+                <Text style={styles.label}>Name</Text>
+                <View style={styles.nameRow}>
+                  <TextInput
+                    style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                    value={p.name}
+                    onChangeText={(name) => updatePlayer(p.id, { name })}
+                  />
+                  <RandomNameButton onPress={() => updatePlayer(p.id, { name: getRandomName() })} />
+                </View>
+              </View>
+              <View style={styles.basicComputerCol}>
+                <Text style={[styles.label, styles.basicModifierLabel]}>{'Computers\nModifier'}</Text>
+                <View style={styles.row}>
+                  <StepperButton onPress={() => updatePlayer(p.id, { computersModifier: Math.max(0, p.computersModifier - 1) })}>−</StepperButton>
+                  <Text style={styles.value}>{p.computersModifier}</Text>
+                  <StepperButton onPress={() => updatePlayer(p.id, { computersModifier: Math.min(25, p.computersModifier + 1) })}>+</StepperButton>
+                </View>
               </View>
             </View>
+          ) : (
+            <>
+              <Text style={styles.label}>Name</Text>
+              <View style={styles.nameRow}>
+                <TextInput
+                  style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                  value={p.name}
+                  onChangeText={(name) => updatePlayer(p.id, { name })}
+                />
+                <RandomNameButton onPress={() => updatePlayer(p.id, { name: getRandomName() })} />
+              </View>
+            </>
+          )}
+          <View style={[styles.statsRow, hackingMode === 'basic' && styles.basicStatsRow]}>
+            {hackingMode === 'dynamic' && (
+              <View style={styles.statCol}>
+                <Text style={styles.label}>Class</Text>
+                <View style={styles.row}>
+                  <Pressable
+                    style={[styles.pill, p.class === 'lead' && styles.pillActive]}
+                    onPress={() => updatePlayer(p.id, { class: 'lead' })}
+                  >
+                    <Text style={styles.pillText}>Lead</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.pill, p.class === 'support' && styles.pillActive]}
+                    onPress={() => updatePlayer(p.id, { class: 'support' })}
+                  >
+                    <Text style={styles.pillText}>Support</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
+            {hackingMode === 'dynamic' && (
             <View style={styles.statCol}>
               <Text style={styles.label}>Resolve Points</Text>
               <View style={styles.row}>
-                <Pressable
-                  style={styles.stepBtn}
-                  onPress={() => updatePlayer(p.id, { resolvePoints: Math.max(0, p.resolvePoints - 1) })}
-                >
-                  <Text style={styles.stepBtnText}>−</Text>
-                </Pressable>
+                <StepperButton onPress={() => updatePlayer(p.id, { resolvePoints: Math.max(0, p.resolvePoints - 1) })}>−</StepperButton>
                 <Text style={styles.value}>{p.resolvePoints}</Text>
-                <Pressable
-                  style={styles.stepBtn}
-                  onPress={() => updatePlayer(p.id, { resolvePoints: Math.min(10, p.resolvePoints + 1) })}
-                >
-                  <Text style={styles.stepBtnText}>+</Text>
-                </Pressable>
+                <StepperButton onPress={() => updatePlayer(p.id, { resolvePoints: Math.min(10, p.resolvePoints + 1) })}>+</StepperButton>
               </View>
             </View>
-            <View style={styles.statCol}>
-              <Text style={styles.label}>Max CP</Text>
-              <View style={[styles.row, { height: 32 }]}>
-                <Text style={[styles.value, { color: '#22d3ee' }]}>{12 + 2 * p.computersRanks}</Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={[styles.statsRow, { marginTop: 8 }]}>
-            <View style={styles.statCol}>
-              <Text style={styles.label}>Skill Ranks</Text>
-              <View style={styles.row}>
-                <Pressable
-                  style={styles.stepBtn}
-                  onPress={() => updatePlayer(p.id, { computersRanks: Math.max(0, p.computersRanks - 1) })}
-                >
-                  <Text style={styles.stepBtnText}>−</Text>
-                </Pressable>
-                <Text style={styles.value}>{p.computersRanks}</Text>
-                <Pressable
-                  style={styles.stepBtn}
-                  onPress={() => updatePlayer(p.id, { computersRanks: Math.min(15, p.computersRanks + 1) })}
-                >
-                  <Text style={styles.stepBtnText}>+</Text>
-                </Pressable>
-              </View>
-            </View>
-            <View style={styles.statCol}>
-              <Text style={styles.label}>Total Mod</Text>
-              <View style={styles.row}>
-                <Pressable
-                  style={styles.stepBtn}
-                  onPress={() => updatePlayer(p.id, { computersModifier: Math.max(0, p.computersModifier - 1) })}
-                >
-                  <Text style={styles.stepBtnText}>−</Text>
-                </Pressable>
-                <Text style={styles.value}>{p.computersModifier}</Text>
-                <Pressable
-                  style={styles.stepBtn}
-                  onPress={() => updatePlayer(p.id, { computersModifier: Math.min(25, p.computersModifier + 1) })}
-                >
-                  <Text style={styles.stepBtnText}>+</Text>
-                </Pressable>
-              </View>
-            </View>
-            {hackingMode === 'dynamic' && (
-              <View style={styles.statCol}>
-                <Text style={styles.label}>Persona Mod</Text>
-                <View style={[styles.row, { height: 32 }]}>
-                  <Text style={[styles.value, { color: pointsUsed > totalBudget ? '#f43f5e' : '#a855f7' }]}>
-                    {pointsUsed} / {totalBudget}
-                  </Text>
-                </View>
-              </View>
             )}
           </View>
 
@@ -393,55 +422,25 @@ export default function SetupScreen() {
               <View style={styles.statCol}>
                 <Text style={styles.label}>Hack Mod</Text>
                 <View style={styles.row}>
-                  <Pressable
-                    style={styles.stepBtn}
-                    onPress={() => updatePlayer(p.id, { hackModifier: Math.max(p.computersModifier - 3, p.hackModifier - 1) })}
-                  >
-                    <Text style={styles.stepBtnText}>−</Text>
-                  </Pressable>
+                  <StepperButton onPress={() => updatePlayer(p.id, { hackModifier: Math.max(p.computersModifier - 3, p.hackModifier - 1) })}>−</StepperButton>
                   <Text style={styles.value}>{p.hackModifier}</Text>
-                  <Pressable
-                    style={styles.stepBtn}
-                    onPress={() => updatePlayer(p.id, { hackModifier: Math.min(p.computersModifier + 3, p.hackModifier + 1) })}
-                  >
-                    <Text style={styles.stepBtnText}>+</Text>
-                  </Pressable>
+                  <StepperButton onPress={() => updatePlayer(p.id, { hackModifier: Math.min(p.computersModifier + 3, p.hackModifier + 1) })}>+</StepperButton>
                 </View>
               </View>
               <View style={styles.statCol}>
                 <Text style={styles.label}>Deceive Mod</Text>
                 <View style={styles.row}>
-                  <Pressable
-                    style={styles.stepBtn}
-                    onPress={() => updatePlayer(p.id, { deceiveModifier: Math.max(p.computersModifier - 3, p.deceiveModifier - 1) })}
-                  >
-                    <Text style={styles.stepBtnText}>−</Text>
-                  </Pressable>
+                  <StepperButton onPress={() => updatePlayer(p.id, { deceiveModifier: Math.max(p.computersModifier - 3, p.deceiveModifier - 1) })}>−</StepperButton>
                   <Text style={styles.value}>{p.deceiveModifier}</Text>
-                  <Pressable
-                    style={styles.stepBtn}
-                    onPress={() => updatePlayer(p.id, { deceiveModifier: Math.min(p.computersModifier + 3, p.deceiveModifier + 1) })}
-                  >
-                    <Text style={styles.stepBtnText}>+</Text>
-                  </Pressable>
+                  <StepperButton onPress={() => updatePlayer(p.id, { deceiveModifier: Math.min(p.computersModifier + 3, p.deceiveModifier + 1) })}>+</StepperButton>
                 </View>
               </View>
               <View style={styles.statCol}>
                 <Text style={styles.label}>Process Mod</Text>
                 <View style={styles.row}>
-                  <Pressable
-                    style={styles.stepBtn}
-                    onPress={() => updatePlayer(p.id, { processModifier: Math.max(p.computersModifier - 3, p.processModifier - 1) })}
-                  >
-                    <Text style={styles.stepBtnText}>−</Text>
-                  </Pressable>
+                  <StepperButton onPress={() => updatePlayer(p.id, { processModifier: Math.max(p.computersModifier - 3, p.processModifier - 1) })}>−</StepperButton>
                   <Text style={styles.value}>{p.processModifier}</Text>
-                  <Pressable
-                    style={styles.stepBtn}
-                    onPress={() => updatePlayer(p.id, { processModifier: Math.min(p.computersModifier + 3, p.processModifier + 1) })}
-                  >
-                    <Text style={styles.stepBtnText}>+</Text>
-                  </Pressable>
+                  <StepperButton onPress={() => updatePlayer(p.id, { processModifier: Math.min(p.computersModifier + 3, p.processModifier + 1) })}>+</StepperButton>
                 </View>
               </View>
             </View>
@@ -452,12 +451,38 @@ export default function SetupScreen() {
               Updating Total Mod sets all sub-modifiers
             </Text>
           )}
+          {hackingMode === 'dynamic' && (
+            <View style={[styles.statsRow, { marginTop: 8 }]}>
+              <View style={styles.statCol}>
+                <Text style={styles.label}>Skill Ranks</Text>
+                <View style={styles.row}>
+                  <StepperButton onPress={() => updatePlayer(p.id, { computersRanks: Math.max(0, p.computersRanks - 1) })}>−</StepperButton>
+                  <Text style={styles.value}>{p.computersRanks}</Text>
+                  <StepperButton onPress={() => updatePlayer(p.id, { computersRanks: Math.min(15, p.computersRanks + 1) })}>+</StepperButton>
+                </View>
+              </View>
+              <View style={styles.statCol}>
+                <Text style={styles.label}>Total Mod</Text>
+                <View style={styles.row}>
+                  <StepperButton onPress={() => updatePlayer(p.id, { computersModifier: Math.max(0, p.computersModifier - 1) })}>−</StepperButton>
+                  <Text style={styles.value}>{p.computersModifier}</Text>
+                  <StepperButton onPress={() => updatePlayer(p.id, { computersModifier: Math.min(25, p.computersModifier + 1) })}>+</StepperButton>
+                </View>
+              </View>
+              <View style={styles.statCol}>
+                <Text style={styles.label}>Persona Mod</Text>
+                <View style={[styles.row, { height: 32 }]}>
+                  <Text style={[styles.value, { color: pointsUsed > totalBudget ? '#f43f5e' : '#a855f7' }]}>
+                    {pointsUsed} / {totalBudget}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
           {p.class === 'support' && (
-            <View>
+            <>
               <Text style={[styles.label, { marginTop: 8 }]}>Paired Lead</Text>
-              <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
-                {leads.length === 0 && <Text style={{ color: '#94a3b8' }}>No leads available</Text>}
-                {leads.map((lead) => (
+              {leads.map((lead) => (
                   <Pressable
                     key={lead.id}
                     onPress={() => updatePlayer(p.id, { pairedLeadId: lead.id })}
@@ -473,16 +498,15 @@ export default function SetupScreen() {
                     <Text style={{ color: '#fff', fontFamily: 'Orbitron-Bold' }}>{lead.name}</Text>
                   </Pressable>
                 ))}
-              </View>
-            </View>
+            </>
           )}
         </View>
       );
     })}
 
-      {players.length < 4 && (
+      {hackingMode === 'dynamic' && players.length < 4 && (
         <View>
-          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
             <ChamferedFrame width={cardWidth} height={50} chamfer={8} stroke="#475569" fill="#1e293b" />
           </View>
           <Pressable style={[styles.addBtn, { height: 50 }]} onPress={addPlayer}>
@@ -496,7 +520,7 @@ export default function SetupScreen() {
       )}
 
       <View style={{ marginTop: 8, marginBottom: 24 }}>
-        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
           <ChamferedFrame 
             width={cardWidth} 
             height={60} 
@@ -514,18 +538,21 @@ export default function SetupScreen() {
         </Pressable>
       </View>
     </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#020617' },
-  contentContainer: { padding: 16, alignItems: 'stretch' },
+  screen: { flex: 1, backgroundColor: '#020617' },
+  container: { flex: 1, backgroundColor: 'transparent' },
+  contentContainer: { padding: 28, paddingTop: 44, alignItems: 'stretch' },
   contentWrapper: {
     width: '100%',
     maxWidth: 560,
     alignSelf: 'center',
     gap: 12,
+    paddingTop: 8,
   },
   title: { fontSize: 24, fontFamily: 'Orbitron-Bold', color: '#22d3ee' },
   headerRow: { 
@@ -535,11 +562,22 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   backBtn: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderWidth: 1,
-    borderColor: '#334155',
-    backgroundColor: '#1e293b',
+    width: 96,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backBtnShadow: {
+    boxShadow: '0px 3px 4px rgba(0, 0, 0, 0.35)',
+    elevation: 4,
+  },
+  backBtnPressed: {
+    opacity: 0.92,
+  },
+  backBtnContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
   },
   backBtnText: {
     color: '#94a3b8',
@@ -552,30 +590,56 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     gap: 8,
   },
+  headerCard: {
+    padding: 16,
+    gap: 8,
+    position: 'relative',
+    zIndex: 2,
+  },
+  basicCard: {
+    padding: 24,
+    gap: 12,
+  },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   cardTitle: { fontSize: 16, color: '#f1f5f9', fontFamily: 'Orbitron-Bold' },
   remove: { color: '#f87171', fontSize: 12, fontFamily: 'Orbitron-Bold' },
   label: { fontSize: 11, color: '#64748b', fontFamily: 'Orbitron-Bold', textTransform: 'uppercase' },
   nameRow: { flexDirection: 'row', gap: 8, marginBottom: 4 },
+  basicIdentityRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 20 },
+  basicNameCol: { flex: 3, gap: 6, minWidth: 0, paddingTop: 12 },
+  basicComputerCol: { flex: 2, gap: 6, minWidth: 0, alignItems: 'flex-end' },
+  basicModifierLabel: { width: 104, textAlign: 'center' },
   randomBtn: {
-    backgroundColor: '#1e293b',
-    paddingHorizontal: 12,
+    width: 78,
+    height: 30,
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#334155',
+    alignItems: 'center',
+    marginLeft: -12,
+    zIndex: 2,
   },
-  randomBtnText: { fontSize: 16 },
+  randomBtnShadow: {
+    boxShadow: '0px 3px 4px rgba(0, 0, 0, 0.35)',
+    elevation: 4,
+  },
+  randomBtnPressed: {
+    opacity: 0.92,
+  },
+  randomBtnText: { fontSize: 9, color: '#fff', fontFamily: 'Orbitron-Bold' },
+  randomBtnTextPressed: { color: '#cffafe' },
   input: {
+    height: 30,
     backgroundColor: '#1e293b',
     color: '#f1f5f9',
-    padding: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
     borderWidth: 1,
     borderColor: '#334155',
-    fontSize: 14,
+    fontSize: 12,
     fontFamily: 'Orbitron',
   },
   row: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   statsRow: { flexDirection: 'row', gap: 12, flexWrap: 'wrap' },
+  basicStatsRow: { flexWrap: 'nowrap', justifyContent: 'space-between' },
   col: { flex: 1, gap: 6 },
   statCol: { flex: 1, minWidth: 110, gap: 6 },
   pill: {
@@ -588,13 +652,19 @@ const styles = StyleSheet.create({
   pillActive: { borderColor: '#22d3ee', backgroundColor: '#0e7490' },
   pillText: { fontSize: 12, color: '#f1f5f9', fontFamily: 'Orbitron-Bold' },
   stepBtn: {
-    backgroundColor: '#1e293b',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: '#334155',
+    height: 30,
+    width: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 0,
+    backgroundColor: 'transparent',
+    boxShadow: '0px 2px 3px rgba(0, 0, 0, 0.25)',
+    elevation: 3,
   },
-  stepBtnText: { fontSize: 16, color: '#22d3ee', fontFamily: 'Orbitron-Bold' },
+  stepBtnPressed: {
+    opacity: 0.92,
+  },
+  stepBtnText: { fontSize: 16, color: '#cffafe', fontFamily: 'Orbitron-Bold' },
   value: { color: '#f1f5f9', fontSize: 14, fontFamily: 'Orbitron-Bold', minWidth: 24, textAlign: 'center' },
   hint: { fontSize: 11, color: '#475569', marginTop: 4, fontFamily: 'Orbitron' },
   addBtn: {

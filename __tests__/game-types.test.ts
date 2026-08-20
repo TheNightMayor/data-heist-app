@@ -11,6 +11,8 @@ const basePlayer: Player = {
   deceiveModifier: 4,
   hackModifier: 5,
   processModifier: 4,
+  personaModifier: 0,
+  personaModifierLimit: 1,
   resolvePoints: 3,
   currentCP: 20,
   maxCP: 20,

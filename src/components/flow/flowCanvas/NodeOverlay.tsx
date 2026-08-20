@@ -21,6 +21,7 @@ interface NodeOverlayProps {
   reachable: boolean;
   selected: boolean;
   active: boolean;
+  adjacentToUnlocked?: boolean;
   mode: 'build' | 'game';
   onPress: () => void;
   children: React.ReactNode;
@@ -31,6 +32,7 @@ export function NodeOverlay({
   reachable,
   selected,
   active,
+  adjacentToUnlocked = false,
   mode,
   onPress,
   children,
@@ -49,7 +51,7 @@ export function NodeOverlay({
         {
           left: node.x,
           top: node.y,
-          opacity: mode === 'game' && !reachable ? 0.4 : 1,
+          opacity: 1,
         },
       ]}
     >
