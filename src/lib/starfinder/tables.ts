@@ -3,7 +3,7 @@
  * Centralized so rebalancing the game is a one-file change.
  */
 
-import type { ObjectiveResolve, Subskill } from '../flow/types';
+import type { FlowMap, ObjectiveResolve, Subskill } from '../flow/types';
 
 /**
  * Starfinder 1e: base DC to hack a computer = 13 + 4 × tier.
@@ -15,12 +15,20 @@ export function dcForTier(tier: number): number {
 }
 
 /**
- * Compute the effective DC for a Resolve check against a node.
- * Adds the objective's dcModifier (if any) to the tier-based base DC.
+ * Compute the effective DC for a check against a node.
+ * Root access reduces subsequent DCs by 20.
  */
-export function effectiveDC(tier: number, resolve?: ObjectiveResolve): number {
-  const base = dcForTier(tier);
-  return base + (resolve?.dcModifier ?? 0);
+export function effectiveDC(tier: number, resolve?: ObjectiveResolve, securityBonus = 0, rootAccess = false): number {
+  const base = resolve?.dcOverride ?? dcForTier(tier);
+  return base + securityBonus + (resolve?.dcModifier ?? 0) - (rootAccess ? 20 : 0);
+}
+
+/** Highest active Security-module bonus before the listed modules are collected. */
+export function securityBonusForMap(map: FlowMap, collectedNodeIds: Iterable<string> = []): number {
+  const collected = new Set(collectedNodeIds);
+  return Math.min(4, map.nodes.reduce((bonus, node) => (
+    node.category === 'module' && !collected.has(node.id) ? Math.max(bonus, node.security ?? 0) : bonus
+  ), 0));
 }
 
 /**

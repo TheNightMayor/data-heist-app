@@ -153,6 +153,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       objectives: {},
       log: [],
       finished: false,
+      rootAccessAchieved: false,
     };
     set({ state, map });
   },

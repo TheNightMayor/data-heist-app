@@ -57,7 +57,7 @@ export default function BuildIndexScreen() {
             <View>
               <Text style={styles.rowName}>{item.name}</Text>
               <Text style={styles.rowMeta}>
-                {item.nodes.length} nodes • {item.edges.length} edges
+                Tier {item.tier} • nodes: {item.nodes.filter((node) => node.category === 'access').length} • modules: {item.nodes.filter((node) => node.category === 'module').length} • countermeasures: {item.nodes.filter((node) => node.category === 'countermeasure').length} • edges: {item.edges.length}
                 {item.builtIn ? ' • Sample' : ''}
               </Text>
             </View>

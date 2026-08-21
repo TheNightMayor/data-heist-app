@@ -20,7 +20,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Dimensions, View, StyleSheet, Pressable, useWindowDimensions } from 'react-native';
+import { Dimensions, View, Text, StyleSheet, Pressable, Modal, useWindowDimensions } from 'react-native';
 import Svg, { Defs, Pattern, Line, Rect, G, Path, Circle, Text as SvgText } from 'react-native-svg';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import { ChamferedFrame } from '../../ui/ChamferedFrame';
@@ -38,7 +38,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import type { SharedValue } from 'react-native-reanimated';
 import type { FlowMap, FlowNode, FlowEdge } from '@/lib/flow/types';
-import type { NodeStatus } from '@/lib/flow/reachability';
+import { isCompleted, type NodeStatus } from '@/lib/flow/reachability';
 import { GRID_SIZE } from '@/lib/flow/layout';
 import { CANVAS_WIDTH, CANVAS_HEIGHT, NODE_WIDTH, layoutGraph, applyLayout } from '@/lib/flow/layoutGraph';
 import { circuitPath } from './circuitPath';
@@ -64,6 +64,28 @@ function PulsingGlow({ d, pulse }: { d: string; pulse: SharedValue<number> }) {
       strokeLinejoin="round"
       animatedProps={animatedProps}
     />
+  );
+}
+
+function EndpointKeyhole({ cx, cy, color }: { cx: number; cy: number; color: string }) {
+  return (
+    <G transform={`translate(${cx - 20} ${cy - 25})`}>
+      <Path
+        d="M 20 3 C 25.5 3 30 7.5 30 13 C 30 16.6 28.1 19.7 25.2 21.4 L 29 42 L 11 42 L 14.8 21.4 C 11.9 19.7 10 16.6 10 13 C 10 7.5 14.5 3 20 3 Z"
+        fill="none"
+        stroke={color}
+        strokeWidth={16}
+        strokeOpacity={0.16}
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M 20 3 C 25.5 3 30 7.5 30 13 C 30 16.6 28.1 19.7 25.2 21.4 L 29 42 L 11 42 L 14.8 21.4 C 11.9 19.7 10 16.6 10 13 C 10 7.5 14.5 3 20 3 Z"
+        fill="#020617"
+        stroke={color}
+        strokeWidth={2}
+        strokeLinejoin="round"
+      />
+    </G>
   );
 }
 
@@ -97,6 +119,7 @@ interface Props {
   onBuyMajorAction?: () => void;
   onRefundMajorAction?: () => void;
   onEndTurn?: () => void;
+  onLogOut?: () => void;
   objectives?: Record<string, { successes: number; failures?: number }>;
   playerName?: string;
   rp?: number;
@@ -108,6 +131,9 @@ interface Props {
   otherLeadsExist?: boolean;
   aidBonus?: number;
   hackingMode?: 'basic' | 'dynamic';
+  mapTier?: number;
+  securityBonus?: number;
+  rootAccessAchieved?: boolean;
   modifiers?: { deceive: number; hack: number; process: number; total: number };
 }
 
@@ -130,6 +156,7 @@ export function FlowCanvas({
   onBuyMajorAction,
   onRefundMajorAction,
   onEndTurn,
+  onLogOut,
   objectives,
   playerName,
   rp,
@@ -141,10 +168,14 @@ export function FlowCanvas({
   otherLeadsExist,
   aidBonus,
   hackingMode,
+  mapTier,
+  securityBonus,
+  rootAccessAchieved,
   modifiers,
 }: Props) {
   const { width: windowWidth } = useWindowDimensions();
   const isSmallScreen = windowWidth < 768;
+  const [disconnectPromptOpen, setDisconnectPromptOpen] = useState(false);
 
   const tx = useSharedValue(0);
   const ty = useSharedValue(0);
@@ -237,6 +268,7 @@ export function FlowCanvas({
 
   const startNode = useMemo(() => positionedNodes.find(n => n.id === startId), [positionedNodes, startId]);
   const rootNode = useMemo(() => positionedNodes.find(n => n.isRootAccess), [positionedNodes]);
+  const exitAvailable = rootNode ? isCompleted(rootNode, objectives) : false;
 
   useEffect(() => {
     const { width, height } = Dimensions.get('window');
@@ -461,13 +493,10 @@ export function FlowCanvas({
                       x2={startNode.x + NODE_WIDTH / 2} y2={startNode.y + NODE_WIDTH + 60} 
                       stroke="#22d3ee" strokeWidth={3} strokeDasharray="6 4"
                     />
-                    <Circle
-                      cx={startNode.x + NODE_WIDTH / 2} cy={startNode.y + NODE_WIDTH + 80}
-                      r={30} fill="none" stroke="#22d3ee" strokeWidth={8} strokeOpacity={0.16}
-                    />
-                    <Circle 
-                      cx={startNode.x + NODE_WIDTH / 2} cy={startNode.y + NODE_WIDTH + 80} 
-                      r={24} fill="#020617" stroke="#22d3ee" strokeWidth={2} 
+                    <EndpointKeyhole
+                      cx={startNode.x + NODE_WIDTH / 2}
+                      cy={startNode.y + NODE_WIDTH + 80}
+                      color="#22d3ee"
                     />
                     <SvgText 
                       x={startNode.x + NODE_WIDTH / 2} y={startNode.y + NODE_WIDTH + 120} 
@@ -477,24 +506,28 @@ export function FlowCanvas({
                     </SvgText>
                   </G>
                 )}
-
-                {/* Exit Access Decoration (above root node) */}
+                {/* Exit Access Decoration (above the completed final node) */}
                 {rootNode && (
                   <G>
                    <Line 
                       x1={rootNode.x + NODE_WIDTH / 2} y1={rootNode.y} 
                       x2={rootNode.x + NODE_WIDTH / 2} y2={rootNode.y - 60} 
-                      stroke="#1e293b" strokeWidth={3} strokeDasharray="6 4" 
+                      stroke={exitAvailable ? '#22d3ee' : '#1e293b'}
+                      strokeWidth={exitAvailable ? 3 : 2}
+                      strokeOpacity={exitAvailable ? 1 : 0.7}
+                      strokeDasharray="6 4"
                     />
-                    <Circle 
-                      cx={rootNode.x + NODE_WIDTH / 2} cy={rootNode.y - 80} 
-                      r={24} fill="#020617" stroke="#22d3ee" strokeWidth={2} 
+                    <EndpointKeyhole
+                      cx={rootNode.x + NODE_WIDTH / 2}
+                      cy={rootNode.y - 80}
+                      color={exitAvailable ? '#22d3ee' : '#475569'}
                     />
                     <SvgText 
                       x={rootNode.x + NODE_WIDTH / 2} y={rootNode.y - 115} 
-                      fontSize={10} textAnchor="middle" fill="#22d3ee" fontWeight="800"
+                      fontSize={10} textAnchor="middle"
+                      fill={exitAvailable ? '#22d3ee' : '#475569'} fontWeight="800"
                     >
-                      ROOT_EXIT
+                      ROUTE_EXIT
                     </SvgText>
                   </G>
                 )}
@@ -552,7 +585,20 @@ export function FlowCanvas({
                   wipingNodeIds={wipingNodeIds}
                 />
               </Svg>
-
+              {startNode && mode === 'game' && onLogOut && (
+                <Pressable
+                  style={[styles.entryJackPressTarget, { left: startNode.x + NODE_WIDTH / 2 - 30, top: startNode.y + NODE_WIDTH + 50 }]}
+                  onPress={() => setDisconnectPromptOpen(true)}
+                  accessibilityLabel="Local datajack"
+                />
+              )}
+              {rootNode && exitAvailable && mode === 'game' && onLogOut && (
+                <Pressable
+                  style={[styles.entryJackPressTarget, { left: rootNode.x + NODE_WIDTH / 2 - 30, top: rootNode.y - 110 }]}
+                  onPress={() => setDisconnectPromptOpen(true)}
+                  accessibilityLabel="Root exit"
+                />
+              )}
               {positionedNodes.map((node) => {
                 const status = statusById?.[node.id] ?? 'available';
                 const isActive = activeId === node.id;
@@ -620,6 +666,9 @@ export function FlowCanvas({
                         otherLeadsExist={otherLeadsExist}
                         aidBonus={aidBonus}
                         hackingMode={hackingMode}
+                        mapTier={mapTier}
+                        rootAccessAchieved={rootAccessAchieved}
+                        securityBonus={securityBonus}
                         modifiers={modifiers}
                       />
                     )}
@@ -630,12 +679,75 @@ export function FlowCanvas({
           </GestureDetector>
         </View>
       </View>
+      <Modal
+        visible={disconnectPromptOpen && mode === 'game' && !!onLogOut}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDisconnectPromptOpen(false)}
+      >
+        <View style={styles.disconnectBackdrop}>
+          <View style={styles.disconnectModal}>
+            <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
+              <ChamferedFrame width={320} height={190} chamfer={16} stroke="#fbbf24" fill="#0f172a" />
+            </View>
+            <Text style={styles.disconnectTitle}>Disconnect your datajack and collect modules?</Text>
+            <Text style={styles.disconnectMessage}>You may not be able to return.</Text>
+            <View style={styles.disconnectActions}>
+              <Pressable style={styles.disconnectCancel} onPress={() => setDisconnectPromptOpen(false)}>
+                <Text style={styles.disconnectCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={styles.disconnectConfirm}
+                onPress={() => {
+                  setDisconnectPromptOpen(false);
+                  onLogOut?.();
+                }}
+              >
+                <Text style={styles.disconnectConfirmText}>Disconnect</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent', overflow: 'hidden' },
+  entryJackPressTarget: {
+    position: 'absolute',
+    width: 60,
+    height: 60,
+    backgroundColor: 'transparent',
+  },
+  disconnectBackdrop: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(2, 6, 23, 0.82)',
+  },
+  disconnectModal: {
+    width: 320,
+    minHeight: 190,
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 14,
+  },
+  disconnectTitle: {
+    color: '#fef3c7',
+    fontSize: 14,
+    fontWeight: '800',
+    textAlign: 'center',
+    fontFamily: 'Orbitron-Bold',
+  },
+  disconnectMessage: { color: '#94a3b8', fontSize: 12, fontFamily: 'Orbitron', textAlign: 'center' },
+  disconnectActions: { flexDirection: 'row', gap: 12, marginTop: 4 },
+  disconnectCancel: { minWidth: 100, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: '#475569' },
+  disconnectCancelText: { color: '#cbd5e1', fontFamily: 'Orbitron-Bold', fontSize: 11 },
+  disconnectConfirm: { minWidth: 120, paddingVertical: 10, alignItems: 'center', backgroundColor: '#92400e', borderWidth: 1, borderColor: '#fbbf24' },
+  disconnectConfirmText: { color: '#fef3c7', fontFamily: 'Orbitron-Bold', fontSize: 11 },
   // Outer monitor/tablet bezel — about 70% wide (15% margin each side), centered,
   // with vertical insets so it doesn't touch the top or bottom of the screen.
   // Thick layered look with a subtle highlight rim for dimension/texture.

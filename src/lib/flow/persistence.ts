@@ -12,6 +12,7 @@ const MAPS_KEY = 'data-heist.maps.v1';
 function migrateMap(map: FlowMap): FlowMap {
   return {
     ...map,
+    tier: map.tier ?? 1,
     nodes: map.nodes.map((node) => ({
       ...node,
       category: (node.category as string) === 'gateway' ? 'access' : node.category,

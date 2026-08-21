@@ -15,14 +15,6 @@ export function checkWinLose(state: GameState, rootNodeId?: string): WinLoseResu
     return { finished: true, result: state.result };
   }
 
-  // Win condition: the root-access node has enough successes.
-  if (rootNodeId) {
-    const obj = state.objectives[rootNodeId];
-    if (obj && obj.successes > 0) {
-      return { finished: true, result: 'win', reason: 'Root access achieved.' };
-    }
-  }
-
   // Lose condition: all players ejected.
   if (state.players.length > 0 && state.players.every((p) => p.ejected || p.currentCP <= 0)) {
     return { finished: true, result: 'lose', reason: 'All personas ejected.' };

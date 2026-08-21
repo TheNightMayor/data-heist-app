@@ -8,7 +8,7 @@
  * intentionally does not hold the full map (it just holds visited node IDs).
  */
 
-import { effectiveDC } from '../starfinder/tables';
+import { effectiveDC, securityBonusForMap } from '../starfinder/tables';
 import { resolve as resolveRoll, type Outcome } from '../resolution';
 import type {
   GameState,
@@ -16,6 +16,7 @@ import type {
 } from './types';
 import type { FlowNode, FlowMap } from '../flow/types';
 import { modifierFor } from './types';
+import { isReachable } from '../flow/reachability';
 
 export type GameAction =
   | {
@@ -42,6 +43,7 @@ export type GameAction =
       spendRP?: boolean;
       aidBonus?: number;
     }
+  | { type: 'COLLECT_MODULE'; playerId: string; node: FlowNode }
   | { type: 'ADVANCE_TURN' }
   | { type: 'END_PHASE' }
   | { type: 'SUPPORT_UPGRADE'; playerId: string }
@@ -71,6 +73,8 @@ export function reducer(state: GameState, action: GameAction, map?: FlowMap): Ga
       return planTurn(state, action);
     case 'ROLL_RESOLVE':
       return rollResolve(state, action, map);
+    case 'COLLECT_MODULE':
+      return collectModule(state, action, map);
     case 'ADVANCE_TURN':
       return advanceTurn(state, map);
     case 'END_PHASE':
@@ -234,7 +238,8 @@ function rollResolve(
   const effectiveCommitted = state.actionsCommitted > 0 ? state.actionsCommitted : 1;
   const effectiveRPCommitted = state.actionsCommitted > 0 ? state.rpCommitted : 0;
 
-  const dc = effectiveDC(node.tier, node.resolve);
+  const securityBonus = map ? securityBonusForMap(map, state.visitedNodeIds) : 0;
+  const dc = effectiveDC(map?.tier ?? 1, node.resolve, securityBonus, state.rootAccessAchieved);
   const subskill = node.resolve?.subskill ?? 'hack';
   const baseModifier = modifierFor(player, subskill, state.hackingMode);
   const penalty = turnPenalty(state.actionsTaken, effectiveRPCommitted);
@@ -283,8 +288,10 @@ function rollResolve(
 
   const hiddenNodeIds = [...(state.hiddenNodeIds ?? [])];
   const wipingNodeIds = [...(state.wipingNodeIds ?? [])];
+  const objectiveCompleted = newObjectives[node.id].successes >= successesRequired;
   const wipeTriggered =
     failed &&
+    !objectiveCompleted &&
     node.category === 'countermeasure' &&
     node.countermeasureType === 'wipe' &&
     (newObjectives[node.id].failures === 3 || outcome.kind === 'nat1');
@@ -329,12 +336,11 @@ function rollResolve(
     ...state.log,
   ].slice(0, 20);
 
+  const rootAccessAchieved = state.rootAccessAchieved || (
+    node.isRootAccess && newObjectives[node.id].successes >= successesRequired
+  );
   let finished = state.finished;
   let result = state.result;
-  if (node.isRootAccess && newObjectives[node.id].successes >= successesRequired) {
-    finished = true;
-    result = 'win';
-  }
   if (state.hackingMode === 'dynamic' && updatedPlayers.every((p) => p.ejected || p.currentCP <= 0)) {
     finished = true;
     result = 'lose';
@@ -359,6 +365,7 @@ function rollResolve(
     log,
     finished,
     result,
+    rootAccessAchieved,
     actionsTaken,
     // Persist the effective commitment so the rest of the system (UI badges,
     // exhaustion checks) sees the same value the roll was computed with.
@@ -367,6 +374,36 @@ function rollResolve(
     phase: nextPhase,
     hazardSkipActive: outcome.hazardSkip,
     pendingAid,
+  };
+}
+
+function collectModule(
+  state: GameState,
+  action: Extract<GameAction, { type: 'COLLECT_MODULE' }>,
+  map?: FlowMap,
+): GameState {
+  const player = state.players.find((p) => p.id === action.playerId);
+  if (!player || player.ejected || action.node.category !== 'module') return state;
+  if (state.visitedNodeIds.includes(action.node.id)) return state;
+  if (map && !isReachable(action.node, {
+    visitedNodeIds: new Set(state.visitedNodeIds),
+    permanentlyFailedNodeIds: new Set(state.permanentlyFailedNodeIds),
+    hiddenNodeIds: new Set(state.hiddenNodeIds ?? []),
+    objectives: state.objectives,
+  }, map)) return state;
+
+  const required = action.node.resolve?.successesRequired ?? 1;
+  return {
+    ...state,
+    visitedNodeIds: [...state.visitedNodeIds, action.node.id],
+    objectives: {
+      ...state.objectives,
+      [action.node.id]: {
+        nodeId: action.node.id,
+        successes: required,
+        failures: 0,
+      },
+    },
   };
 }
 
@@ -467,7 +504,8 @@ function supportAid(
   void map;
 
   // DC: max(10, effectiveDC − 10).
-  const baseDC = effectiveDC(target.tier, target.resolve);
+  const securityBonus = map ? securityBonusForMap(map, state.visitedNodeIds) : 0;
+  const baseDC = effectiveDC(map?.tier ?? 1, target.resolve, securityBonus, state.rootAccessAchieved);
   const dc = Math.max(10, baseDC - 10);
 
   // Use the Support's hack modifier (Aid is a Computers/hack-style check).

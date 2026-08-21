@@ -17,7 +17,7 @@ import { useGameStore } from '@/stores/gameStore';
 import { loadMap } from '@/lib/flow/persistence';
 import { listGames } from '@/lib/game/persistence';
 import { reachableNodes, nodeStatus, nodeProgress } from '@/lib/flow/reachability';
-import { effectiveDC } from '@/lib/starfinder/tables';
+import { effectiveDC, securityBonusForMap } from '@/lib/starfinder/tables';
 import { resolve, type Outcome } from '@/lib/resolution';
 import { modifierFor } from '@/lib/game/types';
 import { turnPenalty } from '@/lib/game/turn';
@@ -126,11 +126,17 @@ function CurrentTargetPanel({
   label,
   successes,
   hackingMode = 'dynamic',
+  mapTier = 1,
+  securityBonus = 0,
+  rootAccessAchieved = false,
 }: {
   targetNode: FlowNode | null;
   label: string;
   successes: number;
   hackingMode?: 'basic' | 'dynamic';
+  mapTier?: number;
+  securityBonus?: number;
+  rootAccessAchieved?: boolean;
 }) {
   if (!targetNode) {
     return (
@@ -148,7 +154,7 @@ function CurrentTargetPanel({
     access: { fill: '#1e3a8a', border: '#60a5fa', icon: 'A' },
   };
   const cat = catColors[targetNode.category];
-  const dc = effectiveDC(targetNode.tier, targetNode.resolve);
+  const dc = effectiveDC(mapTier, targetNode.resolve, securityBonus, rootAccessAchieved);
   const subskill = targetNode.resolve?.subskill ?? 'hack';
   const successesRequired = targetNode.resolve?.successesRequired ?? 0;
 
@@ -344,6 +350,15 @@ export default function GameScreen() {
     return state?.pendingAid?.leadId === activePlayerId ? state.pendingAid.bonus : 0;
   }, [activePlayer?.class, activePlayerId, state?.pendingAid]);
 
+  const collectedModules = useMemo(() => {
+    if (!map || !state) return [];
+    return map.nodes.filter((node) => {
+      if (node.category !== 'module') return false;
+      const required = node.resolve?.successesRequired ?? 1;
+      return (state.objectives[node.id]?.successes ?? 0) >= required;
+    });
+  }, [map, state]);
+
   if (booting || !state || !map) {
     return (
       <View style={styles.loading}>
@@ -351,6 +366,8 @@ export default function GameScreen() {
       </View>
     );
   }
+
+  const securityBonus = securityBonusForMap(map, state.visitedNodeIds);
 
   const cumulativeFailureLimit = map.cumulativeFailureLimit;
   const totalFailures = cumulativeFailureLimit === undefined
@@ -399,7 +416,7 @@ export default function GameScreen() {
     const subskill = node.resolve?.subskill ?? 'hack';
     const baseModifier = modifierFor(activePlayer, subskill);
     let modifier = baseModifier;
-    const dc = effectiveDC(node.tier, node.resolve);
+    const dc = effectiveDC(map.tier, node.resolve, securityBonus, state.rootAccessAchieved);
 
     // Apply multi-action penalty
     const penalty = turnPenalty(state.actionsTaken, state.rpCommitted);
@@ -546,7 +563,7 @@ export default function GameScreen() {
     // Roll the Aid check immediately.
     const d20 = rollDie(20);
     const modifier = modifierFor(activePlayer, 'hack');
-    const baseDC = effectiveDC(target.tier, target.resolve);
+    const baseDC = effectiveDC(map.tier, target.resolve, securityBonus, state.rootAccessAchieved);
     const dc = Math.max(10, baseDC - 10);
     const outcome = resolve({ d20, modifier, dc });
 
@@ -646,6 +663,14 @@ export default function GameScreen() {
     router.back();
   };
 
+  const handleLogOut = () => {
+    setSelectedNode(null);
+    setPendingRollNode(null);
+    setModalOpen(false);
+    setHeaderMenuOpen(false);
+    dispatch({ type: 'FINISH', result: 'win' });
+  };
+
   return (
     <View style={styles.container}>
       <ScreenBackdrop />
@@ -659,6 +684,10 @@ export default function GameScreen() {
       <View style={{ flex: 1 }}>
         {/* Header — Turn Order, Round and Objectives */}
         <View style={styles.header}>
+        <View style={styles.mapTierRow}>
+          <Text style={styles.mapTitle}>{map.name}</Text>
+          <Text style={[styles.mapTier, { color: '#22d3ee' }]}>TIER {map.tier}</Text>
+        </View>
         {state.hackingMode === 'dynamic' && <View style={styles.headerRow}>
           <ScrollView
             horizontal={true}
@@ -713,7 +742,10 @@ export default function GameScreen() {
               <Text style={[styles.statValue, { color: '#f87171' }]}>{totalFailures}/{cumulativeFailureLimit}</Text>
             </View>
           ) : null}
-          {Object.entries(state.objectives || {}).map(([id, obj]) => {
+          {Object.entries(state.objectives || {}).filter(([id]) => {
+            const node = map?.nodes.find((candidate) => candidate.id === id);
+            return node?.category !== 'module';
+          }).map(([id, obj]) => {
             const node = map?.nodes.find((n) => n.id === id);
             return (
               <View key={id} style={styles.statBox}>
@@ -728,6 +760,25 @@ export default function GameScreen() {
               </View>
             );
           })}
+        </View>
+
+        <View style={styles.modulesRow}>
+          <Text style={styles.modulesLabel}>MODULES COLLECTED</Text>
+          {collectedModules.length > 0 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.modulesList}
+            >
+              {collectedModules.map((module) => (
+                <View key={module.id} style={styles.moduleChip}>
+                  <Text style={styles.moduleChipText} numberOfLines={1}>{module.name}</Text>
+                </View>
+              ))}
+            </ScrollView>
+          ) : (
+            <Text style={styles.modulesEmpty}>NONE</Text>
+          )}
         </View>
 
         <View style={styles.headerMenu}>
@@ -774,11 +825,19 @@ export default function GameScreen() {
           activePlayerClass={activePlayer?.class}
           canPlanTurn={state.hackingMode === 'dynamic' && activePlayer?.class === 'lead' && state.actionsTaken === 0 && state.actionsCommitted <= 1}
           onPlanTurn={() => setPlanModalOpen(true)}
-          onMajorAction={(node) => openRollForNode(node, activePlayer?.class === 'support' ? 'support-self' : 'lead')}
+          onMajorAction={(node) => {
+            if (node.category === 'module' && activePlayer) {
+              dispatch({ type: 'COLLECT_MODULE', playerId: activePlayer.id, node });
+              setSelectedNode(null);
+              return;
+            }
+            openRollForNode(node, activePlayer?.class === 'support' ? 'support-self' : 'lead');
+          }}
           onSupportAction={() => setSupportUpgradePromptOpen(true)}
           onBuyMajorAction={() => activePlayer && dispatch({ type: 'SUPPORT_BUY_ACTION', playerId: activePlayer.id })}
           onRefundMajorAction={() => activePlayer && dispatch({ type: 'SUPPORT_REFUND_ACTION', playerId: activePlayer.id })}
           onEndTurn={handleEndTurn}
+          onLogOut={handleLogOut}
           objectives={state.objectives}
           playerName={activePlayer?.name}
           rp={activePlayer?.resolvePoints ?? 0}
@@ -790,6 +849,9 @@ export default function GameScreen() {
           otherLeadsExist={otherLeadsExist}
           aidBonus={currentAidBonus}
           hackingMode={state.hackingMode}
+          mapTier={map.tier}
+          securityBonus={securityBonus}
+          rootAccessAchieved={state.rootAccessAchieved}
           modifiers={activePlayer ? {
             deceive: activePlayer.deceiveModifier,
             hack: activePlayer.hackModifier,
@@ -816,6 +878,7 @@ export default function GameScreen() {
                     ? 'failure'
                     : undefined
                 : undefined}
+              collected={n.category === 'module' && (state.objectives[n.id]?.successes ?? 0) >= (n.resolve?.successesRequired ?? 1)}
             />
           )}
         />
@@ -890,7 +953,7 @@ export default function GameScreen() {
                     </Text>
                   </View>
                   <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700', marginLeft: 8 }}>
-                    DC {effectiveDC(pendingRollNode.tier, pendingRollNode.resolve)}
+                    DC {effectiveDC(map.tier, pendingRollNode.resolve, securityBonus, state.rootAccessAchieved)}
                   </Text>
                 </View>
                 {activePlayer && (
@@ -1142,7 +1205,7 @@ export default function GameScreen() {
                     </Text>
                   </View>
                   <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700', marginLeft: 8 }}>
-                    DC {effectiveDC(selectedNode.tier, selectedNode.resolve)}
+                      DC {effectiveDC(map.tier, selectedNode.resolve, securityBonus, state.rootAccessAchieved)}
                   </Text>
                 </View>
               </View>
@@ -1183,7 +1246,7 @@ export default function GameScreen() {
             title: state.hackingMode === 'basic' ? pendingRollNode.name : 'Major Actions',
             subtitle: state.hackingMode === 'basic' ? 'Computers Skill Check' : pendingRollNode.name,
             subskill: pendingRollNode.resolve?.subskill ?? 'hack',
-            dc: effectiveDC(pendingRollNode.tier, pendingRollNode.resolve),
+            dc: effectiveDC(map.tier, pendingRollNode.resolve, securityBonus, state.rootAccessAchieved),
             modifier: activePlayer ? modifierFor(activePlayer, pendingRollNode.resolve?.subskill ?? 'hack', state.hackingMode) : 0,
             aidBonus: state.pendingAid?.leadId === activePlayer?.id ? state.pendingAid!.bonus : undefined,
             canSpendRP: !!activePlayer && activePlayer.resolvePoints >= 1,
@@ -1204,7 +1267,7 @@ export default function GameScreen() {
             <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
               <ChamferedFrame 
                 width={340} 
-                height={240} 
+                height={340} 
                 chamfer={16} 
                 stroke={state.result === 'win' ? '#22d3ee' : '#f87171'} 
                 fill="#0f172a" 
@@ -1217,6 +1280,16 @@ export default function GameScreen() {
               <Text style={styles.modalSub}>
                 {state.result === 'win' ? 'You reached root access.' : 'All personas ejected.'}
               </Text>
+              <View style={styles.finishedModules}>
+                <Text style={styles.finishedModulesLabel}>MODULES COLLECTED</Text>
+                {collectedModules.length > 0 ? (
+                  collectedModules.map((module) => (
+                    <Text key={module.id} style={styles.finishedModuleName}>+ {module.name}</Text>
+                  ))
+                ) : (
+                  <Text style={styles.finishedModulesEmpty}>None</Text>
+                )}
+              </View>
               <Pressable style={[styles.modalBtn, styles.modalBtnPrimary, { marginTop: 10 }]} onPress={handleNewGame}>
                 <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
                   <ChamferedFrame width={280} height={48} chamfer={8} stroke="#22d3ee" fill="#0e7490" />
@@ -1305,6 +1378,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 10,
   },
+  mapTierRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  mapTitle: {
+    color: '#f1f5f9',
+    fontSize: 13,
+    fontWeight: '800',
+    fontFamily: 'Orbitron-Bold',
+  },
+  mapTier: {
+    color: '#22d3ee',
+    fontSize: 11,
+    fontWeight: '900',
+    fontFamily: 'Orbitron-Black',
+  },
   headerTitle: {
     fontSize: 12,
     fontWeight: '800',
@@ -1383,6 +1474,67 @@ const styles = StyleSheet.create({
   statRow: {
     flexDirection: 'row',
     gap: 8,
+  },
+  modulesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 8,
+    minHeight: 28,
+  },
+  modulesLabel: {
+    color: '#22d3ee',
+    fontSize: 9,
+    fontWeight: '800',
+    fontFamily: 'Orbitron-Bold',
+  },
+  modulesList: {
+    gap: 6,
+    paddingRight: 12,
+  },
+  moduleChip: {
+    maxWidth: 180,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    backgroundColor: '#064e3b',
+    borderWidth: 1,
+    borderColor: '#34d399',
+  },
+  moduleChipText: {
+    color: '#a7f3d0',
+    fontSize: 10,
+    fontWeight: '700',
+    fontFamily: 'Orbitron',
+  },
+  modulesEmpty: {
+    color: '#64748b',
+    fontSize: 10,
+    fontFamily: 'Orbitron',
+  },
+  finishedModules: {
+    width: '100%',
+    padding: 10,
+    backgroundColor: '#0f2f2a',
+    borderWidth: 1,
+    borderColor: '#166534',
+    gap: 4,
+  },
+  finishedModulesLabel: {
+    color: '#34d399',
+    fontSize: 10,
+    fontWeight: '800',
+    fontFamily: 'Orbitron-Bold',
+    marginBottom: 2,
+  },
+  finishedModuleName: {
+    color: '#a7f3d0',
+    fontSize: 12,
+    fontFamily: 'Orbitron',
+  },
+  finishedModulesEmpty: {
+    color: '#64748b',
+    fontSize: 11,
+    fontFamily: 'Orbitron',
   },
   statBox: {
     width: 132,

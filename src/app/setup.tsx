@@ -307,7 +307,7 @@ export default function SetupScreen() {
           </Pressable>
           <Text style={styles.title}>Setup</Text>
         </View>
-        {map && <Text style={styles.mapLabel}>Map: {map.name}</Text>}
+        {map && <View style={styles.mapLabelRow}><Text style={styles.mapLabel}>Map: {map.name} • </Text><Text style={styles.mapTier}>Tier {map.tier}</Text></View>}
       </View>
 
       {players.map((p, i) => {
@@ -585,6 +585,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   mapLabel: { fontSize: 13, fontFamily: 'Orbitron', color: '#94a3b8', marginBottom: 8 },
+  mapLabelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  mapTier: { fontSize: 13, fontFamily: 'Orbitron', color: '#22d3ee' },
   card: {
     padding: 20,
     backgroundColor: 'transparent',

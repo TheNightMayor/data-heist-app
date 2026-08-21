@@ -7,10 +7,11 @@ import type { FlowMap } from '../lib/flow/types';
 
 const sampleMapA: FlowMap = {
   id: 'sample-datacenter-v2',
-  name: 'Datacenter (Tutorial)',
-  description: 'A linear spine with one branching fork — learn reachability, planning, aid, and countermeasures.',
+  name: 'Datapad (Tutorial)',
+  tier: 1,
+  description: 'Learn about node hacking, countermeasures, and module rewards.',
   builtIn: true,
-  updatedAt: '2026-08-21T00:00:00.000Z',
+  updatedAt: '2026-08-23T00:00:00.000Z',
   nodes: [
     // Single starting access node.
     {
@@ -19,8 +20,7 @@ const sampleMapA: FlowMap = {
       x: 80,
       y: 200,
       category: 'access',
-      tier: 1,
-      resolve: { subskill: 'hack', dcModifier: -2, successesRequired: 1 },
+      resolve: { subskill: 'hack', successesRequired: 1 },
     },
     // Linear spine continues from the start.
     {
@@ -28,9 +28,18 @@ const sampleMapA: FlowMap = {
       name: 'Auth Server',
       x: 280,
       y: 200,
+      category: 'access',
+      resolve: { subskill: 'hack', successesRequired: 1 },
+    },
+    // Security module branch: while uncollected, all hacking DCs are +1.
+    {
+      id: 'tut-n6',
+      name: 'Security I',
+      x: 180,
+      y: 360,
       category: 'module',
-      tier: 2,
-      resolve: { subskill: 'hack', dcModifier: -4, successesRequired: 1 },
+      security: 1,
+      description: 'Security I module. Collecting it removes its +1 DC bonus from the system.',
     },
     // Branching fork: a hard countermeasure with a deadline.
     // DC 21 with successesRequired: 2.
@@ -40,7 +49,6 @@ const sampleMapA: FlowMap = {
       x: 280,
       y: 360,
       category: 'countermeasure',
-      tier: 3,
       countdown: 2,
       countermeasureType: 'wipe',
       targetNodeIds: ['tut-n5'],
@@ -54,23 +62,22 @@ const sampleMapA: FlowMap = {
       x: 480,
       y: 200,
       category: 'module',
-      tier: 3,
       isRootAccess: true,
       resolve: { subskill: 'hack', dcModifier: -6, successesRequired: 1 },
     },
-    // Reward behind the countermeasure.
+    // Secure Data module behind the countermeasure.
     {
       id: 'tut-n5',
-      name: 'Data Cache',
+      name: 'Secure Data',
       x: 480,
       y: 360,
       category: 'module',
-      tier: 1,
-      resolve: { subskill: 'hack', dcModifier: -7, successesRequired: 1 },
+      description: 'Average Secure Data module containing valuable topic-specific information.',
     },
   ],
   edges: [
     { id: 'te1', fromNodeId: 'tut-n1', toNodeId: 'tut-n2' },
+    { id: 'te5', fromNodeId: 'tut-n1', toNodeId: 'tut-n6' },
     { id: 'te2', fromNodeId: 'tut-n2', toNodeId: 'tut-n4' },
     { id: 'te3', fromNodeId: 'tut-n2', toNodeId: 'tut-n3' },
     { id: 'te4', fromNodeId: 'tut-n3', toNodeId: 'tut-n5' },
@@ -80,6 +87,7 @@ const sampleMapA: FlowMap = {
 const sampleMapB: FlowMap = {
   id: 'sample-corp-intranet',
   name: 'Corporate Intranet',
+  tier: 2,
   description: 'A larger network with branching paths and a hazard.',
   builtIn: true,
   updatedAt: '2026-06-26T00:00:00.000Z',
@@ -90,7 +98,6 @@ const sampleMapB: FlowMap = {
       x: 80,
       y: 320,
       category: 'access',
-      tier: 1,
       resolve: { subskill: 'hack', dcModifier: -2, successesRequired: 1 },
     },
     {
@@ -99,7 +106,7 @@ const sampleMapB: FlowMap = {
       x: 240,
       y: 200,
       category: 'module',
-      tier: 2,
+      security: 1,
       resolve: { subskill: 'hack', dcModifier: 0, successesRequired: 1 },
     },
     {
@@ -108,7 +115,6 @@ const sampleMapB: FlowMap = {
       x: 240,
       y: 440,
       category: 'module',
-      tier: 1,
       resolve: { subskill: 'hack', dcModifier: 0, successesRequired: 1 },
     },
     {
@@ -117,7 +123,6 @@ const sampleMapB: FlowMap = {
       x: 400,
       y: 320,
       category: 'access',
-      tier: 2,
       hazard: true,
       resolve: { subskill: 'hack', dcModifier: -2, successesRequired: 1 },
     },
@@ -127,7 +132,6 @@ const sampleMapB: FlowMap = {
       x: 560,
       y: 200,
       category: 'module',
-      tier: 2,
       resolve: { subskill: 'hack', dcModifier: 0, successesRequired: 1 },
     },
     {
@@ -136,7 +140,6 @@ const sampleMapB: FlowMap = {
       x: 560,
       y: 440,
       category: 'module',
-      tier: 3,
       isRootAccess: true,
       resolve: { subskill: 'hack', dcModifier: 0, successesRequired: 1 },
     },

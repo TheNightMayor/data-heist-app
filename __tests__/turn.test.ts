@@ -1,16 +1,44 @@
 import { reducer, turnPenalty } from '../src/lib/game/turn';
 import type { GameState } from '../src/lib/game/types';
-import type { FlowNode } from '../src/lib/flow/types';
+import type { FlowMap, FlowNode } from '../src/lib/flow/types';
 
 const node: FlowNode = {
   id: 'n1',
   name: 'Test Server',
   x: 0,
   y: 0,
-  category: 'module',
-  tier: 1,
+  category: 'access',
   isRootAccess: true,
   resolve: { subskill: 'hack', dcModifier: 0, successesRequired: 1 },
+};
+
+const moduleNode: FlowNode = {
+  id: 'module-1',
+  name: 'Secure Data',
+  x: 80,
+  y: 0,
+  category: 'module',
+  resolve: { subskill: 'hack', dcModifier: 0, successesRequired: 1 },
+};
+
+const wipeNode: FlowNode = {
+  id: 'wipe-1',
+  name: 'Wipe',
+  x: 160,
+  y: 0,
+  category: 'countermeasure',
+  countermeasureType: 'wipe',
+  targetNodeIds: ['target-1'],
+  resolve: { subskill: 'hack', dcModifier: 0, successesRequired: 1 },
+};
+
+const wipeMap: FlowMap = {
+  id: 'm1',
+  name: 'Test',
+  tier: 1,
+  nodes: [wipeNode],
+  edges: [],
+  updatedAt: '2026-08-20T00:00:00.000Z',
 };
 
 const makeState = (overrides: Partial<GameState> = {}): GameState => ({
@@ -69,8 +97,8 @@ describe('turn reducer — ROLL_RESOLVE', () => {
     expect(next.visitedNodeIds).toContain('n1');
     expect(next.objectives['n1'].successes).toBe(1);
     expect(next.phase).toBe('resolved');
-    expect(next.finished).toBe(true); // root access achieved
-    expect(next.result).toBe('win');
+    expect(next.finished).toBe(false); // root access grants the DC reduction, not a win
+    expect(next.rootAccessAchieved).toBe(true);
   });
 
   test('failure does not add successes but marks visited', () => {
@@ -98,6 +126,33 @@ describe('turn reducer — ROLL_RESOLVE', () => {
     expect(next.objectives['n1'].successes).toBe(1);
     expect(next.players[0].resolvePoints).toBe(2);
     expect(next.actionsTaken).toBe(1);
+  });
+
+  test('successfully hacking a wipe does not trigger it', () => {
+    const state = makeState();
+    const next = reducer(state, {
+      type: 'ROLL_RESOLVE',
+      playerId: 'p1',
+      node: wipeNode,
+      d20: 15,
+    }, wipeMap);
+
+    expect(next.objectives['wipe-1'].successes).toBe(1);
+    expect(next.hiddenNodeIds).toEqual([]);
+    expect(next.wipingNodeIds).toEqual([]);
+  });
+
+  test('root access reduces later DCs by 20 without finishing the session', () => {
+    const state = makeState({ rootAccessAchieved: true });
+    const next = reducer(state, {
+      type: 'ROLL_RESOLVE',
+      playerId: 'p1',
+      node: { ...node, id: 'later-node', isRootAccess: false },
+      d20: 5,
+    });
+
+    expect(next.finished).toBe(false);
+    expect(next.log[0].dc).toBe(-3);
   });
 
   test('nat 1 deals CP damage on 1d6 roll of 1-3', () => {
@@ -444,7 +499,6 @@ describe('turn reducer — SUPPORT_AID', () => {
     x: 0,
     y: 0,
     category: 'module',
-    tier: 1, // base DC = 13 + 4*1 = 17
     resolve: { subskill: 'hack', dcModifier: 0, successesRequired: 1 },
   };
 
@@ -578,5 +632,32 @@ describe('turn reducer — SUPPORT_AID', () => {
       d20: 20,
     });
     expect(next).toBe(state); // no-op
+  });
+});
+
+describe('turn reducer — COLLECT_MODULE', () => {
+  test('collects an accessible module without a roll or action cost', () => {
+    const state = makeState({ actionsTaken: 1, visitedNodeIds: ['n1'] });
+    const next = reducer(state, {
+      type: 'COLLECT_MODULE',
+      playerId: 'p1',
+      node: moduleNode,
+    });
+
+    expect(next.visitedNodeIds).toContain('module-1');
+    expect(next.objectives['module-1'].successes).toBe(1);
+    expect(next.actionsTaken).toBe(1);
+    expect(next.players[0].resolvePoints).toBe(3);
+  });
+
+  test('does not collect a non-module node', () => {
+    const state = makeState();
+    const next = reducer(state, {
+      type: 'COLLECT_MODULE',
+      playerId: 'p1',
+      node,
+    });
+
+    expect(next).toBe(state);
   });
 });

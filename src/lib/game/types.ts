@@ -118,6 +118,8 @@ export interface GameState {
   finished: boolean;
   /** 'win' | 'lose' | undefined while playing. */
   result?: 'win' | 'lose';
+  /** Root access has been secured; subsequent hacking DCs are reduced by 20. */
+  rootAccessAchieved?: boolean;
 }
 
 export function maxCPFor(ranks: number): number {

@@ -37,6 +37,7 @@ export const useMapStore = create<MapStore>((set, get) => ({
     const newMap: FlowMap = {
       id: nanoid(10),
       name: name || 'Untitled Map',
+      tier: 1,
       updatedAt: new Date().toISOString(),
       nodes: [],
       edges: [],
@@ -90,7 +91,6 @@ export const useMapStore = create<MapStore>((set, get) => ({
           x: snapped.x,
           y: snapped.y,
           category,
-          tier: 1,
         };
         break;
       case 'countermeasure':
@@ -100,7 +100,6 @@ export const useMapStore = create<MapStore>((set, get) => ({
           x: snapped.x,
           y: snapped.y,
           category,
-          tier: 1,
           countermeasureType: 'wipe',
           countdown: 3,
         };
@@ -112,7 +111,6 @@ export const useMapStore = create<MapStore>((set, get) => ({
           x: snapped.x,
           y: snapped.y,
           category,
-          tier: 1,
         };
         break;
     }

@@ -30,6 +30,9 @@ interface NodeActionPanelProps {
   isReachable?: boolean;
   modifiers?: { deceive: number; hack: number; process: number; total: number };
   hackingMode?: 'basic' | 'dynamic';
+  mapTier?: number;
+  securityBonus?: number;
+  rootAccessAchieved?: boolean;
   closing?: boolean;
 }
 
@@ -57,23 +60,22 @@ export function NodeActionPanel({
   isReachable = true,
   modifiers,
   hackingMode = 'dynamic',
+  mapTier = 1,
+  securityBonus = 0,
+  rootAccessAchieved = false,
   closing = false,
 }: NodeActionPanelProps) {
   const [descriptionOpen, setDescriptionOpen] = useState(false);
   const [drawerMounted, setDrawerMounted] = useState(false);
   const [drawerSize, setDrawerSize] = useState({ width: 0, height: 0 });
-  const catColors: Record<FlowNode['category'], { fill: string; border: string; icon: string }> = {
-    module: { fill: '#1e3a8a', border: '#60a5fa', icon: 'M' },
-    countermeasure: { fill: '#7f1d1d', border: '#f87171', icon: 'C' },
-    access: { fill: '#1e3a8a', border: '#60a5fa', icon: 'A' },
-  };
-  const cat = catColors[node.category];
-  const dc = effectiveDC(node.tier, node.resolve);
+  const dc = effectiveDC(mapTier, node.resolve, securityBonus, rootAccessAchieved);
   const subskill = node.resolve?.subskill ?? 'hack';
   const successesRequired = node.resolve?.successesRequired ?? 0;
+  const isModule = node.category === 'module';
   const requiredSuccesses = successesRequired || 1;
+  const moduleCollected = isModule && successes >= requiredSuccesses;
   const failuresRequired = 3;
-  const basicOutcome = hackingMode === 'basic'
+  const basicOutcome = !isModule && hackingMode === 'basic'
     ? successes >= requiredSuccesses
       ? 'success'
       : failures >= failuresRequired
@@ -91,7 +93,7 @@ export function NodeActionPanel({
   const effectiveCommitted = playerClass === 'lead' 
     ? (actionsCommitted > 0 ? actionsCommitted : 1)
     : actionsCommitted;
-  const majorDisabled = !isReachable || basicOutcome !== null || (playerClass === 'support' && actionsCommitted === 0) || actionsTaken >= effectiveCommitted;
+  const majorDisabled = !isReachable || basicOutcome !== null || moduleCollected || (!isModule && playerClass === 'support' && actionsCommitted === 0) || (!isModule && actionsTaken >= effectiveCommitted);
 
   const PANEL_WIDTH = 260;
   const PANEL_HEIGHT = isReachable ? (hackingMode === 'basic' ? 220 : 320) : 160;
@@ -196,7 +198,7 @@ export function NodeActionPanel({
         isReachable && hackingMode === 'basic' ? styles.basicDetailsCard : null,
         !isReachable ? styles.deniedContainer : null,
       ]}>
-      {isReachable && hackingMode === 'basic' && (
+      {isReachable && hackingMode === 'basic' && !isModule && (
         <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
           <ChamferedFrame
             width={PANEL_WIDTH - 24}
@@ -210,37 +212,31 @@ export function NodeActionPanel({
       )}
       {isReachable && hackingMode === 'basic' ? (
         <View style={[styles.basicNodeHeader, basicOutcome ? styles.outcomeFaded : null]}>
-          <View style={[styles.iconBox, { backgroundColor: cat.fill, borderColor: cat.border }]}>
-            <Text style={styles.icon}>{cat.icon}</Text>
-          </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.name} numberOfLines={1}>
               {isReachable ? node.name : 'Unknown Host'}
             </Text>
-            <Text style={styles.meta}>
+            {!isModule && <Text style={styles.meta}>
               {node.category.toUpperCase()} • DC {dc}
-            </Text>
+            </Text>}
           </View>
         </View>
       ) : isReachable ? (
         <View style={styles.header}>
-          <View style={[styles.iconBox, { backgroundColor: cat.fill, borderColor: cat.border }]}>
-            <Text style={styles.icon}>{cat.icon}</Text>
-          </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.name} numberOfLines={1}>
               {isReachable ? node.name : 'Unknown Host'}
             </Text>
-            <Text style={styles.meta}>
+            {!isModule && <Text style={styles.meta}>
               DC {dc}
               {` • ${subskill[0].toUpperCase() + subskill.slice(1)}`}
               {successesRequired > 0 ? ` • ${successes}/${successesRequired}` : ''}
-            </Text>
+            </Text>}
           </View>
         </View>
       ) : null}
 
-      {isReachable && hackingMode === 'dynamic' && (
+      {isReachable && hackingMode === 'dynamic' && !isModule && (
         <View style={styles.progressDrawer}>
           <View style={styles.progressLine}>
             <Text style={styles.progressLabel}>SUCCESSES</Text>
@@ -304,7 +300,13 @@ export function NodeActionPanel({
 
       <View style={[styles.actions, basicOutcome ? styles.outcomeActions : null]}>
         {isReachable ? (
-          basicOutcome ? (
+          moduleCollected ? (
+            <View style={[styles.outcomeMessage, styles.successOutcomeMessage]}>
+              <Text style={[styles.outcomeMessageText, styles.successOutcomeText]}>
+                MODULE COLLECTED!
+              </Text>
+            </View>
+          ) : basicOutcome ? (
             <View style={[
               styles.outcomeMessage,
               basicOutcome === 'success' ? styles.successOutcomeMessage : styles.failureOutcomeMessage,
@@ -346,7 +348,9 @@ export function NodeActionPanel({
                   />
                 </View>
                 <Text style={styles.btnText}>
-                  {hackingMode === 'basic'
+                  {isModule
+                    ? 'Collect Module'
+                    : hackingMode === 'basic'
                     ? node.category === 'countermeasure' ? 'Hack Countermeasure' : `Hack ${node.name}`
                     : `Major Action${playerClass === 'lead' && (aidBonus ?? 0) > 0 ? ` (+${aidBonus} Aid)` : ''}`}
                 </Text>
@@ -419,7 +423,7 @@ export function NodeActionPanel({
         )}
       </View>
 
-      {isReachable && hackingMode === 'basic' && (
+      {isReachable && hackingMode === 'basic' && !isModule && (
         <View style={[styles.basicProgressCard, basicOutcome ? styles.outcomeFaded : null]}>
           <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
             <ChamferedFrame

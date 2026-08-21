@@ -167,6 +167,9 @@ export default function HomeScreen() {
       <Text style={styles.sectionHeader}>Sample Maps</Text>
       {SAMPLE_MAPS.map((m) => {
         const mode = hackingModes[m.id] || 'dynamic';
+        const nodeCount = m.nodes.filter((node) => node.category === 'access').length;
+        const moduleCount = m.nodes.filter((node) => node.category === 'module').length;
+        const countermeasureCount = m.nodes.filter((node) => node.category === 'countermeasure').length;
         return (
           <View key={m.id} style={{ position: 'relative', width: cardWidth }}>
             <Pressable
@@ -195,7 +198,10 @@ export default function HomeScreen() {
                 <View style={styles.mapCardMain}>
                   <Text style={styles.mapName}>{m.name}</Text>
                   <Text style={styles.mapDesc}>{m.description}</Text>
-                  <Text style={styles.mapMeta}>{m.nodes.length} nodes</Text>
+                  <View style={styles.mapMetaRow}>
+                    <Text style={styles.mapMetaTier}>Tier {m.tier}</Text>
+                    <Text style={styles.mapMeta}> • nodes: {nodeCount} • modules: {moduleCount} • countermeasures: {countermeasureCount}</Text>
+                  </View>
                 </View>
                 <AnimatedSelectionShell
                   active={selectedMapId === m.id}
@@ -406,6 +412,8 @@ const styles = StyleSheet.create({
   mapName: { fontSize: 16, fontFamily: 'Orbitron-Bold', color: '#f1f5f9' },
   mapDesc: { fontSize: 12, fontFamily: 'Orbitron', color: '#94a3b8', marginTop: 4 },
   mapMeta: { fontSize: 10, fontFamily: 'Orbitron', color: '#475569', marginTop: 4 },
+  mapMetaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+  mapMetaTier: { fontSize: 10, fontFamily: 'Orbitron', color: '#22d3ee' },
   mapCardBody: {
     flexDirection: 'row',
     alignItems: 'stretch',

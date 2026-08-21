@@ -25,6 +25,7 @@ export function NodeEditor({ node, onUpdate, onDelete, onClose, availableNodes =
     { value: 'alarm', label: 'Alarm' },
     { value: 'lockout', label: 'Lockout' },
     { value: 'shock-grid', label: 'Shock Grid' },
+    { value: 'firewall', label: 'Firewall' },
   ];
   return (
     <View style={styles.editor}>
@@ -90,16 +91,28 @@ export function NodeEditor({ node, onUpdate, onDelete, onClose, availableNodes =
           </>
         ) : null}
 
-        <Text style={styles.label}>Tier (1–10) → DC</Text>
-        <View style={styles.row}>
-          <Pressable style={styles.stepBtn} onPress={() => onUpdate({ tier: Math.max(1, node.tier - 1) })}>
-            <Text style={styles.stepBtnText}>−</Text>
-          </Pressable>
-          <Text style={styles.tierValue}>{node.tier} (DC {13 + 4 * node.tier})</Text>
-          <Pressable style={styles.stepBtn} onPress={() => onUpdate({ tier: Math.min(10, node.tier + 1) })}>
-            <Text style={styles.stepBtnText}>+</Text>
-          </Pressable>
-        </View>
+        {node.category !== 'module' ? (
+          <>
+            <Text style={styles.label}>Custom DC Override</Text>
+            <TextInput
+              style={styles.input}
+              value={node.resolve?.dcOverride?.toString() ?? ''}
+              placeholder="Default: map tier"
+              placeholderTextColor="#64748b"
+              keyboardType="numeric"
+              onChangeText={(value) => {
+                const currentResolve = node.resolve ?? { subskill: 'hack' as const, successesRequired: 1 };
+                const dcOverride = value.trim() === '' ? undefined : Number(value);
+                onUpdate({
+                  resolve: {
+                    ...currentResolve,
+                    dcOverride: Number.isFinite(dcOverride) ? dcOverride : undefined,
+                  },
+                });
+              }}
+            />
+          </>
+        ) : null}
 
         <Pressable
           style={[styles.toggle, node.hazard && styles.toggleActive]}

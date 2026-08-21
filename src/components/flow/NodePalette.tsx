@@ -21,7 +21,7 @@ export function NodePalette({ onPick, active }: Props) {
   return (
     <View style={styles.palette}>
       <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
-        <ChamferedFrame width={110} height={145} chamfer={8} stroke="#1e293b" fill="rgba(15,23,42,0.95)" />
+          <ChamferedFrame width={110} height={145} chamfer={8} stroke="#1e293b" fill="rgba(15,23,42,0.95)" />
       </View>
       <Text style={styles.title}>Add Node</Text>
       {items.map((it) => (
@@ -47,7 +47,8 @@ const styles = StyleSheet.create({
     top: 12,
     left: 12,
     width: 110,
-    height: 145,
+    height: 180,
+      height: 145,
     padding: 8,
     gap: 6,
   },

@@ -4,13 +4,15 @@
  */
 
 export type NodeCategory = 'module' | 'countermeasure' | 'access';
-export type CountermeasureType = 'wipe' | 'feedback' | 'fake-shell' | 'alarm' | 'lockout' | 'shock-grid';
+export type CountermeasureType = 'wipe' | 'feedback' | 'fake-shell' | 'alarm' | 'lockout' | 'shock-grid' | 'firewall';
 
 export type Subskill = 'deceive' | 'hack' | 'process';
 
 export type ObjectiveResolve = {
   /** Which subskill is rolled for Resolve checks against this objective. */
   subskill: Subskill;
+  /** Optional fixed DC replacing the map-tier default. */
+  dcOverride?: number;
   /** DC modifier added to the node's base DC for this check. */
   dcModifier?: number;
   /** How many successes are needed to defeat the objective. */
@@ -26,13 +28,13 @@ export interface FlowNode {
   y: number;
   /** Category drives which checks are required. */
   category: NodeCategory;
-  /** Tier (1–10) determines base DC: 13 + 4 × tier. */
-  tier: number;
+  /** Security-module bonus applied to all DCs until this module is collected. */
+  security?: number;
   /** Hazard-flagged access nodes can be skipped after a beat-by-10+ roll. */
   hazard?: boolean;
   /** Marks the win-condition node. Exactly one per map. */
   isRootAccess?: boolean;
-  /** Resolve entry for module/countermeasure nodes. */
+  /** Resolve entry for access/countermeasure nodes. */
   resolve?: ObjectiveResolve;
   /** Countdown for countermeasure nodes (e.g. Wipe = 3 phases). */
   countdown?: number;
@@ -53,6 +55,8 @@ export interface FlowEdge {
 export interface FlowMap {
   id: string;
   name: string;
+  /** Encounter tier for the overall map. */
+  tier: number;
   description?: string;
   nodes: FlowNode[];
   edges: FlowEdge[];
@@ -76,7 +80,7 @@ export function createNode(partial: Partial<FlowNode> & Pick<FlowNode, 'id' | 'x
     x: partial.x,
     y: partial.y,
     category,
-    tier: partial.tier ?? 1,
+    security: partial.security,
     hazard: partial.hazard,
     isRootAccess: partial.isRootAccess,
     resolve,
@@ -87,10 +91,10 @@ export function createNode(partial: Partial<FlowNode> & Pick<FlowNode, 'id' | 'x
   };
 }
 
-function defaultResolveFor(category: NodeCategory): ObjectiveResolve {
+function defaultResolveFor(category: NodeCategory): ObjectiveResolve | undefined {
   switch (category) {
     case 'module':
-      return { subskill: 'hack', dcModifier: 0, successesRequired: 1 };
+      return undefined;
     case 'countermeasure':
       return { subskill: 'hack', dcModifier: 0, successesRequired: 1 };
     case 'access':
