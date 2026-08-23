@@ -135,6 +135,7 @@ interface Props {
   securityBonus?: number;
   rootAccessAchieved?: boolean;
   modifiers?: { deceive: number; hack: number; process: number; total: number };
+  onMonitorLayout?: (rect: { x: number; y: number; width: number; height: number }) => void;
 }
 
 export function FlowCanvas({ 
@@ -172,6 +173,7 @@ export function FlowCanvas({
   securityBonus,
   rootAccessAchieved,
   modifiers,
+  onMonitorLayout,
 }: Props) {
   const { width: windowWidth } = useWindowDimensions();
   const isSmallScreen = windowWidth < 768;
@@ -193,6 +195,7 @@ export function FlowCanvas({
   // Live measurements of the visible canvas area (the bezel).
   // Initialized from window dims; refined via onLayout as soon as the wrapper mounts.
   const [viewRect, setViewRect] = useState({ x: 0, y: 0, width: 0, height: 0 });
+  const monitorRef = useRef<View>(null);
   const [canvasRect, setCanvasRect] = useState({ width: 0, height: 0 });
   const [isReady, setIsReady] = useState(false);
 
@@ -393,13 +396,19 @@ export function FlowCanvas({
   return (
     <View style={styles.container}>
       <View
+        ref={monitorRef}
         style={[
           styles.monitorFrame,
           isSmallScreen ? { marginHorizontal: 8 } : null
         ]}
         onLayout={(e) => {
           const { x, y, width, height } = e.nativeEvent.layout;
-          if (width > 0 && height > 0) setViewRect({ x, y, width, height });
+          if (width > 0 && height > 0) {
+            setViewRect({ x, y, width, height });
+            monitorRef.current?.measureInWindow((screenX, screenY, measuredWidth, measuredHeight) => {
+              onMonitorLayout?.({ x: screenX, y: screenY, width: measuredWidth, height: measuredHeight });
+            });
+          }
         }}
       >
         {/* Chamfered Bezel Background */}

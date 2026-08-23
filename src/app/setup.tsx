@@ -3,9 +3,9 @@
  * Used before starting a game from the home or map list.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
-  View, Text, Pressable, StyleSheet, TextInput, ScrollView, Switch, useWindowDimensions,
+  View, Text, Pressable, StyleSheet, TextInput, ScrollView, Switch, useWindowDimensions, Animated,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { nanoid } from 'nanoid';
@@ -14,7 +14,10 @@ import { loadMap } from '@/lib/flow/persistence';
 import type { FlowMap } from '@/lib/flow/types';
 import { useGameStore } from '@/stores/gameStore';
 import { ChamferedFrame } from '@/components/ui/ChamferedFrame';
+import { HudButton } from '@/components/ui/HudButton';
+import { HudPill } from '@/components/ui/HudPill';
 import { ScreenBackdrop } from '@/components/ui/ScreenBackdrop';
+import { HudTextButton } from '@/components/ui/HudTextButton';
 
 function BackChevron() {
   return (
@@ -26,16 +29,9 @@ function BackChevron() {
 
 function RandomNameButton({ onPress }: { onPress: () => void }) {
   return (
-    <Pressable style={({ pressed }) => [styles.randomBtn, styles.randomBtnShadow, pressed && styles.randomBtnPressed]} onPress={onPress}>
-      {({ pressed }) => (
-        <>
-          <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
-            <ChamferedFrame width={78} height={30} chamfer={6} stroke="#22d3ee" fill={pressed ? '#155e75' : '#0e7490'} />
-          </View>
-          <Text style={[styles.randomBtnText, pressed && styles.randomBtnTextPressed]}>RANDOM</Text>
-        </>
-      )}
-    </Pressable>
+    <HudButton width={78} height={30} style={[styles.randomBtn, styles.randomBtnShadow]} onPress={onPress}>
+      <Text style={styles.randomBtnText}>RANDOM</Text>
+    </HudButton>
   );
 }
 
@@ -58,6 +54,106 @@ function StepperButton({ onPress, children }: { onPress: () => void; children: s
         </>
       )}
     </Pressable>
+  );
+}
+
+const LAUNCH_PHRASES = [
+  'SPOOFING THE GATEWAY',
+  'ROUTING THROUGH GHOST NODES',
+  'DECRYPTING SECURITY LAYERS',
+  'INJECTING ICEBREAKER PAYLOAD',
+  'OPENING THE BACKDOOR',
+  'HANDSHAKE ACCEPTED',
+];
+
+function LaunchOverlay({ width, onFinished }: { width: number; onFinished: () => void }) {
+  const launchWidth = Math.min(Math.max(width - 32, 0), 640);
+  const verticalProgress = useRef(new Animated.Value(0)).current;
+  const horizontalProgress = useRef(new Animated.Value(0)).current;
+  const revealOpacity = useRef(new Animated.Value(1)).current;
+  const contentOpacity = useRef(new Animated.Value(0)).current;
+  const ticker = useRef(new Animated.Value(width)).current;
+  const [phraseIndex, setPhraseIndex] = useState(0);
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(verticalProgress, { toValue: 1, duration: 180, useNativeDriver: true }),
+      Animated.sequence([
+        Animated.delay(180),
+        Animated.timing(horizontalProgress, { toValue: 1, duration: 240, useNativeDriver: true }),
+      ]),
+      Animated.sequence([
+        Animated.delay(360),
+        Animated.timing(revealOpacity, { toValue: 0, duration: 160, useNativeDriver: true }),
+      ]),
+      Animated.sequence([
+        Animated.delay(360),
+        Animated.timing(contentOpacity, { toValue: 1, duration: 180, useNativeDriver: true }),
+      ]),
+      Animated.timing(ticker, { toValue: -width, duration: 1500, useNativeDriver: true }),
+    ]).start();
+
+    const phraseTimer = setInterval(() => {
+      setPhraseIndex((current) => (current + 1) % LAUNCH_PHRASES.length);
+      ticker.setValue(width);
+      Animated.timing(ticker, { toValue: -width, duration: 1500, useNativeDriver: true }).start();
+    }, 850);
+
+    const finishTimer = setTimeout(onFinished, 1800);
+    return () => {
+      clearInterval(phraseTimer);
+      clearTimeout(finishTimer);
+    };
+  }, [contentOpacity, horizontalProgress, onFinished, revealOpacity, ticker, verticalProgress, width]);
+
+  return (
+    <View style={styles.launchOverlay}>
+      <View style={[styles.launchRevealFrame, { width: launchWidth, height: 118 }]}>
+        <Animated.View style={[styles.launchVerticalReveal, { opacity: revealOpacity, transform: [{ scaleY: verticalProgress }] }]} />
+        <Animated.View style={[styles.launchHorizontalReveal, { opacity: revealOpacity, transform: [{ scaleX: horizontalProgress }] }]} />
+        <Animated.View style={[styles.launchCenterRevealDot, { opacity: revealOpacity }]} />
+      </View>
+      <Animated.View style={[styles.launchPanel, { width: launchWidth, opacity: contentOpacity }]}>
+        <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
+          <ChamferedFrame width={launchWidth} height={118} chamfer={16} stroke="#22d3ee" strokeWidth={2} fill="#0b1f2a" />
+        </View>
+        <Text style={styles.launchTitle}>DATA HEIST // LAUNCHING</Text>
+        <View style={styles.launchTickerViewport}>
+          <Animated.Text numberOfLines={1} style={[styles.launchPhrase, { transform: [{ translateX: ticker }] }]}>
+            {LAUNCH_PHRASES[phraseIndex]}
+          </Animated.Text>
+        </View>
+        <View style={styles.launchProgressTrack}>
+          <Animated.View style={[styles.launchProgress, { width: '100%' }]} />
+        </View>
+      </Animated.View>
+    </View>
+  );
+}
+
+function HelpDrawer({ active, width, height, children }: { active: boolean; width: number; height: number; children: ReactNode }) {
+  const slide = useRef(new Animated.Value(active ? 0 : 1)).current;
+
+  useEffect(() => {
+    Animated.timing(slide, {
+      toValue: active ? 0 : 1,
+      duration: 240,
+      useNativeDriver: false,
+    }).start();
+  }, [active, slide]);
+
+  return (
+    <Animated.View
+      pointerEvents={active ? 'auto' : 'none'}
+      style={[styles.helpDrawer, { width, height, right: -(width * 0.9), transform: [{ translateX: slide.interpolate({ inputRange: [0, 1], outputRange: [0, -(width + 16)] }) }] }]}
+    >
+      <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
+        <Svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+          <Path d={`M 0,0 H ${width - 16} L ${width},16 V ${height - 16} L ${width - 16},${height} H 0 Z`} fill="#0b1f2a" stroke="#22d3ee" strokeWidth={2} strokeLinejoin="miter" />
+        </Svg>
+      </View>
+      {children}
+    </Animated.View>
   );
 }
 
@@ -102,6 +198,7 @@ export default function SetupScreen() {
 
   const [map, setMap] = useState<FlowMap | null>(null);
   const [cardHeights, setCardHeights] = useState<Record<string, number>>({});
+  const [helpPlayerId, setHelpPlayerId] = useState<string | null>(null);
   const [players, setPlayers] = useState<DraftPlayer[]>(() => {
     const leadId = nanoid(6);
     const supportId = nanoid(6);
@@ -268,7 +365,7 @@ export default function SetupScreen() {
       pairedLeadId: p.class === 'support' ? (p.pairedLeadId || firstLead?.id) : undefined,
     }));
     startGame(map, input, hackingMode);
-    router.push(`/game/${map.id}`);
+    router.push(`/game/${map.id}?launch=1`);
   };
 
   const { width: windowWidth } = useWindowDimensions();
@@ -289,25 +386,20 @@ export default function SetupScreen() {
           </View>
         )}
         <View style={styles.headerRow}>
-          <Pressable
-            style={({ pressed }) => [styles.backBtn, styles.backBtnShadow, pressed && styles.backBtnPressed]}
-            onPress={() => router.push('/')}
-          >
-            {({ pressed }) => (
-              <>
-                <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
-                  <ChamferedFrame width={96} height={30} chamfer={6} stroke="#22d3ee" fill={pressed ? '#155e75' : '#0e7490'} />
-                </View>
-                <View style={styles.backBtnContent}>
-                  <BackChevron />
-                  <Text style={styles.backBtnText}>MAPS</Text>
-                </View>
-              </>
-            )}
-          </Pressable>
-          <Text style={styles.title}>Setup</Text>
+          <HudButton width={96} height={30} style={[styles.backBtn, styles.backBtnShadow]} onPress={() => router.push('/')}>
+            <View style={styles.backBtnContent}>
+              <BackChevron />
+              <Text style={styles.backBtnText}>MAPS</Text>
+            </View>
+          </HudButton>
+          <View style={styles.titleBlock}>
+            <View style={styles.mapTitleRow}>
+              <Text style={styles.title}>{map?.name ?? 'Setup'}</Text>
+              {map && <Text style={styles.mapTier}>Tier {map.tier}</Text>}
+            </View>
+            <Text style={styles.setupSubtitle}>Character Setup</Text>
+          </View>
         </View>
-        {map && <View style={styles.mapLabelRow}><Text style={styles.mapLabel}>Map: {map.name} • </Text><Text style={styles.mapTier}>Tier {map.tier}</Text></View>}
       </View>
 
       {players.map((p, i) => {
@@ -320,10 +412,11 @@ export default function SetupScreen() {
           Math.max(0, p.computersModifier - p.deceiveModifier) +
           Math.max(0, p.computersModifier - p.processModifier);
         const totalBudget = p.personaModifierLimit + bonusFromReductions;
+        const helpWidth = Math.min(220, cardWidth * 0.42);
 
         return (
+        <View key={p.id} style={[styles.playerCardShell, helpPlayerId === p.id && styles.playerCardShellActive, { width: cardWidth }]}>
         <View 
-          key={p.id} 
           style={[styles.card, hackingMode === 'basic' && styles.basicCard, { width: cardWidth }]}
           onLayout={(e) => {
             const h = e.nativeEvent.layout.height;
@@ -344,16 +437,29 @@ export default function SetupScreen() {
           </View>
           <View style={styles.cardHeader}>
             {hackingMode === 'dynamic' && <Text style={styles.cardTitle}>Player {i + 1}</Text>}
-            {players.length > 1 && (
-              <Pressable onPress={() => removePlayer(p.id)}>
-                <Text style={styles.remove}>Remove</Text>
-              </Pressable>
-            )}
+            <View style={styles.cardHeaderActions}>
+              {players.length > 1 && (
+                <HudTextButton onPress={() => removePlayer(p.id)}>
+                  <Text style={styles.remove}>Remove</Text>
+                </HudTextButton>
+              )}
+            </View>
+          </View>
+          <View style={[styles.helpBtnSlot, hackingMode === 'basic' && styles.basicHelpBtnSlot]}>
+            <HudButton
+              width={30}
+              height={30}
+              chamfer={4}
+              style={styles.helpBtn}
+              onPress={() => setHelpPlayerId((current) => current === p.id ? null : p.id)}
+            >
+              <Text style={styles.helpBtnText}>?</Text>
+            </HudButton>
           </View>
           {hackingMode === 'basic' ? (
             <View style={styles.basicIdentityRow}>
               <View style={styles.basicNameCol}>
-                <Text style={styles.label}>Name</Text>
+                <Text style={[styles.label, styles.basicFieldLabel]}>Character Name</Text>
                 <View style={styles.nameRow}>
                   <TextInput
                     style={[styles.input, { flex: 1, marginBottom: 0 }]}
@@ -364,17 +470,17 @@ export default function SetupScreen() {
                 </View>
               </View>
               <View style={styles.basicComputerCol}>
-                <Text style={[styles.label, styles.basicModifierLabel]}>{'Computers\nModifier'}</Text>
-                <View style={styles.row}>
+                <Text style={[styles.label, styles.basicModifierLabel]}>Computers Skill</Text>
+                <View style={styles.modifierRow}>
                   <StepperButton onPress={() => updatePlayer(p.id, { computersModifier: Math.max(0, p.computersModifier - 1) })}>−</StepperButton>
-                  <Text style={styles.value}>{p.computersModifier}</Text>
+                  <Text style={[styles.value, styles.modifierValue]}>+{p.computersModifier}</Text>
                   <StepperButton onPress={() => updatePlayer(p.id, { computersModifier: Math.min(25, p.computersModifier + 1) })}>+</StepperButton>
                 </View>
               </View>
             </View>
           ) : (
             <>
-              <Text style={styles.label}>Name</Text>
+              <Text style={styles.label}>Character Name</Text>
               <View style={styles.nameRow}>
                 <TextInput
                   style={[styles.input, { flex: 1, marginBottom: 0 }]}
@@ -390,18 +496,18 @@ export default function SetupScreen() {
               <View style={styles.statCol}>
                 <Text style={styles.label}>Class</Text>
                 <View style={styles.row}>
-                  <Pressable
-                    style={[styles.pill, p.class === 'lead' && styles.pillActive]}
+                  <HudPill
+                    selected={p.class === 'lead'}
                     onPress={() => updatePlayer(p.id, { class: 'lead' })}
                   >
                     <Text style={styles.pillText}>Lead</Text>
-                  </Pressable>
-                  <Pressable
-                    style={[styles.pill, p.class === 'support' && styles.pillActive]}
+                  </HudPill>
+                  <HudPill
+                    selected={p.class === 'support'}
                     onPress={() => updatePlayer(p.id, { class: 'support' })}
                   >
                     <Text style={styles.pillText}>Support</Text>
-                  </Pressable>
+                  </HudPill>
                 </View>
               </View>
             )}
@@ -448,7 +554,7 @@ export default function SetupScreen() {
 
           {hackingMode === 'dynamic' && (
             <Text style={styles.hint}>
-              Updating Total Mod sets all sub-modifiers
+              Updating Computers Skill sets all sub-modifiers
             </Text>
           )}
           {hackingMode === 'dynamic' && (
@@ -462,10 +568,10 @@ export default function SetupScreen() {
                 </View>
               </View>
               <View style={styles.statCol}>
-                <Text style={styles.label}>Total Mod</Text>
-                <View style={styles.row}>
+                <Text style={styles.label}>Computers Skill</Text>
+                <View style={styles.modifierRow}>
                   <StepperButton onPress={() => updatePlayer(p.id, { computersModifier: Math.max(0, p.computersModifier - 1) })}>−</StepperButton>
-                  <Text style={styles.value}>{p.computersModifier}</Text>
+                  <Text style={[styles.value, styles.modifierValue]}>+{p.computersModifier}</Text>
                   <StepperButton onPress={() => updatePlayer(p.id, { computersModifier: Math.min(25, p.computersModifier + 1) })}>+</StepperButton>
                 </View>
               </View>
@@ -483,36 +589,34 @@ export default function SetupScreen() {
             <>
               <Text style={[styles.label, { marginTop: 8 }]}>Paired Lead</Text>
               {leads.map((lead) => (
-                  <Pressable
+                  <HudPill
                     key={lead.id}
+                    selected={p.pairedLeadId === lead.id}
                     onPress={() => updatePlayer(p.id, { pairedLeadId: lead.id })}
-                    style={{
-                      paddingHorizontal: 10,
-                      paddingVertical: 6,
-                      borderRadius: 8,
-                      borderWidth: 2,
-                      borderColor: p.pairedLeadId === lead.id ? '#22d3ee' : 'transparent',
-                      backgroundColor: '#0f172a',
-                    }}
                   >
                     <Text style={{ color: '#fff', fontFamily: 'Orbitron-Bold' }}>{lead.name}</Text>
-                  </Pressable>
+                  </HudPill>
                 ))}
             </>
           )}
+        </View>
+        <HelpDrawer active={helpPlayerId === p.id} width={helpWidth} height={cardHeights[p.id] ?? 1}>
+          <View style={styles.helpContent}>
+            <Text style={styles.helpTitle}>Character Setup</Text>
+            <Text style={styles.helpText}>Input your character's name or select one at random.</Text>
+            <Text style={styles.helpText}>Computers Skill is the total modifier to your character's Computer's skill, including ability modifiers, skill ranks, class skill bonus, aid attempts from allies, and any other modifiers.</Text>
+            {hackingMode === 'dynamic' && <Text style={styles.helpText}>Choose a class, adjust skills, and pair Support characters with a Lead.</Text>}
+            {hackingMode === 'basic' && <Text style={styles.helpText}>Basic mode keeps setup quick with one shared skill value.</Text>}
+          </View>
+        </HelpDrawer>
         </View>
       );
     })}
 
       {hackingMode === 'dynamic' && players.length < 4 && (
-        <View>
-          <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
-            <ChamferedFrame width={cardWidth} height={50} chamfer={8} stroke="#475569" fill="#1e293b" />
-          </View>
-          <Pressable style={[styles.addBtn, { height: 50 }]} onPress={addPlayer}>
+        <HudButton width={cardWidth} height={50} chamfer={8} stroke="#475569" fill="#1e293b" pressedFill="#1e293b" style={[styles.addBtn, { height: 50 }]} onPress={addPlayer}>
             <Text style={styles.addBtnText}>+ Add Player</Text>
-          </Pressable>
-        </View>
+        </HudButton>
       )}
 
       {leads.length === 0 && (
@@ -520,22 +624,18 @@ export default function SetupScreen() {
       )}
 
       <View style={{ marginTop: 8, marginBottom: 24 }}>
-        <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
-          <ChamferedFrame 
-            width={cardWidth} 
-            height={60} 
-            chamfer={10} 
-            stroke="#22d3ee" 
-            fill={(!map || leads.length === 0) ? "#1e293b" : "#0e7490"} 
-          />
-        </View>
-        <Pressable 
-          style={[styles.startBtn, { height: 60 }, (!map || leads.length === 0) && styles.startBtnDisabled]} 
+        <HudButton
+          width={cardWidth}
+          height={60}
+          chamfer={10}
+          fill={(!map || leads.length === 0) ? '#1e293b' : '#0e7490'}
+          pressedFill={(!map || leads.length === 0) ? '#1e293b' : '#155e75'}
+          style={[styles.startBtn, { height: 60 }, (!map || leads.length === 0) && styles.startBtnDisabled]}
           onPress={handleStart} 
           disabled={!map || leads.length === 0}
         >
-          <Text style={styles.startBtnText}>Start Game</Text>
-        </Pressable>
+          <Text style={styles.startBtnText}>LAUNCH DATA HEIST</Text>
+        </HudButton>
       </View>
     </View>
       </ScrollView>
@@ -546,6 +646,60 @@ export default function SetupScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#020617' },
   container: { flex: 1, backgroundColor: 'transparent' },
+  launchOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(2, 6, 23, 0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 20,
+  },
+  launchRevealFrame: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  launchVerticalReveal: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: '50%',
+    width: 2,
+    marginLeft: -1,
+    backgroundColor: '#22d3ee',
+  },
+  launchHorizontalReveal: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: '50%',
+    height: 2,
+    marginTop: -1,
+    backgroundColor: '#22d3ee',
+  },
+  launchCenterRevealDot: {
+    position: 'absolute',
+    left: '50%',
+    top: '50%',
+    width: 6,
+    height: 6,
+    marginLeft: -3,
+    marginTop: -3,
+    borderRadius: 3,
+    backgroundColor: '#67e8f9',
+  },
+  launchPanel: {
+    height: 118,
+    maxWidth: 640,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    gap: 14,
+  },
+  launchTitle: { color: '#22d3ee', fontSize: 14, fontFamily: 'Orbitron-Black', letterSpacing: 1 },
+  launchTickerViewport: { width: '100%', overflow: 'hidden', alignItems: 'center' },
+  launchPhrase: { color: '#f1f5f9', fontSize: 10, fontFamily: 'Orbitron-Bold', letterSpacing: 1 },
+  launchProgressTrack: { width: '72%', height: 2, backgroundColor: '#155e75', overflow: 'hidden' },
+  launchProgress: { height: 2, width: '100%', backgroundColor: '#22d3ee', transformOrigin: 'left' },
   contentContainer: { padding: 28, paddingTop: 44, alignItems: 'stretch' },
   contentWrapper: {
     width: '100%',
@@ -561,6 +715,9 @@ const styles = StyleSheet.create({
     gap: 16,
     marginBottom: 4,
   },
+  titleBlock: { flex: 1, minWidth: 0, gap: 2 },
+  mapTitleRow: { flexDirection: 'row', alignItems: 'baseline', gap: 10, minWidth: 0 },
+  setupSubtitle: { fontSize: 12, fontFamily: 'Orbitron-Bold', color: '#94a3b8' },
   backBtn: {
     width: 96,
     height: 30,
@@ -570,9 +727,6 @@ const styles = StyleSheet.create({
   backBtnShadow: {
     boxShadow: '0px 3px 4px rgba(0, 0, 0, 0.35)',
     elevation: 4,
-  },
-  backBtnPressed: {
-    opacity: 0.92,
   },
   backBtnContent: {
     flexDirection: 'row',
@@ -591,6 +745,8 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: 'transparent',
     gap: 8,
+    position: 'relative',
+    zIndex: 2,
   },
   headerCard: {
     padding: 16,
@@ -602,15 +758,27 @@ const styles = StyleSheet.create({
     padding: 24,
     gap: 12,
   },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 24 },
+  cardHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  playerCardShell: { position: 'relative', zIndex: 1 },
+  playerCardShellActive: { zIndex: 10 },
+  helpDrawer: { position: 'absolute', top: 0, zIndex: 1, overflow: 'hidden' },
+  helpContent: { padding: 12, paddingLeft: 40, gap: 10 },
+  helpTitle: { color: '#22d3ee', fontSize: 12, fontFamily: 'Orbitron-Bold' },
+  helpText: { color: '#cbd5e1', fontSize: 9, lineHeight: 16, fontFamily: 'Orbitron' },
+  helpBtnSlot: { position: 'absolute', top: 12, right: -15, zIndex: 4 },
+  basicHelpBtnSlot: { top: 94 },
+  helpBtn: { width: 30, height: 30 },
+  helpBtnText: { color: '#fff', fontSize: 14, fontFamily: 'Orbitron-Black' },
   cardTitle: { fontSize: 16, color: '#f1f5f9', fontFamily: 'Orbitron-Bold' },
   remove: { color: '#f87171', fontSize: 12, fontFamily: 'Orbitron-Bold' },
   label: { fontSize: 11, color: '#64748b', fontFamily: 'Orbitron-Bold', textTransform: 'uppercase' },
   nameRow: { flexDirection: 'row', gap: 8, marginBottom: 4 },
-  basicIdentityRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 20 },
-  basicNameCol: { flex: 3, gap: 6, minWidth: 0, paddingTop: 12 },
-  basicComputerCol: { flex: 2, gap: 6, minWidth: 0, alignItems: 'flex-end' },
-  basicModifierLabel: { width: 104, textAlign: 'center' },
+  basicIdentityRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  basicNameCol: { flex: 3, gap: 6, minWidth: 0 },
+  basicComputerCol: { flex: 2, gap: 6, minWidth: 0, alignItems: 'flex-end', transform: [{ translateX: -48 }] },
+  basicFieldLabel: { height: 28 },
+  basicModifierLabel: { width: 104, height: 28, textAlign: 'center' },
   randomBtn: {
     width: 78,
     height: 30,
@@ -623,11 +791,7 @@ const styles = StyleSheet.create({
     boxShadow: '0px 3px 4px rgba(0, 0, 0, 0.35)',
     elevation: 4,
   },
-  randomBtnPressed: {
-    opacity: 0.92,
-  },
   randomBtnText: { fontSize: 9, color: '#fff', fontFamily: 'Orbitron-Bold' },
-  randomBtnTextPressed: { color: '#cffafe' },
   input: {
     height: 30,
     backgroundColor: '#1e293b',
@@ -635,23 +799,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 5,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: '#155e75',
     fontSize: 12,
     fontFamily: 'Orbitron',
   },
   row: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  modifierRow: { flexDirection: 'row', gap: 0, alignItems: 'center' },
   statsRow: { flexDirection: 'row', gap: 12, flexWrap: 'wrap' },
   basicStatsRow: { flexWrap: 'nowrap', justifyContent: 'space-between' },
   col: { flex: 1, gap: 6 },
   statCol: { flex: 1, minWidth: 110, gap: 6 },
-  pill: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: '#1e293b',
-    borderWidth: 1,
-    borderColor: '#475569',
-  },
-  pillActive: { borderColor: '#22d3ee', backgroundColor: '#0e7490' },
   pillText: { fontSize: 12, color: '#f1f5f9', fontFamily: 'Orbitron-Bold' },
   stepBtn: {
     height: 30,
@@ -668,6 +825,15 @@ const styles = StyleSheet.create({
   },
   stepBtnText: { fontSize: 16, color: '#cffafe', fontFamily: 'Orbitron-Bold' },
   value: { color: '#f1f5f9', fontSize: 14, fontFamily: 'Orbitron-Bold', minWidth: 24, textAlign: 'center' },
+  modifierValue: {
+    height: 30,
+    lineHeight: 28,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#155e75',
+    paddingHorizontal: 6,
+    minWidth: 38,
+  },
   hint: { fontSize: 11, color: '#475569', marginTop: 4, fontFamily: 'Orbitron' },
   addBtn: {
     height: 44,

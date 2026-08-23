@@ -7,6 +7,8 @@ import { useMapStore } from '@/stores/mapStore';
 import { SAMPLE_MAPS } from '../sample-maps';
 import { saveAllMaps } from '@/lib/flow/persistence';
 import { ChamferedFrame } from '@/components/ui/ChamferedFrame';
+import { HudButton } from '@/components/ui/HudButton';
+import { HudCard } from '@/components/ui/HudCard';
 import { ScreenBackdrop } from '@/components/ui/ScreenBackdrop';
 
 function CharacterChevron() {
@@ -17,18 +19,54 @@ function CharacterChevron() {
   );
 }
 
-function ModeSegmentHighlight({ width, side }: { width: number; side: 'left' | 'right' }) {
+function ModeSegmentHighlight({ width, side, fill = '#0e7490', stroke = 'transparent', opacity = 1 }: { width: number; side: 'left' | 'right'; fill?: string; stroke?: string; opacity?: number }) {
   const chamfer = 6;
   const path = side === 'left'
     ? `M ${chamfer},0 H ${width} V 30 H ${chamfer} L 0,${30 - chamfer} V ${chamfer} Z`
     : `M 0,0 H ${width - chamfer} L ${width},${chamfer} V ${30 - chamfer} L ${width - chamfer},30 H 0 Z`;
 
   return (
-    <View style={[styles.modeSegmentHighlight, side === 'left' ? { left: 0 } : { right: 0 }, { pointerEvents: 'none' }]}>
+    <View style={[styles.modeSegmentHighlight, side === 'left' ? { left: 0 } : { right: 0 }, { pointerEvents: 'none', opacity }]}>
       <Svg width={width} height={30} viewBox={`0 0 ${width} 30`}>
-        <Path d={path} fill="#0e7490" />
+        <Path d={path} fill={fill} stroke={stroke} strokeWidth={2} strokeLinejoin="miter" />
       </Svg>
     </View>
+  );
+}
+
+function ModeSegmentButton({
+  width,
+  side,
+  selected,
+  onPress,
+  children,
+}: {
+  width: number;
+  side: 'left' | 'right';
+  selected: boolean;
+  onPress: () => void;
+  children: string;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[styles.toggleBtn, selected && styles.toggleBtnActive]}
+    >
+      {({ pressed }) => (
+        <>
+          {(selected || pressed) && (
+            <ModeSegmentHighlight
+              width={width}
+              side={side}
+              fill={pressed ? '#155e75' : '#0e7490'}
+              stroke={selected ? '#22d3ee' : 'transparent'}
+              opacity={pressed ? 0.8 : 1}
+            />
+          )}
+          <Text style={[styles.toggleBtnText, selected && styles.toggleBtnTextActive]}>{children}</Text>
+        </>
+      )}
+    </Pressable>
   );
 }
 
@@ -110,15 +148,15 @@ export default function HomeScreen() {
   };
 
   const selectMap = (mapId: string) => {
-    setSelectedMapId((current) => current === mapId ? null : mapId);
+    setSelectedMapId(mapId);
   };
 
   const [hackingModes, setHackingModes] = useState<Record<string, 'basic' | 'dynamic'>>({});
 
-  const toggleMode = (mapId: string) => {
+  const setMode = (mapId: string, mode: 'basic' | 'dynamic') => {
     setHackingModes(prev => ({
       ...prev,
-      [mapId]: prev[mapId] === 'basic' ? 'dynamic' : 'basic'
+      [mapId]: mode
     }));
   };
 
@@ -172,7 +210,11 @@ export default function HomeScreen() {
         const countermeasureCount = m.nodes.filter((node) => node.category === 'countermeasure').length;
         return (
           <View key={m.id} style={{ position: 'relative', width: cardWidth }}>
-            <Pressable
+            <HudCard
+              width={cardWidth}
+              height={commonMapHeight ?? cardHeights[m.id] ?? 1}
+              stroke={selectedMapId === m.id ? '#22d3ee' : '#1e293b'}
+              fill={selectedMapId === m.id ? '#0e293b' : '#0f172a'}
               style={[styles.mapCard, commonMapHeight ? { height: commonMapHeight } : null, { width: cardWidth }]}
               onPress={() => selectMap(m.id)}
               onLayout={(e) => {
@@ -182,18 +224,6 @@ export default function HomeScreen() {
                 setMeasuredMapIds(prev => new Set(prev).add(m.id));
               }}
             >
-              <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
-                {cardHeights[m.id] && (
-                  <ChamferedFrame 
-                    width={cardWidth} 
-                    height={cardHeights[m.id]} 
-                    chamfer={16} 
-                    stroke={selectedMapId === m.id ? '#22d3ee' : '#1e293b'} 
-                    strokeWidth={2}
-                    fill={selectedMapId === m.id ? '#0e293b' : '#0f172a'} 
-                  />
-                )}
-              </View>
               <View style={styles.mapCardBody}>
                 <View style={styles.mapCardMain}>
                   <Text style={styles.mapName}>{m.name}</Text>
@@ -214,44 +244,35 @@ export default function HomeScreen() {
                   </View>
                   <View style={styles.selectionActions}>
                     <View style={[styles.modeToggle, { width: Math.max(1, (selectionPanelWidths[m.id] ?? cardWidth * 0.22) - 20) }]}>
-                      {mode === 'basic' && <ModeSegmentHighlight width={Math.max(1, (selectionPanelWidths[m.id] ?? cardWidth * 0.22) / 2 - 10)} side="left" />}
-                      {mode === 'dynamic' && <ModeSegmentHighlight width={Math.max(1, (selectionPanelWidths[m.id] ?? cardWidth * 0.22) / 2 - 10)} side="right" />}
                       <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
-                        <ChamferedFrame width={Math.max(1, (selectionPanelWidths[m.id] ?? cardWidth * 0.22) - 20)} height={30} chamfer={6} stroke="#22d3ee" fill="transparent" />
+                        <ChamferedFrame width={Math.max(1, (selectionPanelWidths[m.id] ?? cardWidth * 0.22) - 20)} height={30} chamfer={6} stroke="#155e75" fill="transparent" />
                       </View>
-                      <Pressable onPress={() => toggleMode(m.id)} style={[styles.toggleBtn, mode === 'basic' && styles.toggleBtnActive]}>
-                        <Text style={[styles.toggleBtnText, mode === 'basic' && styles.toggleBtnTextActive]}>Basic</Text>
-                      </Pressable>
+                      <ModeSegmentButton width={Math.max(1, (selectionPanelWidths[m.id] ?? cardWidth * 0.22) / 2 - 10)} side="left" selected={mode === 'basic'} onPress={() => setMode(m.id, 'basic')}>Basic</ModeSegmentButton>
                       <View style={[styles.modeDivider, { pointerEvents: 'none' }]} />
-                      <Pressable onPress={() => toggleMode(m.id)} style={[styles.toggleBtn, mode === 'dynamic' && styles.toggleBtnActive]}>
-                        <Text style={[styles.toggleBtnText, mode === 'dynamic' && styles.toggleBtnTextActive]}>Dynamic</Text>
-                      </Pressable>
+                      <ModeSegmentButton width={Math.max(1, (selectionPanelWidths[m.id] ?? cardWidth * 0.22) / 2 - 10)} side="right" selected={mode === 'dynamic'} onPress={() => setMode(m.id, 'dynamic')}>Dynamic</ModeSegmentButton>
                     </View>
-                    <Pressable
-                      style={({ pressed }) => [
+                    <HudButton
+                      width={Math.max(1, (selectionPanelWidths[m.id] ?? cardWidth * 0.22) - 20)}
+                      height={30}
+                      pressedFill="#155e75"
+                      style={[
                         styles.characterBtn,
                         styles.characterBtnShadow,
                         { width: Math.max(1, (selectionPanelWidths[m.id] ?? cardWidth * 0.22) - 20) },
-                        pressed && styles.characterBtnPressed,
                       ]}
                       onPress={() => handlePlaySample(m.id, mode)}
                     >
                       {({ pressed }) => (
-                        <>
-                          <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
-                            <ChamferedFrame width={Math.max(1, (selectionPanelWidths[m.id] ?? cardWidth * 0.22) - 20)} height={30} chamfer={6} stroke="#22d3ee" fill={pressed ? '#155e75' : '#0e7490'} />
-                          </View>
-                          <View style={styles.characterBtnContent}>
-                            <Text style={[styles.characterBtnText, pressed && styles.characterBtnTextPressed]}>CHARACTER</Text>
-                            <CharacterChevron />
-                          </View>
-                        </>
+                        <View style={styles.characterBtnContent}>
+                          <Text style={[styles.characterBtnText, pressed && styles.characterBtnTextPressed]}>CHARACTER</Text>
+                          <CharacterChevron />
+                        </View>
                       )}
-                    </Pressable>
+                    </HudButton>
                   </View>
                 </AnimatedSelectionShell>
               </View>
-            </Pressable>
+            </HudCard>
           </View>
         );
       })}
@@ -265,7 +286,11 @@ export default function HomeScreen() {
               const mode = hackingModes[m.id] || 'dynamic';
               return (
                 <View key={m.id} style={{ position: 'relative', width: cardWidth }}>
-                  <Pressable
+                  <HudCard
+                    width={cardWidth}
+                    height={commonMapHeight ?? cardHeights[m.id] ?? 1}
+                    stroke={selectedMapId === m.id ? '#22d3ee' : '#1e293b'}
+                    fill={selectedMapId === m.id ? '#0e293b' : '#0f172a'}
                     style={[styles.mapCard, commonMapHeight ? { height: commonMapHeight } : null, { width: cardWidth }]}
                     onPress={() => selectMap(m.id)}
                     onLayout={(e) => {
@@ -275,22 +300,15 @@ export default function HomeScreen() {
                       setMeasuredMapIds(prev => new Set(prev).add(m.id));
                     }}
                   >
-                    <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
-                      {cardHeights[m.id] && (
-                        <ChamferedFrame 
-                          width={cardWidth} 
-                          height={cardHeights[m.id]} 
-                          chamfer={16} 
-                          stroke={selectedMapId === m.id ? '#22d3ee' : '#1e293b'} 
-                          strokeWidth={2}
-                          fill={selectedMapId === m.id ? '#0e293b' : '#0f172a'} 
-                        />
-                      )}
-                    </View>
                     <View style={styles.mapCardBody}>
                       <View style={styles.mapCardMain}>
                         <Text style={styles.mapName}>{m.name}</Text>
-                        <Pressable
+                        <HudButton
+                          width={60}
+                          height={24}
+                          chamfer={4}
+                          fill="#1e293b"
+                          pressedFill="#1e293b"
                           style={styles.editBtn}
                           onLayout={(e) => setCardHeights(prev => ({ ...prev, [m.id + '_edit']: e.nativeEvent.layout.height } as any))}
                           onPress={(e) => {
@@ -298,11 +316,8 @@ export default function HomeScreen() {
                             router.push(`/build/${m.id}`);
                           }}
                         >
-                          <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
-                            <ChamferedFrame width={60} height={24} chamfer={4} stroke="#22d3ee" fill="#1e293b" />
-                          </View>
                           <Text style={styles.editBtnText}>Edit</Text>
-                        </Pressable>
+                        </HudButton>
                       </View>
                       <AnimatedSelectionShell
                         active={selectedMapId === m.id}
@@ -315,44 +330,35 @@ export default function HomeScreen() {
                         </View>
                         <View style={styles.selectionActions}>
                           <View style={[styles.modeToggle, { width: Math.max(1, (selectionPanelWidths[m.id] ?? cardWidth * 0.22) - 20) }]}>
-                            {mode === 'basic' && <ModeSegmentHighlight width={Math.max(1, (selectionPanelWidths[m.id] ?? cardWidth * 0.22) / 2 - 10)} side="left" />}
-                            {mode === 'dynamic' && <ModeSegmentHighlight width={Math.max(1, (selectionPanelWidths[m.id] ?? cardWidth * 0.22) / 2 - 10)} side="right" />}
                             <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
-                              <ChamferedFrame width={Math.max(1, (selectionPanelWidths[m.id] ?? cardWidth * 0.22) - 20)} height={30} chamfer={6} stroke="#22d3ee" fill="transparent" />
+                              <ChamferedFrame width={Math.max(1, (selectionPanelWidths[m.id] ?? cardWidth * 0.22) - 20)} height={30} chamfer={6} stroke="#155e75" fill="transparent" />
                             </View>
-                            <Pressable onPress={() => toggleMode(m.id)} style={[styles.toggleBtn, mode === 'basic' && styles.toggleBtnActive]}>
-                              <Text style={[styles.toggleBtnText, mode === 'basic' && styles.toggleBtnTextActive]}>Basic</Text>
-                            </Pressable>
+                            <ModeSegmentButton width={Math.max(1, (selectionPanelWidths[m.id] ?? cardWidth * 0.22) / 2 - 10)} side="left" selected={mode === 'basic'} onPress={() => setMode(m.id, 'basic')}>Basic</ModeSegmentButton>
                             <View style={[styles.modeDivider, { pointerEvents: 'none' }]} />
-                            <Pressable onPress={() => toggleMode(m.id)} style={[styles.toggleBtn, mode === 'dynamic' && styles.toggleBtnActive]}>
-                              <Text style={[styles.toggleBtnText, mode === 'dynamic' && styles.toggleBtnTextActive]}>Dynamic</Text>
-                            </Pressable>
+                            <ModeSegmentButton width={Math.max(1, (selectionPanelWidths[m.id] ?? cardWidth * 0.22) / 2 - 10)} side="right" selected={mode === 'dynamic'} onPress={() => setMode(m.id, 'dynamic')}>Dynamic</ModeSegmentButton>
                           </View>
-                          <Pressable
-                            style={({ pressed }) => [
+                          <HudButton
+                            width={Math.max(1, (selectionPanelWidths[m.id] ?? cardWidth * 0.22) - 20)}
+                            height={30}
+                            pressedFill="#155e75"
+                            style={[
                               styles.characterBtn,
                               styles.characterBtnShadow,
                               { width: Math.max(1, (selectionPanelWidths[m.id] ?? cardWidth * 0.22) - 20) },
-                              pressed && styles.characterBtnPressed,
                             ]}
                             onPress={() => handlePlaySample(m.id, mode)}
                           >
                             {({ pressed }) => (
-                              <>
-                                <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
-                                  <ChamferedFrame width={Math.max(1, (selectionPanelWidths[m.id] ?? cardWidth * 0.22) - 20)} height={30} chamfer={6} stroke="#22d3ee" fill={pressed ? '#155e75' : '#0e7490'} />
-                                </View>
-                                <View style={styles.characterBtnContent}>
-                                  <Text style={[styles.characterBtnText, pressed && styles.characterBtnTextPressed]}>CHARACTER</Text>
-                                  <CharacterChevron />
-                                </View>
-                              </>
+                              <View style={styles.characterBtnContent}>
+                                <Text style={[styles.characterBtnText, pressed && styles.characterBtnTextPressed]}>CHARACTER</Text>
+                                <CharacterChevron />
+                              </View>
                             )}
-                          </Pressable>
+                          </HudButton>
                         </View>
                       </AnimatedSelectionShell>
                     </View>
-                  </Pressable>
+                  </HudCard>
                 </View>
               );
             })}
@@ -469,11 +475,11 @@ const styles = StyleSheet.create({
     borderColor: '#22d3ee',
   },
   toggleBtnTextActive: {
-    color: '#67e8f9',
+    color: '#fff',
   },
   toggleBtnText: {
     fontSize: 9,
-    color: '#f1f5f9',
+    color: '#64748b',
     fontFamily: 'Orbitron-Bold',
   },
   characterBtn: {
@@ -495,7 +501,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Orbitron-Bold',
   },
   characterBtnTextPressed: {
-    color: '#cffafe',
+    color: '#fff',
   },
   characterBtnContent: {
     flexDirection: 'row',

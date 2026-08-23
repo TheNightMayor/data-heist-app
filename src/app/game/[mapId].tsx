@@ -6,7 +6,7 @@
 
 import { useEffect, useState, useMemo, useRef } from 'react';
 import {
-  View, Text, Pressable, StyleSheet, Modal, ScrollView, useWindowDimensions,
+  View, Text, Pressable, StyleSheet, Modal, ScrollView, useWindowDimensions, Animated, Easing,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { nanoid } from 'nanoid';
@@ -25,6 +25,265 @@ import type { FlowNode } from '@/lib/flow/types';
 import { ChamferedFrame } from '@/components/ui/ChamferedFrame';
 import { ScreenBackdrop } from '@/components/ui/ScreenBackdrop';
 import { Toast, type ToastKind } from '@/components/ui/Toast';
+
+const LAUNCH_PHRASE_PAIRS = [
+  ['SPOOFING', 'THE GATEWAY'],
+  ['ROUTING', 'THROUGH GHOST NODES'],
+  ['DECRYPTING', 'SECURITY LAYERS'],
+  ['INJECTING', 'ICEBREAKER PAYLOAD'],
+  ['OPENING', 'THE BACKDOOR'],
+  ['ENUMERATING', 'OPEN PORTS'],
+  ['SNIFFING', 'PACKET TRAFFIC'],
+  ['SPOOFING', 'THE HANDSHAKE'],
+  ['BRUTE-FORCING', 'THE CREDENTIAL HASH'],
+  ['PIVOTING', 'TO THE NEXT HOST'],
+  ['ESCALATING', 'PRIVILEGES'],
+  ['BYPASSING', 'THE SANDBOX'],
+  ['REWRITING', 'ACCESS TOKENS'],
+  ['SPLICING', 'THE DATA STREAM'],
+  ['MASKING', 'OUR SIGNATURE'],
+  ['SEEDING', 'A GHOST PROCESS'],
+  ['BREACHING', 'THE AIR GAP'],
+  ['SCRUBBING', 'TRACE LOGS'],
+  ['SYNCHRONIZING', 'EXPLOIT CHAINS'],
+  ['LOCATING', 'ROOT ACCESS'],
+  ['HANDSHAKE', 'ACCEPTED'],
+  ['SCANNING', 'THE PERIMETER'],
+  ['PROBING', 'DEFENSE ROUTES'],
+  ['MAPPING', 'THE NETWORK'],
+  ['TRACING', 'THE SIGNAL'],
+  ['CLONING', 'A VALID SESSION'],
+  ['FORGING', 'A CLEARANCE TOKEN'],
+  ['CRACKING', 'THE OUTER RING'],
+  ['UNLOCKING', 'THE SECURE CHANNEL'],
+  ['TUNNELING', 'UNDER THE FIREWALL'],
+  ['DODGING', 'THE WATCHDOGS'],
+  ['JAMMING', 'THE ALERT GRID'],
+  ['SILENCING', 'THE AUDIT TRAIL'],
+  ['ERASING', 'OUR FOOTPRINTS'],
+  ['SPOOFING', 'A TRUSTED DEVICE'],
+  ['REPLAYING', 'THE ACCESS CHALLENGE'],
+  ['REVOKING', 'THEIR SESSION KEYS'],
+  ['HIJACKING', 'THE MAINTENANCE LINK'],
+  ['SEIZING', 'THE CONTROL NODE'],
+  ['FORKING', 'A CLEAN ROUTE'],
+  ['PARSING', 'THE ENCRYPTED BUNDLE'],
+  ['UNPACKING', 'THE PAYLOAD CACHE'],
+  ['STAGING', 'THE EXFIL CHANNEL'],
+  ['DIVERTING', 'THE DATA STREAM'],
+  ['PACKAGING', 'THE TARGET FILES'],
+  ['EXTRACTING', 'THE CORE ARCHIVE'],
+  ['PURGING', 'THE TEMPORARY KEYS'],
+  ['CLOSING', 'THE GHOST ROUTE'],
+  ['DISCONNECTING', 'BEFORE TRACEBACK'],
+  ['ESCAPING', 'THE LOCKDOWN'],
+  ['COMMITTING', 'THE FINAL OVERRIDE'],
+];
+const LAUNCH_VERTICAL_DURATION = 620;
+const LAUNCH_DOT_HOLD = 360;
+const LAUNCH_HORIZONTAL_DELAY = 1040;
+const LAUNCH_HORIZONTAL_DURATION = 800;
+const LAUNCH_CONTENT_DELAY = 1960;
+const LAUNCH_REVEAL_FADE_DURATION = 520;
+const LAUNCH_CONTENT_FADE_DURATION = 580;
+const LAUNCH_ANIMATION_DURATION = 6000;
+
+function GameLaunchOverlay({ width, monitorRect, ready, animationComplete, onFinished }: {
+  width: number;
+  monitorRect?: { x: number; y: number; width: number; height: number };
+  ready: boolean;
+  animationComplete: boolean;
+  onFinished: () => void;
+}) {
+  const verticalProgress = useRef(new Animated.Value(0)).current;
+  const wipeProgress = useRef(new Animated.Value(0)).current;
+  const revealOpacity = useRef(new Animated.Value(1)).current;
+  const contentOpacity = useRef(new Animated.Value(0)).current;
+  const contentLift = useRef(new Animated.Value(24)).current;
+  const logTranslateY = useRef(new Animated.Value(0)).current;
+  const enterPulse = useRef(new Animated.Value(0)).current;
+  const enterButtonOpacity = useRef(new Animated.Value(0)).current;
+  const [phraseLog, setPhraseLog] = useState(() => [LAUNCH_PHRASE_PAIRS[0].join(' ')]);
+  const phraseLogRef = useRef([LAUNCH_PHRASE_PAIRS[0].join(' ')]);
+  const buttonInserted = true;
+  const [showEnter, setShowEnter] = useState(false);
+  const isSmallScreen = width < 768;
+  const windowWidth = monitorRect?.width ?? 0;
+  const windowHeight = monitorRect?.height ?? 0;
+  const panelWidth = Math.min(Math.max(windowWidth - 16, 1), 480);
+  const centerFade = wipeProgress.interpolate({
+    inputRange: [0, 0.08, 0.2, 1],
+    outputRange: [1, 1, 0, 0],
+  });
+  const edgeOpacity = Animated.multiply(
+    revealOpacity,
+    wipeProgress.interpolate({
+      inputRange: [0, 0.08, 0.2, 1],
+      outputRange: [0, 0, 1, 1],
+    }),
+  );
+
+  useEffect(() => {
+    Animated.sequence([
+      Animated.delay(LAUNCH_DOT_HOLD),
+      Animated.timing(verticalProgress, { toValue: 1, duration: LAUNCH_VERTICAL_DURATION, useNativeDriver: true }),
+    ]).start();
+    Animated.sequence([
+      Animated.delay(LAUNCH_HORIZONTAL_DELAY),
+      Animated.timing(wipeProgress, { toValue: 1, duration: LAUNCH_HORIZONTAL_DURATION, useNativeDriver: true }),
+    ]).start();
+    Animated.sequence([
+      Animated.delay(LAUNCH_CONTENT_DELAY),
+      Animated.timing(revealOpacity, { toValue: 0, duration: LAUNCH_REVEAL_FADE_DURATION, useNativeDriver: true }),
+    ]).start();
+    Animated.sequence([
+      Animated.delay(LAUNCH_CONTENT_DELAY),
+      Animated.timing(contentOpacity, { toValue: 1, duration: LAUNCH_CONTENT_FADE_DURATION, useNativeDriver: true }),
+    ]).start();
+
+    const phraseTimer = setInterval(() => {
+      const firstIndex = Math.floor(Math.random() * LAUNCH_PHRASE_PAIRS.length);
+      let secondIndex = firstIndex;
+      if (Math.random() < 1 / 3) {
+        while (secondIndex === firstIndex) {
+          secondIndex = Math.floor(Math.random() * LAUNCH_PHRASE_PAIRS.length);
+        }
+      }
+      const nextLog = [
+        ...phraseLogRef.current,
+        `${LAUNCH_PHRASE_PAIRS[firstIndex][0]} ${LAUNCH_PHRASE_PAIRS[secondIndex][1]}`,
+      ].slice(-3);
+      phraseLogRef.current = nextLog;
+      const targetOffset = -(nextLog.length - 1) * 18;
+      logTranslateY.stopAnimation();
+      logTranslateY.setValue(Math.min(0, targetOffset + 18));
+      setPhraseLog(nextLog);
+    }, 1500);
+    return () => {
+      clearInterval(phraseTimer);
+    };
+  }, [contentOpacity, revealOpacity, verticalProgress, wipeProgress]);
+
+  useEffect(() => {
+    const targetOffset = -(phraseLog.length - 1) * 18;
+    logTranslateY.stopAnimation();
+    Animated.timing(logTranslateY, {
+      toValue: targetOffset,
+      duration: 360,
+      useNativeDriver: true,
+    }).start();
+  }, [logTranslateY, phraseLog]);
+
+  useEffect(() => {
+    if (!animationComplete) {
+      setShowEnter(false);
+      contentLift.setValue(24);
+      enterButtonOpacity.setValue(0);
+      return;
+    }
+
+    Animated.timing(contentLift, {
+      toValue: 0,
+      duration: 420,
+      easing: Easing.inOut(Easing.ease),
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) {
+        setShowEnter(true);
+        Animated.timing(enterButtonOpacity, {
+          toValue: 1,
+          duration: 220,
+          useNativeDriver: true,
+        }).start();
+      }
+    });
+  }, [animationComplete, contentLift, enterButtonOpacity]);
+
+  const canEnter = ready && showEnter;
+
+  useEffect(() => {
+    if (!canEnter) {
+      enterPulse.stopAnimation();
+      enterPulse.setValue(0);
+      return;
+    }
+
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(enterPulse, { toValue: 1, duration: 900, useNativeDriver: true }),
+        Animated.timing(enterPulse, { toValue: 0, duration: 900, useNativeDriver: true }),
+      ]),
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, [canEnter, enterPulse]);
+
+  return (
+    <View pointerEvents="auto" style={[styles.gameLaunchOverlay, !monitorRect ? styles.gameLaunchWaitingOverlay : null]}>
+      {monitorRect ? <View style={[styles.gameLaunchWindow, {
+        width: windowWidth,
+        height: windowHeight,
+        left: monitorRect.x,
+        top: monitorRect.y,
+      }]}>
+        <Animated.View style={[StyleSheet.absoluteFill, { opacity: contentOpacity, pointerEvents: 'none' }]}>
+          <ChamferedFrame width={windowWidth} height={windowHeight} chamfer={isSmallScreen ? 12 : 24} stroke="#111827" strokeWidth={12} fill="transparent" />
+          <View style={{ position: 'absolute', top: 14, left: 14 }}>
+            <ChamferedFrame width={Math.max(1, windowWidth - 28)} height={Math.max(1, windowHeight - 28)} chamfer={isSmallScreen ? 8 : 12} stroke="#475569" strokeWidth={4} fill="transparent" />
+          </View>
+        </Animated.View>
+        <Animated.View style={[styles.gameLaunchWipeHalf, styles.gameLaunchWipeLeft, { width: windowWidth / 2, transform: [{ translateX: wipeProgress.interpolate({ inputRange: [0, 1], outputRange: [0, -(windowWidth / 2)] }) }] }]} />
+        <Animated.View style={[styles.gameLaunchWipeHalf, styles.gameLaunchWipeRight, { width: windowWidth / 2, transform: [{ translateX: wipeProgress.interpolate({ inputRange: [0, 1], outputRange: [0, windowWidth / 2] }) }] }]} />
+        <Animated.View style={[styles.gameLaunchVerticalReveal, styles.gameLaunchGlow, { opacity: centerFade, transform: [{ scaleY: verticalProgress }] }]} />
+        <Animated.View style={[styles.gameLaunchEdgeReveal, styles.gameLaunchGlow, styles.gameLaunchEdgeLeft, { opacity: edgeOpacity, transform: [{ translateX: wipeProgress.interpolate({ inputRange: [0, 1], outputRange: [0, -(windowWidth / 2)] }) }] }]} />
+        <Animated.View style={[styles.gameLaunchEdgeReveal, styles.gameLaunchGlow, styles.gameLaunchEdgeRight, { opacity: edgeOpacity, transform: [{ translateX: wipeProgress.interpolate({ inputRange: [0, 1], outputRange: [0, windowWidth / 2] }) }] }]} />
+        <Animated.View style={[styles.gameLaunchCenterDot, styles.gameLaunchGlow, { opacity: centerFade }]} />
+        <Animated.View pointerEvents="auto" style={[styles.gameLaunchPanel, { width: panelWidth, opacity: contentOpacity }]}>
+          <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+            <ChamferedFrame width={panelWidth} height={170} chamfer={12} stroke="#164e63" strokeWidth={2} fill="#020617" />
+          </View>
+          <Animated.View style={[styles.gameLaunchContent, { transform: [{ translateY: contentLift }] }]}>
+            <Text style={styles.gameLaunchTitle}>DATA HEIST // CONNECTING</Text>
+            <View style={[styles.gameLaunchPhraseViewport, { width: Math.max(panelWidth - 24, 1) }]}>
+              <Animated.View style={[styles.gameLaunchPhraseLog, { transform: [{ translateY: logTranslateY }] }]}>
+                {phraseLog.map((logLine, index) => (
+                  <Text
+                    key={`${index}-${logLine}`}
+                    style={styles.gameLaunchPhrase}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.65}
+                  >
+                    {logLine}
+                  </Text>
+                ))}
+              </Animated.View>
+            </View>
+            <View style={styles.gameLaunchProgressTrack}>
+              <View style={styles.gameLaunchProgress} />
+            </View>
+            {buttonInserted ? (
+              <Animated.View style={{ opacity: enterButtonOpacity }}>
+                <Pressable disabled={!canEnter} style={styles.gameLaunchEnterButton} onPress={onFinished}>
+                  {canEnter ? (
+                    <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.gameLaunchEnterGlow, {
+                      opacity: enterPulse.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0.75] }),
+                      transform: [{ scale: enterPulse.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1.08] }) }],
+                    }]} />
+                  ) : null}
+                  <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
+                    <ChamferedFrame width={180} height={40} chamfer={8} stroke="#22d3ee" fill="#0e7490" />
+                  </View>
+                  <Text style={styles.gameLaunchEnterText}>I'M IN</Text>
+                </Pressable>
+              </Animated.View>
+            ) : null}
+          </Animated.View>
+        </Animated.View>
+      </View> : null}
+    </View>
+  );
+}
 
 /**
  * Renders a row of action pips for the currently active player.
@@ -210,12 +469,12 @@ const panelStyles = StyleSheet.create({
 });
 
 export default function GameScreen() {
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const isSmallScreen = windowWidth < 768;
   const rollModalWidth = 400;
   const rollButtonWidth = 272;
 
-  const { mapId } = useLocalSearchParams<{ mapId: string }>();
+  const { mapId, launch } = useLocalSearchParams<{ mapId: string; launch?: string }>();
   const router = useRouter();
   const { state, map, dispatch, persist, endGame, loadGameFromState, startGame } = useGameStore();
 
@@ -241,6 +500,15 @@ export default function GameScreen() {
     info: null,
   });
   const [booting, setBooting] = useState(true);
+  const [launching, setLaunching] = useState(launch === '1');
+  const [launchAnimationComplete, setLaunchAnimationComplete] = useState(false);
+  const [monitorRect, setMonitorRect] = useState({ x: 0, y: 0, width: 0, height: 0 });
+
+  useEffect(() => {
+    if (!launching) return;
+    const animationTimer = setTimeout(() => setLaunchAnimationComplete(true), LAUNCH_ANIMATION_DURATION);
+    return () => clearTimeout(animationTimer);
+  }, [launching]);
 
   // Boot: restore the saved session for this map before falling back to setup.
   useEffect(() => {
@@ -362,7 +630,16 @@ export default function GameScreen() {
   if (booting || !state || !map) {
     return (
       <View style={styles.loading}>
-        <Text style={styles.loadingText}>Loading game…</Text>
+        {!launching ? <Text style={styles.loadingText}>Loading game…</Text> : null}
+        {launching ? (
+          <GameLaunchOverlay
+            width={windowWidth}
+            monitorRect={monitorRect.width > 0 ? monitorRect : undefined}
+            ready={false}
+            animationComplete={launchAnimationComplete}
+            onFinished={() => setLaunching(false)}
+          />
+        ) : null}
       </View>
     );
   }
@@ -660,7 +937,11 @@ export default function GameScreen() {
 
   const handleBack = () => {
     setHeaderMenuOpen(false);
-    router.back();
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+    router.replace(map ? `/setup?mapId=${map.id}` : '/');
   };
 
   const handleLogOut = () => {
@@ -858,6 +1139,7 @@ export default function GameScreen() {
             process: activePlayer.processModifier,
             total: activePlayer.computersModifier
           } : undefined}
+          onMonitorLayout={setMonitorRect}
           renderNode={(n, info) => (
             <FlowNodeView
               node={n}
@@ -1300,6 +1582,15 @@ export default function GameScreen() {
           </View>
         </View>
       </Modal>
+      {launching ? (
+        <GameLaunchOverlay
+          width={windowWidth}
+          monitorRect={monitorRect.width > 0 ? monitorRect : undefined}
+          ready
+          animationComplete={launchAnimationComplete}
+          onFinished={() => setLaunching(false)}
+        />
+      ) : null}
       </View>
     </View>
   );
@@ -1309,6 +1600,111 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
   loading: { flex: 1, backgroundColor: '#020617', alignItems: 'center', justifyContent: 'center' },
   loadingText: { color: '#94a3b8', fontSize: 16 },
+  gameLaunchOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 100,
+  },
+  gameLaunchWaitingOverlay: {
+    backgroundColor: '#020617',
+  },
+  gameLaunchWindow: {
+    position: 'absolute',
+    overflow: 'hidden',
+    backgroundColor: 'transparent',
+  },
+  gameLaunchVerticalReveal: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: '50%',
+    width: 2,
+    marginLeft: -1,
+    backgroundColor: '#22d3ee',
+  },
+  gameLaunchGlow: {
+    shadowColor: '#22d3ee',
+    shadowOpacity: 0.85,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 8,
+    boxShadow: '0px 0px 8px rgba(34, 211, 238, 0.85)',
+  },
+  gameLaunchEdgeReveal: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: '50%',
+    width: 2,
+    marginLeft: -1,
+    backgroundColor: '#22d3ee',
+  },
+  gameLaunchEdgeLeft: {},
+  gameLaunchEdgeRight: {},
+  gameLaunchWipeHalf: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    backgroundColor: '#020617',
+  },
+  gameLaunchWipeLeft: {
+    left: 0,
+  },
+  gameLaunchWipeRight: {
+    right: 0,
+  },
+  gameLaunchCenterDot: {
+    position: 'absolute',
+    left: '50%',
+    top: '50%',
+    width: 6,
+    height: 6,
+    marginLeft: -3,
+    marginTop: -3,
+    borderRadius: 3,
+    backgroundColor: '#67e8f9',
+  },
+  gameLaunchPanel: {
+    height: 170,
+    position: 'absolute',
+    top: '50%',
+    marginTop: -85,
+    alignSelf: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(2, 6, 23, 0.94)',
+  },
+  gameLaunchContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 18,
+  },
+  gameLaunchTitle: { color: '#22d3ee', fontSize: 15, fontFamily: 'Orbitron-Black', letterSpacing: 1 },
+  gameLaunchPhraseViewport: { height: 18, overflow: 'hidden', alignItems: 'center' },
+  gameLaunchPhraseLog: { width: '100%' },
+  gameLaunchPhrase: { height: 18, lineHeight: 18, color: '#f1f5f9', fontSize: 11, fontFamily: 'Orbitron-Bold', letterSpacing: 1, textAlign: 'center' },
+  gameLaunchProgressTrack: { width: '28%', height: 2, backgroundColor: '#155e75' },
+  gameLaunchProgress: { width: '100%', height: 2, backgroundColor: '#22d3ee' },
+  gameLaunchEnterGlow: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 8,
+    backgroundColor: '#22d3ee',
+    shadowColor: '#22d3ee',
+    shadowOpacity: 0.9,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 10,
+    boxShadow: '0px 0px 16px rgba(34, 211, 238, 0.9)',
+  },
+  gameLaunchEnterButton: { width: 180, height: 40, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
+  gameLaunchEnterText: { color: '#fff', fontSize: 12, fontFamily: 'Orbitron-Bold', letterSpacing: 1 },
   header: {
     position: 'absolute',
     top: '11%',
