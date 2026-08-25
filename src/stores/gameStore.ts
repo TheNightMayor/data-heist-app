@@ -154,6 +154,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       log: [],
       finished: false,
       rootAccessAchieved: false,
+      passwordAccessAchieved: false,
     };
     set({ state, map });
   },

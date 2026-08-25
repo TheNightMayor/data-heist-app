@@ -99,7 +99,7 @@ export interface GameState {
    * can highlight that node as the party's current focus.
    */
   pendingAid?: { leadId: string; bonus: number; targetNodeId: string };
-  /** Visited node IDs (for hazard-skip and progress). */
+  /** Visited node IDs for progress and retry state. */
   visitedNodeIds: string[];
   /**
    * IDs of nodes that are permanently failed and locked out for the rest of
@@ -120,7 +120,11 @@ export interface GameState {
   result?: 'win' | 'lose';
   /** Root access has been secured; subsequent hacking DCs are reduced by 20. */
   rootAccessAchieved?: boolean;
+  /** The system password was entered; all subsequent hacking rolls gain +5. */
+  passwordAccessAchieved?: boolean;
 }
+
+export const PASSWORD_HACKING_BONUS = 5;
 
 export function maxCPFor(ranks: number): number {
   return 12 + 2 * ranks;

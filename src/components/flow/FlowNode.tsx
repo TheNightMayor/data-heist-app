@@ -358,7 +358,6 @@ export const FlowNodeView = memo(function FlowNodeView({ node, mode, status = 'a
           <View style={[styles.hexContent, concealed ? { opacity: concealedOpacity } : null, styles.noPointerEvents]}>
             {node.category === 'access' ? <AccessGatewayIcon /> : node.category === 'module' ? <TreasureChestIcon /> : node.category === 'countermeasure' ? <BrickWallIcon /> : <Text style={styles.icon}>{cat.icon}</Text>}
             <Text style={styles.label}>{node.name}</Text>
-            {node.hazard && <Text style={styles.hazard}>!</Text>}
           </View>
         )}
         {(selected || active) && mode === 'game' && !collected && (
@@ -479,7 +478,6 @@ const styles = StyleSheet.create({
     lineHeight: 14,
     minWidth: 140, // Expand past the edges of the hexagon
   },
-  hazard: { position: 'absolute', top: 2, right: 4, fontSize: 10, color: '#fbbf24' },
   collectedOverlay: {
     position: 'absolute',
     width: 108,

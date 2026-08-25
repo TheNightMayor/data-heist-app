@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 import Svg, { Defs, Polygon, RadialGradient, Rect, Stop } from 'react-native-svg';
 import type { FlowNode } from '@/lib/flow/types';
@@ -13,6 +13,7 @@ interface NodeActionPanelProps {
   canPlanTurn: boolean;
   onPlanTurn: () => void;
   onMajorAction: () => void;
+  onPasswordAction?: (password: string) => void;
   onSupportAction?: () => void;
   onBuyMajorAction?: () => void;
   onRefundMajorAction?: () => void;
@@ -28,7 +29,16 @@ interface NodeActionPanelProps {
   otherLeadsExist?: boolean;
   aidBonus?: number;
   isReachable?: boolean;
-  modifiers?: { deceive: number; hack: number; process: number; total: number };
+  modifiers?: {
+    deceive: number;
+    hack: number;
+    process: number;
+    total: number;
+    base?: number;
+    passwordBonus?: number;
+    penalty?: number;
+    aidBonus?: number;
+  };
   hackingMode?: 'basic' | 'dynamic';
   mapTier?: number;
   securityBonus?: number;
@@ -43,6 +53,7 @@ export function NodeActionPanel({
   canPlanTurn,
   onPlanTurn,
   onMajorAction,
+  onPasswordAction,
   onSupportAction,
   onBuyMajorAction,
   onRefundMajorAction,
@@ -66,8 +77,11 @@ export function NodeActionPanel({
   closing = false,
 }: NodeActionPanelProps) {
   const [descriptionOpen, setDescriptionOpen] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
   const [drawerMounted, setDrawerMounted] = useState(false);
   const [drawerSize, setDrawerSize] = useState({ width: 0, height: 0 });
+  const [modifierDrawerOpen, setModifierDrawerOpen] = useState(false);
+  const [modifierDrawerMounted, setModifierDrawerMounted] = useState(false);
   const dc = effectiveDC(mapTier, node.resolve, securityBonus, rootAccessAchieved);
   const subskill = node.resolve?.subskill ?? 'hack';
   const successesRequired = node.resolve?.successesRequired ?? 0;
@@ -96,7 +110,12 @@ export function NodeActionPanel({
   const majorDisabled = !isReachable || basicOutcome !== null || moduleCollected || (!isModule && playerClass === 'support' && actionsCommitted === 0) || (!isModule && actionsTaken >= effectiveCommitted);
 
   const PANEL_WIDTH = 260;
-  const PANEL_HEIGHT = isReachable ? (hackingMode === 'basic' ? 220 : 320) : 160;
+  const hasPasswordAction = isReachable && !!node.password && !!onPasswordAction;
+  const passwordActionHeight = hasPasswordAction ? 74 : 0;
+  const PANEL_HEIGHT = isReachable
+    ? (hackingMode === 'basic' ? 220 + passwordActionHeight : 320 + passwordActionHeight)
+    : 160;
+  const basicDetailsHeight = 164 + passwordActionHeight;
   const actionFrameWidth = hackingMode === 'basic' ? PANEL_WIDTH - 40 : PANEL_WIDTH - 24;
   const drawerChamfer = Math.min(8, drawerSize.width / 2, drawerSize.height / 2);
   const verticalProgress = useSharedValue(0);
@@ -104,6 +123,7 @@ export function NodeActionPanel({
   const revealOpacity = useSharedValue(1);
   const contentOpacity = useSharedValue(0);
   const drawerProgress = useSharedValue(0);
+  const modifierDrawerProgress = useSharedValue(0);
 
   React.useEffect(() => {
     if (closing) {
@@ -134,6 +154,20 @@ export function NodeActionPanel({
     }
   }, [descriptionOpen, drawerMounted, drawerProgress]);
 
+  React.useEffect(() => {
+    if (modifierDrawerOpen) {
+      setModifierDrawerMounted(true);
+      modifierDrawerProgress.value = withTiming(1, { duration: 240 });
+      return;
+    }
+
+    if (modifierDrawerMounted) {
+      modifierDrawerProgress.value = withTiming(0, { duration: 240 }, (finished) => {
+        if (finished) runOnJS(setModifierDrawerMounted)(false);
+      });
+    }
+  }, [modifierDrawerMounted, modifierDrawerOpen, modifierDrawerProgress]);
+
   const verticalRevealStyle = useAnimatedStyle(() => ({
     opacity: revealOpacity.value,
     transform: [{ scaleY: verticalProgress.value }],
@@ -147,6 +181,12 @@ export function NodeActionPanel({
   const drawerStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: (1 - drawerProgress.value) * -12 }],
   }));
+  const modifierDrawerStyle = useAnimatedStyle(() => ({
+    opacity: modifierDrawerProgress.value,
+    transform: [{ translateX: (1 - modifierDrawerProgress.value) * -24 }],
+  }));
+
+  const formatModifier = (value: number) => `${value >= 0 ? '+' : ''}${value}`;
 
   return (
     <Pressable style={[
@@ -188,7 +228,16 @@ export function NodeActionPanel({
       {isReachable && hackingMode === 'basic' ? (
         <View style={[styles.basicPlayerHeader, basicOutcome ? styles.outcomeFaded : null]}>
           <Text style={styles.basicPlayerName}>{playerName}</Text>
-          <Text style={styles.basicComputers}>COMPUTERS +{modifiers?.total ?? 0}</Text>
+          <View style={styles.basicComputersButton}>
+            <Text style={styles.basicComputers}>COMPUTERS {formatModifier(modifiers?.total ?? 0)}</Text>
+            <Pressable
+              accessibilityLabel="Show Computers modifier details"
+              style={styles.modifierDrawerButton}
+              onPress={() => setModifierDrawerOpen((open) => !open)}
+            >
+              <Text style={styles.modifierDrawerIndicator}>&gt;</Text>
+            </Pressable>
+          </View>
         </View>
       ) : isReachable ? (
         <Text style={styles.playerLabel}>{playerName} ({playerClass})</Text>
@@ -196,13 +245,14 @@ export function NodeActionPanel({
 
       <View style={[
         isReachable && hackingMode === 'basic' ? styles.basicDetailsCard : null,
+        isReachable && hackingMode === 'basic' ? { height: basicDetailsHeight } : null,
         !isReachable ? styles.deniedContainer : null,
       ]}>
       {isReachable && hackingMode === 'basic' && !isModule && (
         <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
           <ChamferedFrame
             width={PANEL_WIDTH - 24}
-            height={164}
+            height={basicDetailsHeight}
             chamfer={12}
             stroke={outcomeBorderColor}
             strokeWidth={2}
@@ -315,11 +365,43 @@ export function NodeActionPanel({
                 styles.outcomeMessageText,
                 basicOutcome === 'success' ? styles.successOutcomeText : styles.failureOutcomeText,
               ]}>
-                {basicOutcome === 'success' ? 'Successfully hacked!' : 'Hack failed - node locked'}
+                {basicOutcome === 'success'
+                  ? node.password ? 'Login successful' : 'Successfully hacked!'
+                  : 'Hack failed - node locked'}
               </Text>
             </View>
           ) : (
           <>
+            {node.password && onPasswordAction ? (
+              <>
+                <TextInput
+                  style={styles.passwordInput}
+                  value={passwordInput}
+                  onChangeText={setPasswordInput}
+                  placeholder="Enter password"
+                  placeholderTextColor="#64748b"
+                  autoCapitalize="none"
+                  secureTextEntry
+                  editable={!majorDisabled}
+                />
+                <Pressable
+                  style={[styles.btn, styles.majorBtn, majorDisabled || !passwordInput.trim() ? styles.btnDisabled : null]}
+                  onPress={() => onPasswordAction(passwordInput)}
+                  disabled={majorDisabled || !passwordInput.trim()}
+                >
+                  <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
+                    <ChamferedFrame
+                      width={actionFrameWidth}
+                      height={32}
+                      chamfer={6}
+                      stroke={majorDisabled || !passwordInput.trim() ? '#334155' : '#22d3ee'}
+                      fill={majorDisabled || !passwordInput.trim() ? '#0f172a' : '#0891b2'}
+                    />
+                  </View>
+                  <Text style={styles.btnText}>Enter Password</Text>
+                </Pressable>
+              </>
+            ) : null}
             {canPlanTurn ? (
               <Pressable style={[styles.btn, styles.planBtn]} onPress={onPlanTurn}>
                 <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
@@ -449,6 +531,37 @@ export function NodeActionPanel({
       )}
       </View>
       </Animated.View>
+      {hackingMode === 'basic' && isReachable && modifierDrawerMounted && (
+        <Animated.View style={[styles.modifierDrawer, modifierDrawerStyle]}>
+          <Text style={styles.modifierDrawerTitle}>COMPUTERS MODIFIER</Text>
+          <View style={styles.modifierDetailLine}>
+            <Text style={styles.modifierDetailLabel}>Base</Text>
+            <Text style={styles.modifierDetailValue}>{formatModifier(modifiers?.base ?? 0)}</Text>
+          </View>
+          {(modifiers?.passwordBonus ?? 0) !== 0 && (
+            <View style={styles.modifierDetailLine}>
+              <Text style={styles.modifierDetailLabel}>Password</Text>
+              <Text style={styles.modifierDetailValue}>{formatModifier(modifiers?.passwordBonus ?? 0)}</Text>
+            </View>
+          )}
+          {(modifiers?.penalty ?? 0) !== 0 && (
+            <View style={styles.modifierDetailLine}>
+              <Text style={styles.modifierDetailLabel}>Turn</Text>
+              <Text style={[styles.modifierDetailValue, styles.modifierPenalty]}>{formatModifier(modifiers?.penalty ?? 0)}</Text>
+            </View>
+          )}
+          {(modifiers?.aidBonus ?? 0) !== 0 && (
+            <View style={styles.modifierDetailLine}>
+              <Text style={styles.modifierDetailLabel}>Aid</Text>
+              <Text style={styles.modifierDetailValue}>{formatModifier(modifiers?.aidBonus ?? 0)}</Text>
+            </View>
+          )}
+          <View style={[styles.modifierDetailLine, styles.modifierTotalLine]}>
+            <Text style={styles.modifierDetailLabel}>Total</Text>
+            <Text style={styles.modifierTotalValue}>{formatModifier(modifiers?.total ?? 0)}</Text>
+          </View>
+        </Animated.View>
+      )}
       <View style={styles.descriptionArea}>
         {drawerMounted && (
           <Animated.View
@@ -650,6 +763,80 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontFamily: 'Orbitron-Bold',
   },
+  basicComputersButton: {
+    position: 'relative',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+  },
+  modifierDrawerIndicator: {
+    color: '#94a3b8',
+    fontSize: 12,
+    lineHeight: 12,
+    fontFamily: 'Orbitron-Bold',
+  },
+  modifierDrawerButton: {
+    position: 'absolute',
+    right: -23,
+    top: 0,
+    width: 22,
+    height: 22,
+    backgroundColor: '#0f172a',
+    borderWidth: 1,
+    borderColor: '#475569',
+    borderRadius: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modifierDrawer: {
+    position: 'absolute',
+    top: 8,
+    right: -148,
+    width: 142,
+    padding: 10,
+    backgroundColor: 'rgba(15, 23, 42, 0.98)',
+    borderWidth: 1,
+    borderColor: '#22d3ee',
+    zIndex: 0,
+    elevation: 8,
+  },
+  modifierDrawerTitle: {
+    color: '#22d3ee',
+    fontSize: 8,
+    fontFamily: 'Orbitron-Bold',
+    marginBottom: 8,
+  },
+  modifierDetailLine: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 5,
+  },
+  modifierDetailLabel: {
+    color: '#94a3b8',
+    fontSize: 9,
+    fontFamily: 'Orbitron',
+  },
+  modifierDetailValue: {
+    color: '#cbd5e1',
+    fontSize: 10,
+    fontFamily: 'Orbitron-Bold',
+  },
+  modifierPenalty: {
+    color: '#f87171',
+  },
+  modifierTotalLine: {
+    borderTopWidth: 1,
+    borderTopColor: '#334155',
+    paddingTop: 6,
+    marginTop: 2,
+    marginBottom: 0,
+  },
+  modifierTotalValue: {
+    color: '#67e8f9',
+    fontSize: 12,
+    fontFamily: 'Orbitron-Black',
+  },
   basicNodeHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -658,7 +845,6 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   basicDetailsCard: {
-    height: 164,
     padding: 8,
   },
   deniedContainer: {
@@ -722,6 +908,16 @@ const styles = StyleSheet.create({
   },
   outcomeActions: {
     minHeight: 36,
+  },
+  passwordInput: {
+    height: 32,
+    borderWidth: 1,
+    borderColor: '#475569',
+    backgroundColor: '#0f172a',
+    color: '#f8fafc',
+    paddingHorizontal: 10,
+    fontSize: 12,
+    fontFamily: 'Orbitron',
   },
   btn: {
     height: 32,

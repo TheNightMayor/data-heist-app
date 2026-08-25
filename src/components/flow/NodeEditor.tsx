@@ -115,13 +115,6 @@ export function NodeEditor({ node, onUpdate, onDelete, onClose, availableNodes =
         ) : null}
 
         <Pressable
-          style={[styles.toggle, node.hazard && styles.toggleActive]}
-          onPress={() => onUpdate({ hazard: !node.hazard })}
-        >
-          <Text style={styles.toggleText}>Hazard (skippable on beat-by-10+)</Text>
-        </Pressable>
-
-        <Pressable
           style={[styles.toggle, node.isRootAccess && styles.toggleActive]}
           onPress={() => onUpdate({ isRootAccess: !node.isRootAccess })}
         >

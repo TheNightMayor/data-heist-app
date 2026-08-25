@@ -19,7 +19,7 @@ import { listGames } from '@/lib/game/persistence';
 import { reachableNodes, nodeStatus, nodeProgress } from '@/lib/flow/reachability';
 import { effectiveDC, securityBonusForMap } from '@/lib/starfinder/tables';
 import { resolve, type Outcome } from '@/lib/resolution';
-import { modifierFor } from '@/lib/game/types';
+import { modifierFor, PASSWORD_HACKING_BONUS } from '@/lib/game/types';
 import { turnPenalty } from '@/lib/game/turn';
 import type { FlowNode } from '@/lib/flow/types';
 import { ChamferedFrame } from '@/components/ui/ChamferedFrame';
@@ -570,7 +570,6 @@ export default function GameScreen() {
     if (!map || !state) return new Set<string>();
     return reachableNodes(map, {
       visitedNodeIds: new Set(state.visitedNodeIds),
-      hazardSkipActive: !!state.hazardSkipActive,
       permanentlyFailedNodeIds: new Set(state.permanentlyFailedNodeIds),
       hiddenNodeIds: new Set(state.hiddenNodeIds ?? []),
       wipingNodeIds: new Set(state.wipingNodeIds ?? []),
@@ -588,7 +587,6 @@ export default function GameScreen() {
         node,
         {
           visitedNodeIds: new Set(state.visitedNodeIds),
-          hazardSkipActive: !!state.hazardSkipActive,
           permanentlyFailedNodeIds: new Set(state.permanentlyFailedNodeIds),
           hiddenNodeIds: new Set(state.hiddenNodeIds ?? []),
           wipingNodeIds: new Set(state.wipingNodeIds ?? []),
@@ -617,6 +615,12 @@ export default function GameScreen() {
     if (activePlayer?.class !== 'lead' || !activePlayerId) return 0;
     return state?.pendingAid?.leadId === activePlayerId ? state.pendingAid.bonus : 0;
   }, [activePlayer?.class, activePlayerId, state?.pendingAid]);
+
+  const basicModifierPenalty = turnPenalty(
+    state?.actionsTaken ?? 0,
+    state?.actionsCommitted ? state.rpCommitted : 0,
+  );
+  const basicPasswordBonus = state?.passwordAccessAchieved ? PASSWORD_HACKING_BONUS : 0;
 
   const collectedModules = useMemo(() => {
     if (!map || !state) return [];
@@ -691,7 +695,8 @@ export default function GameScreen() {
 
     const d20 = rollDie(20);
     const subskill = node.resolve?.subskill ?? 'hack';
-    const baseModifier = modifierFor(activePlayer, subskill);
+    const passwordBonus = state.passwordAccessAchieved ? PASSWORD_HACKING_BONUS : 0;
+    const baseModifier = modifierFor(activePlayer, subskill, state.hackingMode) + passwordBonus;
     let modifier = baseModifier;
     const dc = effectiveDC(map.tier, node.resolve, securityBonus, state.rootAccessAchieved);
 
@@ -839,7 +844,7 @@ export default function GameScreen() {
 
     // Roll the Aid check immediately.
     const d20 = rollDie(20);
-    const modifier = modifierFor(activePlayer, 'hack');
+    const modifier = modifierFor(activePlayer, 'hack') + (state.passwordAccessAchieved ? PASSWORD_HACKING_BONUS : 0);
     const baseDC = effectiveDC(map.tier, target.resolve, securityBonus, state.rootAccessAchieved);
     const dc = Math.max(10, baseDC - 10);
     const outcome = resolve({ d20, modifier, dc });
@@ -1114,6 +1119,15 @@ export default function GameScreen() {
             }
             openRollForNode(node, activePlayer?.class === 'support' ? 'support-self' : 'lead');
           }}
+          onPasswordAction={(node, password) => {
+            if (activePlayer) {
+              dispatch({ type: 'ENTER_PASSWORD', playerId: activePlayer.id, node, password });
+              if (password.trim().toLowerCase() === node.password?.trim().toLowerCase()) {
+                showToast('Login successful', 'Global hacking modifier +5', 'success');
+              }
+              setSelectedNode(null);
+            }
+          }}
           onSupportAction={() => setSupportUpgradePromptOpen(true)}
           onBuyMajorAction={() => activePlayer && dispatch({ type: 'SUPPORT_BUY_ACTION', playerId: activePlayer.id })}
           onRefundMajorAction={() => activePlayer && dispatch({ type: 'SUPPORT_REFUND_ACTION', playerId: activePlayer.id })}
@@ -1137,7 +1151,13 @@ export default function GameScreen() {
             deceive: activePlayer.deceiveModifier,
             hack: activePlayer.hackModifier,
             process: activePlayer.processModifier,
-            total: activePlayer.computersModifier
+            total: state.hackingMode === 'basic'
+              ? activePlayer.computersModifier + basicPasswordBonus + basicModifierPenalty + currentAidBonus
+              : activePlayer.computersModifier,
+            base: activePlayer.computersModifier,
+            passwordBonus: basicPasswordBonus,
+            penalty: basicModifierPenalty,
+            aidBonus: currentAidBonus,
           } : undefined}
           onMonitorLayout={setMonitorRect}
           renderNode={(n, info) => (
@@ -1240,7 +1260,7 @@ export default function GameScreen() {
                 </View>
                 {activePlayer && (
                   <Text style={{ color: '#64748b', fontSize: 11, marginTop: 4 }}>
-                    Your Modifier: +{modifierFor(activePlayer, pendingRollNode.resolve?.subskill ?? 'hack', state.hackingMode)}
+                    Your Modifier: +{modifierFor(activePlayer, pendingRollNode.resolve?.subskill ?? 'hack', state.hackingMode) + (state.passwordAccessAchieved ? PASSWORD_HACKING_BONUS : 0)}
                   </Text>
                 )}
               </View>
@@ -1529,7 +1549,9 @@ export default function GameScreen() {
             subtitle: state.hackingMode === 'basic' ? 'Computers Skill Check' : pendingRollNode.name,
             subskill: pendingRollNode.resolve?.subskill ?? 'hack',
             dc: effectiveDC(map.tier, pendingRollNode.resolve, securityBonus, state.rootAccessAchieved),
-            modifier: activePlayer ? modifierFor(activePlayer, pendingRollNode.resolve?.subskill ?? 'hack', state.hackingMode) : 0,
+            modifier: activePlayer
+              ? modifierFor(activePlayer, pendingRollNode.resolve?.subskill ?? 'hack', state.hackingMode) + (state.passwordAccessAchieved ? PASSWORD_HACKING_BONUS : 0)
+              : 0,
             aidBonus: state.pendingAid?.leadId === activePlayer?.id ? state.pendingAid!.bonus : undefined,
             canSpendRP: !!activePlayer && activePlayer.resolvePoints >= 1,
             onRoll: handleRoll,

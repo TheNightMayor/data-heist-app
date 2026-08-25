@@ -28,10 +28,10 @@ export interface FlowNode {
   y: number;
   /** Category drives which checks are required. */
   category: NodeCategory;
+  /** Optional known password that can resolve this node without a hack roll. */
+  password?: string;
   /** Security-module bonus applied to all DCs until this module is collected. */
   security?: number;
-  /** Hazard-flagged access nodes can be skipped after a beat-by-10+ roll. */
-  hazard?: boolean;
   /** Marks the win-condition node. Exactly one per map. */
   isRootAccess?: boolean;
   /** Resolve entry for access/countermeasure nodes. */
@@ -80,8 +80,8 @@ export function createNode(partial: Partial<FlowNode> & Pick<FlowNode, 'id' | 'x
     x: partial.x,
     y: partial.y,
     category,
+    password: partial.password,
     security: partial.security,
-    hazard: partial.hazard,
     isRootAccess: partial.isRootAccess,
     resolve,
     countdown: partial.countdown,

@@ -9,7 +9,7 @@ const map: FlowMap = {
   nodes: [
     { id: 'a', name: 'A', x: 0, y: 0, category: 'access', resolve: { subskill: 'hack', dcModifier: 0, successesRequired: 1 } },
     { id: 'b', name: 'B', x: 1, y: 0, category: 'module', resolve: { subskill: 'hack', dcModifier: 0, successesRequired: 1 } },
-    { id: 'c', name: 'C', x: 2, y: 0, category: 'access', hazard: true, resolve: { subskill: 'hack', dcModifier: 0, successesRequired: 1 } },
+    { id: 'c', name: 'C', x: 2, y: 0, category: 'access', resolve: { subskill: 'hack', dcModifier: 0, successesRequired: 1 } },
     { id: 'd', name: 'D', x: 3, y: 0, category: 'module', resolve: { subskill: 'hack', dcModifier: 0, successesRequired: 1 } },
   ],
   edges: [
@@ -21,38 +21,30 @@ const map: FlowMap = {
 
 describe('reachability', () => {
   test('starting node is reachable', () => {
-    const r = isReachable(map.nodes[0], { visitedNodeIds: new Set(), hazardSkipActive: false }, map);
+    const r = isReachable(map.nodes[0], { visitedNodeIds: new Set() }, map);
     expect(r).toBe(true);
   });
 
   test('downstream node is reachable only after predecessor is completed', () => {
     const d = map.nodes[3];
     // d is downstream of c. Without any progress, d is blocked.
-    expect(isReachable(d, { visitedNodeIds: new Set(), hazardSkipActive: false }, map)).toBe(false);
+    expect(isReachable(d, { visitedNodeIds: new Set() }, map)).toBe(false);
     // c is visited but not completed → d still blocked.
-    expect(isReachable(d, { visitedNodeIds: new Set(['a', 'b', 'c']), hazardSkipActive: false, objectives: {} }, map)).toBe(false);
+    expect(isReachable(d, { visitedNodeIds: new Set(['a', 'b', 'c']), objectives: {} }, map)).toBe(false);
     // c is completed (1/1) → d becomes reachable.
     expect(isReachable(
       d,
       {
         visitedNodeIds: new Set(['a', 'b', 'c']),
-        hazardSkipActive: false,
         objectives: { c: { nodeId: 'c', successes: 1 } },
       },
       map,
     )).toBe(true);
   });
 
-  test('hazard-flagged node is reachable with hazardSkip active', () => {
-    const c = map.nodes[2];
-    expect(isReachable(c, { visitedNodeIds: new Set(), hazardSkipActive: false }, map)).toBe(false);
-    expect(isReachable(c, { visitedNodeIds: new Set(), hazardSkipActive: true }, map)).toBe(true);
-  });
-
   test('reachableNodes returns the right set', () => {
     const set = reachableNodes(map, {
       visitedNodeIds: new Set(['a']),
-      hazardSkipActive: false,
       objectives: {},
     });
     expect(set.has('a')).toBe(true); // visited, always reachable
@@ -81,7 +73,6 @@ describe('reachability', () => {
 describe('nodeStatus', () => {
   const baseState = (overrides: Partial<Parameters<typeof nodeStatus>[1]> = {}) => ({
     visitedNodeIds: new Set<string>(),
-    hazardSkipActive: false,
     permanentlyFailedNodeIds: new Set<string>(),
     objectives: {},
     ...overrides,

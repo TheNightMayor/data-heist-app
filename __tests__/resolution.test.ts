@@ -5,7 +5,6 @@ describe('resolution engine — RP spend', () => {
     const out = resolve({ d20: 1, modifier: -5, dc: 50, spendRP: true });
     expect(out.kind).toBe('rp-spend');
     expect(out.successes).toBe(1);
-    expect(out.hazardSkip).toBe(false);
   });
 
   test('RP spend even at high DC returns 1 success', () => {
@@ -19,7 +18,6 @@ describe('resolution engine — nat 20', () => {
     const out = resolve({ d20: 20, modifier: 0, dc: 25 });
     expect(out.kind).toBe('nat20');
     expect(out.successes).toBe(1);
-    expect(out.hazardSkip).toBe(false);
     expect(out.total).toBe(20);
   });
 
@@ -31,19 +29,17 @@ describe('resolution engine — nat 20', () => {
 });
 
 describe('resolution engine — beat by 10+ (major success)', () => {
-  test('margin >= 10 grants 2 successes + hazard skip', () => {
+  test('margin >= 10 grants 2 successes', () => {
     // d20=18, mod=7 → total 25, DC 15 → margin 10
     const out = resolve({ d20: 18, modifier: 7, dc: 15 });
     expect(out.kind).toBe('major-success');
     expect(out.successes).toBe(2);
-    expect(out.hazardSkip).toBe(true);
   });
 
   test('beat-by-5 is standard success (no bonus)', () => {
     const out = resolve({ d20: 15, modifier: 5, dc: 15 }); // total 20, margin 5
     expect(out.kind).toBe('standard-success');
     expect(out.successes).toBe(1);
-    expect(out.hazardSkip).toBe(false);
   });
 
   test('nat 20 short-circuits to nat20 (not major-success), even with margin >= 10', () => {
@@ -79,7 +75,6 @@ describe('resolution engine — failure', () => {
     const out = resolve({ d20: 14, modifier: 0, dc: 15 }); // total 14, miss by 1
     expect(out.kind).toBe('failure');
     expect(out.successes).toBe(0);
-    expect(out.hazardSkip).toBe(false);
   });
 
   test('miss by 10 is still just failure (no crit fail)', () => {

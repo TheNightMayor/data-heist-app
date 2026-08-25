@@ -115,6 +115,7 @@ interface Props {
   canPlanTurn?: boolean;
   onPlanTurn?: () => void;
   onMajorAction?: (node: FlowNode) => void;
+  onPasswordAction?: (node: FlowNode, password: string) => void;
   onSupportAction?: (node: FlowNode) => void;
   onBuyMajorAction?: () => void;
   onRefundMajorAction?: () => void;
@@ -153,6 +154,7 @@ export function FlowCanvas({
   canPlanTurn,
   onPlanTurn,
   onMajorAction,
+  onPasswordAction,
   onSupportAction,
   onBuyMajorAction,
   onRefundMajorAction,
@@ -660,6 +662,7 @@ export function FlowCanvas({
                         canPlanTurn={canPlanTurn ?? false}
                         onPlanTurn={onPlanTurn ?? (() => {})}
                         onMajorAction={() => onMajorAction?.(node)}
+                        onPasswordAction={(password) => onPasswordAction?.(node, password)}
                         onSupportAction={() => onSupportAction?.(node)}
                         onBuyMajorAction={onBuyMajorAction}
                         onRefundMajorAction={onRefundMajorAction}

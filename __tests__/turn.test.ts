@@ -128,6 +128,35 @@ describe('turn reducer — ROLL_RESOLVE', () => {
     expect(next.actionsTaken).toBe(1);
   });
 
+  test('entering a node password completes it without a roll', () => {
+    const passwordNode = { ...node, password: 'DATAPAD' };
+    const state = makeState();
+    const next = reducer(state, {
+      type: 'ENTER_PASSWORD',
+      playerId: 'p1',
+      node: passwordNode,
+      password: 'DATAPAD',
+    });
+
+    expect(next.objectives.n1.successes).toBe(1);
+    expect(next.visitedNodeIds).toContain('n1');
+    expect(next.log[0].outcome).toBe('password-success');
+    expect(next.actionsTaken).toBe(1);
+    expect(next.passwordAccessAchieved).toBe(true);
+  });
+
+  test('password access adds +5 to later hacking rolls', () => {
+    const state = makeState({ passwordAccessAchieved: true });
+    const next = reducer(state, {
+      type: 'ROLL_RESOLVE',
+      playerId: 'p1',
+      node: { ...node, isRootAccess: false },
+      d20: 10,
+    });
+
+    expect(next.log[0].total).toBe(20);
+  });
+
   test('successfully hacking a wipe does not trigger it', () => {
     const state = makeState();
     const next = reducer(state, {

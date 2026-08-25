@@ -83,7 +83,7 @@ function ThreeIcosahedron({ rolling, bounce }: { rolling: boolean; bounce: Anima
       alpha: true,
       antialias: true,
     });
-    renderer.setPixelRatio(1);
+    renderer.setPixelRatio(gl.drawingBufferWidth / 180);
     renderer.setSize(180, 200, false);
     renderer.setClearColor(0x000000, 0);
 

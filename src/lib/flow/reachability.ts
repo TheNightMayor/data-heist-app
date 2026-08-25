@@ -6,8 +6,6 @@
  *  - It's been **completed** (successes ≥ required) — even partially attempted but failed nodes do NOT unlock downstream, OR
  *  - Any of its incoming edges comes from a **completed** node (visited alone is not enough — must be succeeded)
  *
- * Hazard-flagged nodes are reachable ONLY if hazardSkip is active
- * (i.e. the previous action was a major success / beat-by-10+).
  */
 
 import type { FlowMap, FlowNode, FlowEdge } from './types';
@@ -16,8 +14,6 @@ import type { ObjectiveProgress } from '../game/types';
 export interface ReachabilityState {
   /** IDs of nodes the player has ever tapped. */
   visitedNodeIds?: Set<string>;
-  /** Hazard-skip flag from the last major success. */
-  hazardSkipActive?: boolean;
   /** Per-node progress keyed by node id (used to test "completed"). */
   objectives?: Record<string, ObjectiveProgress>;
   /**
@@ -82,9 +78,6 @@ export function isReachable(
     return isCompleted(parent, state.objectives);
   });
   if (reachableFromCompleted) return true;
-
-  // Hazard-flagged node can be reached via active hazard skip.
-  if (node.hazard && state.hazardSkipActive) return true;
 
   return false;
 }

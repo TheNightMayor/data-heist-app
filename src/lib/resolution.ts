@@ -6,9 +6,9 @@
  * Rules (Starfinder 1e pass/fail + Dynamic Hacking multi-success):
  *  - Spend RP → 1 success regardless of roll (set spendRP=true at call site)
  *  - Nat 20 → auto-success, 1 success (NO auto-promotion to 2; strict 1e)
- *  - Beat DC by 10+ → 2 successes (if multi-success objective), unlocks hazard-skip
+ *  - Beat DC by 10+ → 2 successes (if multi-success objective)
  *  - Beat DC by 1–9 → 1 success
- *  - Miss DC → 0 successes; hazard countdown ticks by 1 if hazard is present
+ *  - Miss DC → 0 successes; countermeasure effects are handled at call site
  *  - Nat 1 → 0 successes + 1d6 CP damage roll (handled at call site; engine just signals)
  *
  * NO SF2e-style "exceed by 5+" tiers — those were removed in plan revision.
@@ -33,8 +33,6 @@ export interface Outcome {
   d20?: number;
   /** How many successes this outcome grants. 0, 1, or 2. */
   successes: number;
-  /** True if this outcome unlocks the hazard-skip for the next hazard node. */
-  hazardSkip: boolean;
   /** For nat 1: rolled 1d6 for CP damage roll. Caller resolves to actual CP loss. */
   cpDamageRoll?: number;
 }
@@ -59,7 +57,6 @@ export function resolve(input: ResolveInput): Outcome {
       kind: 'rp-spend',
       total: dc, // for display only
       successes: 1,
-      hazardSkip: false,
     };
   }
 
@@ -72,7 +69,6 @@ export function resolve(input: ResolveInput): Outcome {
       d20,
       total,
       successes: 1,
-      hazardSkip: false,
     };
   }
 
@@ -83,7 +79,6 @@ export function resolve(input: ResolveInput): Outcome {
       d20,
       total,
       successes: 0,
-      hazardSkip: false,
       cpDamageRoll: rollD6(),
     };
   }
@@ -91,14 +86,13 @@ export function resolve(input: ResolveInput): Outcome {
   const margin = total - dc;
 
   if (margin >= 10) {
-    // Major success — 2 successes (if objective requires multiple) + hazard skip.
+    // Major success — 2 successes for multi-success objectives.
     // Note: nat 20 is caught above and never reaches here.
     return {
       kind: 'major-success',
       d20,
       total,
       successes: 2,
-      hazardSkip: true,
     };
   }
 
@@ -109,17 +103,15 @@ export function resolve(input: ResolveInput): Outcome {
       d20,
       total,
       successes: 1,
-      hazardSkip: false,
     };
   }
 
-  // Failure — 0 successes. Hazard countdown (if any) handled at call site.
+  // Failure — 0 successes. Countermeasure effects are handled at call site.
   return {
     kind: 'failure',
     d20,
     total,
     successes: 0,
-    hazardSkip: false,
   };
 }
 
@@ -144,7 +136,7 @@ export function describeOutcome(outcome: Outcome): string {
     case 'nat20':
       return 'Nat 20! Auto-success';
     case 'major-success':
-      return `Major success (+${outcome.total}). 2 successes, hazard-skip unlocked.`;
+      return `Major success (+${outcome.total}). 2 successes.`;
     case 'standard-success':
       return `Success (+${outcome.total}). 1 success.`;
     case 'failure':

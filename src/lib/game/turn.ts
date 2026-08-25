@@ -15,7 +15,7 @@ import type {
   GameLogEntry,
 } from './types';
 import type { FlowNode, FlowMap } from '../flow/types';
-import { modifierFor } from './types';
+import { modifierFor, PASSWORD_HACKING_BONUS } from './types';
 import { isReachable } from '../flow/reachability';
 
 export type GameAction =
@@ -43,6 +43,7 @@ export type GameAction =
       spendRP?: boolean;
       aidBonus?: number;
     }
+  | { type: 'ENTER_PASSWORD'; playerId: string; node: FlowNode; password: string }
   | { type: 'COLLECT_MODULE'; playerId: string; node: FlowNode }
   | { type: 'ADVANCE_TURN' }
   | { type: 'END_PHASE' }
@@ -73,6 +74,8 @@ export function reducer(state: GameState, action: GameAction, map?: FlowMap): Ga
       return planTurn(state, action);
     case 'ROLL_RESOLVE':
       return rollResolve(state, action, map);
+    case 'ENTER_PASSWORD':
+      return enterPassword(state, action, map);
     case 'COLLECT_MODULE':
       return collectModule(state, action, map);
     case 'ADVANCE_TURN':
@@ -94,6 +97,58 @@ export function reducer(state: GameState, action: GameAction, map?: FlowMap): Ga
     default:
       return state;
   }
+}
+
+function enterPassword(
+  state: GameState,
+  action: Extract<GameAction, { type: 'ENTER_PASSWORD' }>,
+  map?: FlowMap,
+): GameState {
+  const player = state.players.find((candidate) => candidate.id === action.playerId);
+  if (!player || player.ejected || !action.node.password) return state;
+  if (action.password.trim().toLowerCase() !== action.node.password.trim().toLowerCase()) return state;
+  if (map && !isReachable(action.node, {
+    visitedNodeIds: new Set(state.visitedNodeIds),
+    permanentlyFailedNodeIds: new Set(state.permanentlyFailedNodeIds),
+    hiddenNodeIds: new Set(state.hiddenNodeIds ?? []),
+    objectives: state.objectives,
+  }, map)) return state;
+
+  const successesRequired = action.node.resolve?.successesRequired ?? 1;
+  const existing = state.objectives[action.node.id] ?? {
+    nodeId: action.node.id,
+    successes: 0,
+    failures: 0,
+  };
+  const objective = {
+    ...existing,
+    successes: successesRequired,
+  };
+  const effectiveCommitted = state.actionsCommitted > 0 ? state.actionsCommitted : 1;
+  const actionsTaken = state.actionsTaken + 1;
+  const nextPhase: typeof state.phase = state.hackingMode === 'basic' && !state.finished
+    ? 'advancing'
+    : 'resolved';
+
+  return {
+    ...state,
+    visitedNodeIds: state.visitedNodeIds.includes(action.node.id)
+      ? state.visitedNodeIds
+      : [...state.visitedNodeIds, action.node.id],
+    objectives: { ...state.objectives, [action.node.id]: objective },
+    log: [{
+      turn: state.turn,
+      playerId: player.id,
+      nodeId: action.node.id,
+      outcome: 'password-success',
+      successesGained: Math.max(0, successesRequired - existing.successes),
+    }, ...state.log].slice(0, 20),
+    rootAccessAchieved: state.rootAccessAchieved || Boolean(action.node.isRootAccess),
+    passwordAccessAchieved: true,
+    actionsCommitted: effectiveCommitted,
+    actionsTaken,
+    phase: nextPhase,
+  };
 }
 
 function setPairedLead(state: GameState, supportId: string, leadId?: string): GameState {
@@ -243,7 +298,8 @@ function rollResolve(
   const subskill = node.resolve?.subskill ?? 'hack';
   const baseModifier = modifierFor(player, subskill, state.hackingMode);
   const penalty = turnPenalty(state.actionsTaken, effectiveRPCommitted);
-  const modifier = baseModifier + penalty + (action.aidBonus ?? 0);
+  const passwordBonus = state.passwordAccessAchieved ? PASSWORD_HACKING_BONUS : 0;
+  const modifier = baseModifier + passwordBonus + penalty + (action.aidBonus ?? 0);
 
   const outcome: Outcome = resolveRoll({
     d20: action.d20,
@@ -372,7 +428,6 @@ function rollResolve(
     actionsCommitted: effectiveCommitted,
     rpCommitted: effectiveRPCommitted,
     phase: nextPhase,
-    hazardSkipActive: outcome.hazardSkip,
     pendingAid,
   };
 }
@@ -428,7 +483,7 @@ function advanceTurn(state: GameState, _map?: FlowMap): GameState {
   }
   // If we couldn't find any non-ejected player, stay put and don't increment.
   if (found === -1) {
-    return { ...state, phase: 'idle', hazardSkipActive: false };
+    return { ...state, phase: 'idle' };
   }
 
   // Round increments when active player wraps back to index 0
@@ -441,7 +496,6 @@ function advanceTurn(state: GameState, _map?: FlowMap): GameState {
     // Default phase is 'idle' — planning is opt-in via PLAN_TURN.
     // The first roll auto-commits 1 action / 0 RP if no PLAN_TURN was issued.
     phase: 'idle',
-    hazardSkipActive: false,
     round,
     // Reset per-turn counters for the new active player.
     actionsCommitted: 0,
@@ -509,7 +563,7 @@ function supportAid(
   const dc = Math.max(10, baseDC - 10);
 
   // Use the Support's hack modifier (Aid is a Computers/hack-style check).
-  const modifier = modifierFor(support, 'hack');
+  const modifier = modifierFor(support, 'hack') + (state.passwordAccessAchieved ? PASSWORD_HACKING_BONUS : 0);
   const outcome = resolveRoll({ d20: action.d20, modifier, dc, spendRP: action.spendRP });
 
   // Determine bonus. RP-spend auto-success → +2.
@@ -581,13 +635,7 @@ function supportAid(
     log,
     pendingAid,
     minorActionsTaken: state.minorActionsTaken + 1,
-    phase: 'resolved', 
-    hazardSkipActive: false,
+    phase: 'resolved',
   };
-}
-declare module './types' {
-  interface GameState {
-    hazardSkipActive?: boolean;
-  }
 }
 
