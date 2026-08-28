@@ -137,6 +137,8 @@ export function ResultModal({ visible, result, rolling, playerName, nodeName, ha
   const [spinningD20, setSpinningD20] = useState(1);
   const [modalSize, setModalSize] = useState({ w: 0, h: 0 });
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const failureShake = useRef(new Animated.Value(0)).current;
+  const failureFlash = useRef(new Animated.Value(0)).current;
 
   // Spin animation: cycle random numbers while rolling.
   useEffect(() => {
@@ -155,6 +157,28 @@ export function ResultModal({ visible, result, rolling, playerName, nodeName, ha
     }
   }, [rolling, result, scaleAnim]);
 
+  useEffect(() => {
+    if (result?.kind !== 'failure' || rolling) {
+      failureShake.setValue(0);
+      failureFlash.setValue(0);
+      return;
+    }
+
+    Animated.sequence([
+      Animated.timing(failureShake, { toValue: -6, duration: 45, useNativeDriver: true }),
+      Animated.timing(failureShake, { toValue: 6, duration: 55, useNativeDriver: true }),
+      Animated.timing(failureShake, { toValue: -4, duration: 45, useNativeDriver: true }),
+      Animated.timing(failureShake, { toValue: 4, duration: 45, useNativeDriver: true }),
+      Animated.timing(failureShake, { toValue: 0, duration: 55, useNativeDriver: true }),
+    ]).start();
+    Animated.sequence([
+      Animated.timing(failureFlash, { toValue: 0.55, duration: 55, useNativeDriver: true }),
+      Animated.timing(failureFlash, { toValue: 0, duration: 180, useNativeDriver: true }),
+      Animated.timing(failureFlash, { toValue: 0.3, duration: 45, useNativeDriver: true }),
+      Animated.timing(failureFlash, { toValue: 0, duration: 160, useNativeDriver: true }),
+    ]).start();
+  }, [failureFlash, failureShake, result, rolling]);
+
   if (!visible) return null;
 
   const showResult = !rolling && result;
@@ -163,8 +187,8 @@ export function ResultModal({ visible, result, rolling, playerName, nodeName, ha
   return (
     <Modal visible={visible} transparent animationType="fade">
       <View style={styles.backdrop}>
-        <View 
-          style={styles.modal}
+        <Animated.View
+          style={[styles.modal, { transform: [{ translateX: failureShake }] }]}
           onLayout={(e) => setModalSize({ 
             w: e.nativeEvent.layout.width, 
             h: e.nativeEvent.layout.height 
@@ -181,6 +205,7 @@ export function ResultModal({ visible, result, rolling, playerName, nodeName, ha
               />
             )}
           </View>
+          <Animated.View style={[styles.failureFlash, { opacity: failureFlash }]} pointerEvents="none" />
           <Text style={styles.title}>
             {showPreRoll
               ? preRoll.title
@@ -271,7 +296,7 @@ export function ResultModal({ visible, result, rolling, playerName, nodeName, ha
               <Text style={styles.continueBtnText}>Continue</Text>
             </Pressable>
           ) : null}
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );
@@ -287,12 +312,18 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   modal: {
+    position: 'relative',
     padding: 24,
     width: '100%',
     maxWidth: 380,
     height: 520,
     gap: 16,
     alignItems: 'center',
+  },
+  failureFlash: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(239, 68, 68, 0.9)',
+    zIndex: 1,
   },
   title: { fontSize: 13, color: '#94a3b8', textTransform: 'uppercase', fontWeight: '700', letterSpacing: 1, textAlign: 'center' },
   preRollContent: { alignItems: 'center', gap: 10, width: '100%' },

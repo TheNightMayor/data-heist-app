@@ -1,0 +1,34 @@
+export * from './wipe';
+export * from './feedback';
+export * from './fakeShell';
+export * from './alarm';
+export * from './lockout';
+export * from './shockGrid';
+export * from './firewall';
+
+import { WIPE_COUNTERMEASURE, WIPE_COUNTERMEASURE_LABEL } from './wipe';
+import { FEEDBACK_COUNTERMEASURE, FEEDBACK_COUNTERMEASURE_LABEL } from './feedback';
+import { FAKE_SHELL_COUNTERMEASURE, FAKE_SHELL_COUNTERMEASURE_LABEL } from './fakeShell';
+import { ALARM_COUNTERMEASURE, ALARM_COUNTERMEASURE_LABEL } from './alarm';
+import { LOCKOUT_COUNTERMEASURE, LOCKOUT_COUNTERMEASURE_LABEL } from './lockout';
+import { SHOCK_GRID_COUNTERMEASURE, SHOCK_GRID_COUNTERMEASURE_LABEL } from './shockGrid';
+import { FIREWALL_COUNTERMEASURE, FIREWALL_COUNTERMEASURE_LABEL } from './firewall';
+
+export type CountermeasureType =
+  | typeof WIPE_COUNTERMEASURE
+  | typeof FEEDBACK_COUNTERMEASURE
+  | typeof FAKE_SHELL_COUNTERMEASURE
+  | typeof ALARM_COUNTERMEASURE
+  | typeof LOCKOUT_COUNTERMEASURE
+  | typeof SHOCK_GRID_COUNTERMEASURE
+  | typeof FIREWALL_COUNTERMEASURE;
+
+export const COUNTERMEASURE_OPTIONS: { value: CountermeasureType; label: string }[] = [
+  { value: WIPE_COUNTERMEASURE, label: WIPE_COUNTERMEASURE_LABEL },
+  { value: FEEDBACK_COUNTERMEASURE, label: FEEDBACK_COUNTERMEASURE_LABEL },
+  { value: FAKE_SHELL_COUNTERMEASURE, label: FAKE_SHELL_COUNTERMEASURE_LABEL },
+  { value: ALARM_COUNTERMEASURE, label: ALARM_COUNTERMEASURE_LABEL },
+  { value: LOCKOUT_COUNTERMEASURE, label: LOCKOUT_COUNTERMEASURE_LABEL },
+  { value: SHOCK_GRID_COUNTERMEASURE, label: SHOCK_GRID_COUNTERMEASURE_LABEL },
+  { value: FIREWALL_COUNTERMEASURE, label: FIREWALL_COUNTERMEASURE_LABEL },
+];

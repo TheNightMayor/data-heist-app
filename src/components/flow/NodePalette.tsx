@@ -5,6 +5,7 @@
 
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import type { NodeCategory } from '@/lib/flow/types';
+import { ACCESS_NODE_CATEGORY, COUNTERMEASURE_NODE_CATEGORY, MODULE_NODE_CATEGORY } from '@/lib/flow/nodes';
 import { ChamferedFrame } from '../ui/ChamferedFrame';
 
 interface Props {
@@ -14,9 +15,9 @@ interface Props {
 
 export function NodePalette({ onPick, active }: Props) {
   const items: { category: NodeCategory; label: string; icon: string; color: string }[] = [
-    { category: 'module', label: 'Module', icon: 'M', color: '#1e3a8a' },
-    { category: 'countermeasure', label: 'Firewall', icon: 'C', color: '#7f1d1d' },
-    { category: 'access', label: 'Access', icon: 'A', color: '#1e3a8a' },
+    { category: MODULE_NODE_CATEGORY, label: 'Module', icon: 'M', color: '#1e3a8a' },
+    { category: COUNTERMEASURE_NODE_CATEGORY, label: 'Firewall', icon: 'C', color: '#7f1d1d' },
+    { category: ACCESS_NODE_CATEGORY, label: 'Access', icon: 'A', color: '#1e3a8a' },
   ];
   return (
     <View style={styles.palette}>
@@ -48,7 +49,6 @@ const styles = StyleSheet.create({
     left: 12,
     width: 110,
     height: 180,
-      height: 145,
     padding: 8,
     gap: 6,
   },

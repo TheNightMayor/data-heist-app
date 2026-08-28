@@ -14,7 +14,7 @@
 
 import { memo, useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import Svg, { Circle, Polygon, Path } from 'react-native-svg';
+import Svg, { Circle, ClipPath, Defs, Polygon, Path } from 'react-native-svg';
 import Animated, {
   useSharedValue,
   withRepeat,
@@ -25,12 +25,15 @@ import Animated, {
   useAnimatedProps as useReanimatedProps,
 } from 'react-native-reanimated';
 import { ChamferedFrame } from '../ui/ChamferedFrame';
+import type { FlowNode, NodeCategory } from '@/lib/flow/types';
+import type { NodeStatus } from '@/lib/flow/reachability';
 
 const AnimatedPolygon = Animated.createAnimatedComponent(Polygon);
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+const AnimatedPath = Animated.createAnimatedComponent(Path);
 
 interface Props {
-  node: FlowNodeType;
+  node: FlowNode;
   mode: 'build' | 'game';
   status?: NodeStatus;
   /** 0..1 — fraction of successes / successesRequired. */
@@ -73,8 +76,8 @@ const RING_COLORS: Record<NodeStatus, string> = {
 };
 
 /** Inner-box tint per category. The border is reserved for state. */
-const CATEGORY_COLORS = {
-  module: { fill: '#78350f', border: '#fbbf24', icon: 'M' },
+const CATEGORY_COLORS: Record<NodeCategory, { fill: string; border: string; icon: string }> = {
+  module: { fill: '#854d0e', border: '#fbbf24', icon: 'M' },
   countermeasure: { fill: '#7f1d1d', border: '#f87171', icon: 'C' },
   access: { fill: '#1e3a8a', border: '#60a5fa', icon: 'A' },
 } as const;
@@ -99,38 +102,94 @@ const PORTAL_SPIRAL_PATH = (() => {
 function TreasureChestIcon() {
   return (
     <Svg width={34} height={30} viewBox="0 0 34 30">
-      <Path
-        d="M 5 13 L 8 5 H 28 L 25 13 Z"
-        fill="#7c2d12"
-        stroke="#fbbf24"
-        strokeWidth={1.5}
-        strokeLinejoin="round"
-      />
-      <Path
-        d="M 7 12 H 27 V 26 H 7 Z"
-        fill="#92400e"
-        stroke="#fbbf24"
-        strokeWidth={1.5}
-        strokeLinejoin="round"
-      />
-      <Path
-        d="M 7 13 H 27"
-        fill="none"
-        stroke="#fcd34d"
-        strokeWidth={2}
-      />
-      <Circle cx={12} cy={11} r={3} fill="#facc15" stroke="#fef08a" strokeWidth={1} />
-      <Circle cx={18} cy={10} r={3.5} fill="#fbbf24" stroke="#fef08a" strokeWidth={1} />
-      <Circle cx={23} cy={11} r={2.5} fill="#facc15" stroke="#fef08a" strokeWidth={1} />
-      <Polygon points="17,15 20,18 17,21 14,18" fill="#22d3ee" stroke="#a5f3fc" strokeWidth={1} />
-      <Path
-        d="M 15 22 H 19 M 17 21 V 24"
-        fill="none"
-        stroke="#fcd34d"
-        strokeWidth={1.5}
-        strokeLinecap="round"
-      />
+      <Path d="M 5 12 Q 5 4 14 3 H 25 Q 29 5 29 12 Z" fill="#b45309" stroke="#fbbf24" strokeWidth={1.5} strokeLinejoin="round" />
+      <Path d="M 24 12 C 24 7 25 4 26.5 4 C 28 4 29 7 29 9" fill="none" stroke="#d97706" strokeWidth={1.2} strokeLinecap="round" />
+      <Path d="M 5 12 H 24 V 25 H 5 Z" fill="#92400e" stroke="#fbbf24" strokeWidth={1.5} strokeLinejoin="round" />
+      <Path d="M 24 12 L 29 9 V 21 L 24 25 Z" fill="#78350f" stroke="#d97706" strokeWidth={1.5} strokeLinejoin="round" />
+      <Path d="M 8 12 V 25 M 21 12 V 25" stroke="#fbbf24" strokeWidth={1.2} />
+      <Path d="M 5 14 H 24" stroke="#fcd34d" strokeWidth={1.5} />
+      <Polygon points="13.5,16 16,16 16.7,18.5 15.5,21 13.5,21 12.8,18.5" fill="#fbbf24" stroke="#fef08a" strokeWidth={1} strokeLinejoin="round" />
     </Svg>
+  );
+}
+
+function ModuleSparkle({ small = false }: { small?: boolean }) {
+  const sparkleMotion = useSharedValue(0);
+
+  useEffect(() => {
+    sparkleMotion.value = withRepeat(
+      withTiming(1, { duration: 1100, easing: Easing.inOut(Easing.sin) }),
+      -1,
+      true,
+    );
+
+    return () => cancelAnimation(sparkleMotion);
+  }, [sparkleMotion]);
+
+  const sparkleStyle = useAnimatedStyle(() => ({
+    opacity: 0.35 + sparkleMotion.value * 0.65,
+    transform: [
+      { scale: 0.75 + sparkleMotion.value * 0.35 },
+      { rotate: `${sparkleMotion.value * 12 - 6}deg` },
+    ],
+  }), [sparkleMotion]);
+
+  return (
+    <Animated.View style={[styles.moduleSparkle, sparkleStyle]}>
+      <Svg width={small ? 14 : 22} height={small ? 14 : 22} viewBox="0 0 22 22">
+        <Path
+          d="M11 0 L13 8 L22 11 L13 13 L11 22 L9 13 L0 11 L9 8 Z"
+          fill="#fef08a"
+          stroke="#fbbf24"
+          strokeWidth={1}
+        />
+      </Svg>
+    </Animated.View>
+  );
+}
+
+function ModuleGleam({ collected, clipId }: { collected: boolean; clipId: string }) {
+  const gleamMotion = useSharedValue(0);
+
+  useEffect(() => {
+    if (collected) {
+      cancelAnimation(gleamMotion);
+      gleamMotion.value = 0;
+      return;
+    }
+
+    gleamMotion.value = withRepeat(
+      withTiming(1, { duration: 1800, easing: Easing.inOut(Easing.sin) }),
+      -1,
+      false,
+    );
+
+    return () => cancelAnimation(gleamMotion);
+  }, [collected, gleamMotion]);
+
+  const gleamProps = useReanimatedProps(() => ({
+    points: `${gleamMotion.value * 130 - 65},-20 ${gleamMotion.value * 130 - 47},-20 ${gleamMotion.value * 130 + 53},120 ${gleamMotion.value * 130 + 35},120`,
+    opacity: 0.55,
+  }), [gleamMotion]);
+
+  if (collected) return null;
+
+  return (
+    <Animated.View style={styles.moduleGleam} pointerEvents="none">
+      <Svg width={NODE_SIZE} height={NODE_SIZE} viewBox={`0 0 ${NODE_SIZE} ${NODE_SIZE}`}>
+        <Defs>
+          <ClipPath id={clipId}>
+            <Polygon points={HEX_POINTS} />
+          </ClipPath>
+        </Defs>
+        <AnimatedPolygon
+          points="0,-20 18,-20 118,120 100,120"
+          fill="#fef3c7"
+          clipPath={`url(#${clipId})`}
+          animatedProps={gleamProps}
+        />
+      </Svg>
+    </Animated.View>
   );
 }
 
@@ -354,9 +413,24 @@ export const FlowNodeView = memo(function FlowNodeView({ node, mode, status = 'a
             animatedProps={animatedHexProps}
           />
         </Svg>
+        {node.category === 'module' && !concealed && (
+          <ModuleGleam collected={collected} clipId={`module-gleam-${node.id}`} />
+        )}
         {!concealed && (
           <View style={[styles.hexContent, concealed ? { opacity: concealedOpacity } : null, styles.noPointerEvents]}>
-            {node.category === 'access' ? <AccessGatewayIcon /> : node.category === 'module' ? <TreasureChestIcon /> : node.category === 'countermeasure' ? <BrickWallIcon /> : <Text style={styles.icon}>{cat.icon}</Text>}
+            {node.category === 'access' ? <AccessGatewayIcon /> : node.category === 'module' ? (
+              <View style={styles.moduleIcon}>
+                <TreasureChestIcon />
+                {!collected && (
+                  <>
+                    <ModuleSparkle />
+                    <View style={styles.moduleSparkleSmall}>
+                      <ModuleSparkle small />
+                    </View>
+                  </>
+                )}
+              </View>
+            ) : node.category === 'countermeasure' ? <BrickWallIcon /> : <Text style={styles.icon}>{cat.icon}</Text>}
             <Text style={styles.label}>{node.name}</Text>
           </View>
         )}
@@ -423,6 +497,35 @@ const styles = StyleSheet.create({
     width: 62,
     height: 42,
     position: 'relative',
+  },
+  moduleIcon: {
+    width: 46,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  moduleSparkle: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    width: 22,
+    height: 22,
+  },
+  moduleSparkleSmall: {
+    position: 'absolute',
+    top: 24,
+    left: -10,
+    width: 14,
+    height: 14,
+  },
+  moduleGleam: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: NODE_SIZE,
+    height: NODE_SIZE,
+    zIndex: 1,
   },
   fireLayer: {
     position: 'absolute',

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
-import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
-import Svg, { Defs, Polygon, RadialGradient, Rect, Stop } from 'react-native-svg';
+import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withDelay, withSequence, withTiming } from 'react-native-reanimated';
+import Svg, { Circle, Defs, Polygon, RadialGradient, Rect, Stop } from 'react-native-svg';
 import type { FlowNode } from '@/lib/flow/types';
 import { effectiveDC } from '@/lib/starfinder/tables';
 import { ChamferedFrame } from '../ui/ChamferedFrame';
@@ -44,6 +44,8 @@ interface NodeActionPanelProps {
   securityBonus?: number;
   rootAccessAchieved?: boolean;
   closing?: boolean;
+  hideInfoDrawers?: boolean;
+  outcomeAnimationReady?: boolean;
 }
 
 export function NodeActionPanel({
@@ -75,6 +77,8 @@ export function NodeActionPanel({
   securityBonus = 0,
   rootAccessAchieved = false,
   closing = false,
+  hideInfoDrawers = false,
+  outcomeAnimationReady = true,
 }: NodeActionPanelProps) {
   const [descriptionOpen, setDescriptionOpen] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
@@ -88,7 +92,7 @@ export function NodeActionPanel({
   const isModule = node.category === 'module';
   const requiredSuccesses = successesRequired || 1;
   const moduleCollected = isModule && successes >= requiredSuccesses;
-  const failuresRequired = 3;
+  const failuresRequired = node.countermeasureType === 'wipe' ? 2 : 3;
   const basicOutcome = !isModule && hackingMode === 'basic'
     ? successes >= requiredSuccesses
       ? 'success'
@@ -96,7 +100,9 @@ export function NodeActionPanel({
         ? 'failure'
         : null
     : null;
-  const outcomeBorderColor = basicOutcome === 'success'
+  const isSuccessOutcome = basicOutcome === 'success' || moduleCollected;
+  const hasTerminalOutcome = basicOutcome !== null || moduleCollected;
+  const outcomeBorderColor = isSuccessOutcome
     ? 'rgba(52, 211, 153, 0.4)'
     : basicOutcome === 'failure'
       ? 'rgba(248, 113, 113, 0.4)'
@@ -112,10 +118,11 @@ export function NodeActionPanel({
   const PANEL_WIDTH = 260;
   const hasPasswordAction = isReachable && !!node.password && !!onPasswordAction;
   const passwordActionHeight = hasPasswordAction ? 74 : 0;
+  const infoDrawersHidden = hideInfoDrawers || basicOutcome !== null || moduleCollected;
   const PANEL_HEIGHT = isReachable
-    ? (hackingMode === 'basic' ? 220 + passwordActionHeight : 320 + passwordActionHeight)
+    ? (hackingMode === 'basic' ? (basicOutcome ? 220 : 220 + passwordActionHeight) : 320 + passwordActionHeight)
     : 160;
-  const basicDetailsHeight = 164 + passwordActionHeight;
+  const basicDetailsHeight = basicOutcome ? 164 : 164 + passwordActionHeight;
   const actionFrameWidth = hackingMode === 'basic' ? PANEL_WIDTH - 40 : PANEL_WIDTH - 24;
   const drawerChamfer = Math.min(8, drawerSize.width / 2, drawerSize.height / 2);
   const verticalProgress = useSharedValue(0);
@@ -124,10 +131,44 @@ export function NodeActionPanel({
   const contentOpacity = useSharedValue(0);
   const drawerProgress = useSharedValue(0);
   const modifierDrawerProgress = useSharedValue(0);
+  const infoProgress = useSharedValue(0);
+  const successOutcomeProgress = useSharedValue(0);
+  const failureOutcomeProgress = useSharedValue(0);
+  const failureOutcomeOpacity = useSharedValue(0);
+
+  React.useEffect(() => {
+    if (isSuccessOutcome && outcomeAnimationReady) {
+      successOutcomeProgress.value = 0;
+      successOutcomeProgress.value = withTiming(1, {
+        duration: 420,
+        easing: Easing.out(Easing.cubic),
+      });
+    }
+  }, [isSuccessOutcome, outcomeAnimationReady, successOutcomeProgress]);
+
+  React.useEffect(() => {
+    if (basicOutcome === 'failure' && outcomeAnimationReady) {
+      failureOutcomeProgress.value = withSequence(
+        withTiming(-8, { duration: 55 }),
+        withTiming(8, { duration: 70 }),
+        withTiming(-5, { duration: 60 }),
+        withTiming(0, { duration: 65 }),
+      );
+      failureOutcomeOpacity.value = withTiming(1, { duration: 160 });
+    }
+  }, [basicOutcome, failureOutcomeOpacity, failureOutcomeProgress, outcomeAnimationReady]);
+
+  React.useEffect(() => {
+    if (infoDrawersHidden) {
+      setDescriptionOpen(false);
+      setModifierDrawerOpen(false);
+    }
+  }, [infoDrawersHidden]);
 
   React.useEffect(() => {
     if (closing) {
       contentOpacity.value = withTiming(0, { duration: 180 });
+      infoProgress.value = withTiming(0, { duration: 120 });
       revealOpacity.value = 1;
       horizontalProgress.value = withTiming(0, { duration: 240 });
       verticalProgress.value = withDelay(240, withTiming(0, { duration: 180 }));
@@ -138,7 +179,8 @@ export function NodeActionPanel({
     horizontalProgress.value = withDelay(180, withTiming(1, { duration: 240 }));
     revealOpacity.value = withDelay(360, withTiming(0, { duration: 160 }));
     contentOpacity.value = withDelay(360, withTiming(1, { duration: 180 }));
-  }, [closing, contentOpacity, horizontalProgress, revealOpacity, verticalProgress]);
+    infoProgress.value = withDelay(540, withTiming(1, { duration: 180 }));
+  }, [closing, contentOpacity, horizontalProgress, infoProgress, revealOpacity, verticalProgress]);
 
   React.useEffect(() => {
     if (descriptionOpen) {
@@ -178,6 +220,10 @@ export function NodeActionPanel({
   }));
   const dotRevealStyle = useAnimatedStyle(() => ({ opacity: closing ? 1 : revealOpacity.value }));
   const contentStyle = useAnimatedStyle(() => ({ opacity: contentOpacity.value }));
+  const infoStyle = useAnimatedStyle(() => ({
+    opacity: infoProgress.value,
+    transform: [{ translateY: (1 - infoProgress.value) * -18 }],
+  }));
   const drawerStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: (1 - drawerProgress.value) * -12 }],
   }));
@@ -185,6 +231,17 @@ export function NodeActionPanel({
     opacity: modifierDrawerProgress.value,
     transform: [{ translateX: (1 - modifierDrawerProgress.value) * -24 }],
   }));
+  const successOutcomeStyle = useAnimatedStyle(() => ({
+    opacity: successOutcomeProgress.value,
+    transform: [
+      { translateY: (1 - successOutcomeProgress.value) * -18 },
+      { scale: 0.92 + successOutcomeProgress.value * 0.08 },
+    ],
+  }), [successOutcomeProgress]);
+  const failureOutcomeStyle = useAnimatedStyle(() => ({
+    opacity: failureOutcomeOpacity.value,
+    transform: [{ translateX: failureOutcomeProgress.value }],
+  }), [failureOutcomeOpacity, failureOutcomeProgress]);
 
   const formatModifier = (value: number) => `${value >= 0 ? '+' : ''}${value}`;
 
@@ -199,7 +256,9 @@ export function NodeActionPanel({
       }
     ]}>
       <Animated.View style={[styles.verticalReveal, verticalRevealStyle, { pointerEvents: 'none' }]} />
-      <Animated.View style={[styles.horizontalReveal, horizontalRevealStyle, { pointerEvents: 'none' }]} />
+      <View style={[styles.horizontalRevealClip, { pointerEvents: 'none' }]}>
+        <Animated.View style={[styles.horizontalReveal, horizontalRevealStyle]} />
+      </View>
       <Animated.View style={[styles.centerRevealDot, dotRevealStyle, { pointerEvents: 'none' }]} />
       <Animated.View style={[styles.panelContent, contentStyle]}>
       <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
@@ -207,9 +266,9 @@ export function NodeActionPanel({
           width={PANEL_WIDTH} 
           height={PANEL_HEIGHT} 
           chamfer={16} 
-            stroke={basicOutcome === null ? '#475569' : outcomeBorderColor} 
+            stroke={hasTerminalOutcome ? outcomeBorderColor : '#475569'}
           strokeWidth={8} 
-            fill={basicOutcome === 'success' ? 'rgba(6, 78, 59, 0.88)' : basicOutcome === 'failure' ? 'rgba(127, 29, 29, 0.88)' : 'rgba(2, 6, 23, 0.95)'} 
+            fill={isSuccessOutcome ? 'rgba(6, 78, 59, 0.88)' : basicOutcome === 'failure' ? 'rgba(127, 29, 29, 0.88)' : 'rgba(2, 6, 23, 0.95)'} 
         />
         <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
           <Svg width="100%" height="100%" viewBox="0 0 1 1" preserveAspectRatio="none">
@@ -230,13 +289,15 @@ export function NodeActionPanel({
           <Text style={styles.basicPlayerName}>{playerName}</Text>
           <View style={styles.basicComputersButton}>
             <Text style={styles.basicComputers}>COMPUTERS {formatModifier(modifiers?.total ?? 0)}</Text>
-            <Pressable
-              accessibilityLabel="Show Computers modifier details"
-              style={styles.modifierDrawerButton}
-              onPress={() => setModifierDrawerOpen((open) => !open)}
-            >
-              <Text style={styles.modifierDrawerIndicator}>&gt;</Text>
-            </Pressable>
+            {!infoDrawersHidden && (
+              <Pressable
+                accessibilityLabel="Show Computers modifier details"
+                style={styles.modifierDrawerButton}
+                onPress={() => setModifierDrawerOpen((open) => !open)}
+              >
+                <Text style={styles.modifierDrawerIndicator}>&gt;</Text>
+              </Pressable>
+            )}
           </View>
         </View>
       ) : isReachable ? (
@@ -248,7 +309,7 @@ export function NodeActionPanel({
         isReachable && hackingMode === 'basic' ? { height: basicDetailsHeight } : null,
         !isReachable ? styles.deniedContainer : null,
       ]}>
-      {isReachable && hackingMode === 'basic' && !isModule && (
+      {isReachable && hackingMode === 'basic' && (
         <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
           <ChamferedFrame
             width={PANEL_WIDTH - 24}
@@ -348,18 +409,13 @@ export function NodeActionPanel({
         </View>
       )}
 
-      <View style={[styles.actions, basicOutcome ? styles.outcomeActions : null]}>
+      <View style={[styles.actions, basicOutcome || moduleCollected ? styles.outcomeActions : null]}>
         {isReachable ? (
-          moduleCollected ? (
-            <View style={[styles.outcomeMessage, styles.successOutcomeMessage]}>
-              <Text style={[styles.outcomeMessageText, styles.successOutcomeText]}>
-                MODULE COLLECTED!
-              </Text>
-            </View>
-          ) : basicOutcome ? (
-            <View style={[
+          moduleCollected ? null : basicOutcome ? (
+            <Animated.View style={[
               styles.outcomeMessage,
               basicOutcome === 'success' ? styles.successOutcomeMessage : styles.failureOutcomeMessage,
+              basicOutcome === 'success' ? successOutcomeStyle : failureOutcomeStyle,
             ]}>
               <Text style={[
                 styles.outcomeMessageText,
@@ -369,7 +425,7 @@ export function NodeActionPanel({
                   ? node.password ? 'Login successful' : 'Successfully hacked!'
                   : 'Hack failed - node locked'}
               </Text>
-            </View>
+            </Animated.View>
           ) : (
           <>
             {node.password && onPasswordAction ? (
@@ -530,8 +586,22 @@ export function NodeActionPanel({
         </View>
       )}
       </View>
+      {moduleCollected && (
+        <Animated.View
+          style={[
+            styles.outcomeMessage,
+            styles.moduleCollectedMessage,
+            successOutcomeStyle,
+            { top: (PANEL_HEIGHT - 72) / 2, width: PANEL_WIDTH, left: 0 },
+          ]}
+        >
+          <Text style={[styles.outcomeMessageText, styles.successOutcomeText]}>
+            MODULE COLLECTED!
+          </Text>
+        </Animated.View>
+      )}
       </Animated.View>
-      {hackingMode === 'basic' && isReachable && modifierDrawerMounted && (
+      {!infoDrawersHidden && hackingMode === 'basic' && isReachable && modifierDrawerMounted && (
         <Animated.View style={[styles.modifierDrawer, modifierDrawerStyle]}>
           <Text style={styles.modifierDrawerTitle}>COMPUTERS MODIFIER</Text>
           <View style={styles.modifierDetailLine}>
@@ -562,7 +632,7 @@ export function NodeActionPanel({
           </View>
         </Animated.View>
       )}
-      <View style={styles.descriptionArea}>
+      {!infoDrawersHidden && <View style={styles.descriptionArea}>
         {drawerMounted && (
           <Animated.View
             style={[styles.descriptionDrawer, drawerStyle, { pointerEvents: descriptionOpen ? 'auto' : 'none' }]}
@@ -593,24 +663,34 @@ export function NodeActionPanel({
             </Text>
           </Animated.View>
         )}
-        <Pressable
-          accessibilityLabel={descriptionOpen ? 'Close node description' : 'Open node description'}
-          style={styles.infoButton}
-          onPress={() => setDescriptionOpen((open) => !open)}
-        >
-          <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
-            <Svg width={28} height={18} viewBox="0 0 28 18">
-              <Polygon
-                points="0,0 28,0 23,18 5,18"
-                fill="rgba(15, 23, 42, 0.98)"
-                stroke="#64748b"
-                strokeWidth={1}
-              />
-            </Svg>
-          </View>
-          <Text style={styles.infoButtonText}>i</Text>
-        </Pressable>
-      </View>
+        <Animated.View style={infoStyle}>
+          <Pressable
+            accessibilityLabel={descriptionOpen ? 'Close node description' : 'Open node description'}
+            style={styles.infoButton}
+            onPress={() => setDescriptionOpen((open) => !open)}
+          >
+            <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
+              <Svg width={28} height={18} viewBox="0 0 28 18">
+                <Polygon
+                  points="0,0 28,0 23,18 5,18"
+                  fill="rgba(15, 23, 42, 0.98)"
+                  stroke="#64748b"
+                  strokeWidth={1}
+                />
+                <Circle
+                  cx={14}
+                  cy={9}
+                  r={7}
+                  fill="none"
+                  stroke="#64748b"
+                  strokeWidth={1}
+                />
+              </Svg>
+            </View>
+            <Text style={styles.infoButtonText}>i</Text>
+          </Pressable>
+        </Animated.View>
+      </View>}
     </Pressable>
   );
 }
@@ -643,11 +723,19 @@ const styles = StyleSheet.create({
   horizontalReveal: {
     position: 'absolute',
     left: 0,
-    right: 0,
+    width: 236,
+    top: 0,
+    height: 2,
+    backgroundColor: '#22d3ee',
+  },
+  horizontalRevealClip: {
+    position: 'absolute',
+    left: 0,
     top: '50%',
+    width: 236,
     height: 2,
     marginTop: -1,
-    backgroundColor: '#22d3ee',
+    overflow: 'hidden',
   },
   centerRevealDot: {
     position: 'absolute',
@@ -670,7 +758,7 @@ const styles = StyleSheet.create({
   },
   infoButtonText: {
     color: '#cbd5e1',
-    fontSize: 14,
+    fontSize: 11,
     fontFamily: 'Orbitron-Bold',
   },
   descriptionArea: {
@@ -712,6 +800,12 @@ const styles = StyleSheet.create({
   successOutcomeMessage: {
     left: -20,
     right: -20,
+    backgroundColor: 'rgba(6, 78, 59, 0.9)',
+    borderWidth: 2,
+    borderColor: '#34d399',
+    minHeight: 72,
+  },
+  moduleCollectedMessage: {
     backgroundColor: 'rgba(6, 78, 59, 0.9)',
     borderWidth: 2,
     borderColor: '#34d399',
@@ -874,7 +968,7 @@ const styles = StyleSheet.create({
   },
   basicProgressCard: {
     height: 52,
-    marginTop: 6,
+    marginTop: 18,
     paddingHorizontal: 12,
     justifyContent: 'center',
   },

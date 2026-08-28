@@ -38,6 +38,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import type { SharedValue } from 'react-native-reanimated';
 import type { FlowMap, FlowNode, FlowEdge } from '@/lib/flow/types';
+import type { ObjectiveProgress } from '@/lib/game/types';
 import { isCompleted, type NodeStatus } from '@/lib/flow/reachability';
 import { GRID_SIZE } from '@/lib/flow/layout';
 import { CANVAS_WIDTH, CANVAS_HEIGHT, NODE_WIDTH, layoutGraph, applyLayout } from '@/lib/flow/layoutGraph';
@@ -49,6 +50,19 @@ import { NodeOverlay } from './NodeOverlay';
 import { NodeActionPanel } from '../NodeActionPanel';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
+const WheelContainer = View as React.ComponentType<
+  React.ComponentProps<typeof View> & {
+    onWheel?: (event: {
+      deltaY: number;
+      clientX?: number;
+      clientY?: number;
+      offsetX?: number;
+      offsetY?: number;
+      currentTarget?: { getBoundingClientRect?: () => { left: number; top: number } };
+      preventDefault?: () => void;
+    }) => void;
+  }
+>;
 
 function PulsingGlow({ d, pulse }: { d: string; pulse: SharedValue<number> }) {
   const animatedProps = useAnimatedProps(() => ({
@@ -67,9 +81,20 @@ function PulsingGlow({ d, pulse }: { d: string; pulse: SharedValue<number> }) {
   );
 }
 
-function EndpointKeyhole({ cx, cy, color }: { cx: number; cy: number; color: string }) {
+function EndpointKeyhole({ cx, cy, color, glowing = false, pulse }: { cx: number; cy: number; color: string; glowing?: boolean; pulse?: SharedValue<number> }) {
+  const glowProps = useAnimatedProps(() => ({
+    strokeOpacity: glowing ? pulse?.value ?? 0.4 : 0,
+  }));
   return (
     <G transform={`translate(${cx - 20} ${cy - 25})`}>
+      <AnimatedPath
+        d="M 20 3 C 25.5 3 30 7.5 30 13 C 30 16.6 28.1 19.7 25.2 21.4 L 29 42 L 11 42 L 14.8 21.4 C 11.9 19.7 10 16.6 10 13 C 10 7.5 14.5 3 20 3 Z"
+        fill="none"
+        stroke={color}
+        strokeWidth={20}
+        strokeLinejoin="round"
+        animatedProps={glowProps}
+      />
       <Path
         d="M 20 3 C 25.5 3 30 7.5 30 13 C 30 16.6 28.1 19.7 25.2 21.4 L 29 42 L 11 42 L 14.8 21.4 C 11.9 19.7 10 16.6 10 13 C 10 7.5 14.5 3 20 3 Z"
         fill="none"
@@ -121,7 +146,7 @@ interface Props {
   onRefundMajorAction?: () => void;
   onEndTurn?: () => void;
   onLogOut?: () => void;
-  objectives?: Record<string, { successes: number; failures?: number }>;
+  objectives?: Record<string, ObjectiveProgress>;
   playerName?: string;
   rp?: number;
   cp?: number;
@@ -135,7 +160,18 @@ interface Props {
   mapTier?: number;
   securityBonus?: number;
   rootAccessAchieved?: boolean;
-  modifiers?: { deceive: number; hack: number; process: number; total: number };
+  modifiers?: {
+    deceive: number;
+    hack: number;
+    process: number;
+    total: number;
+    base?: number;
+    passwordBonus?: number;
+    penalty?: number;
+    aidBonus?: number;
+  };
+  hideInfoDrawers?: boolean;
+  outcomeAnimationReady?: boolean;
   onMonitorLayout?: (rect: { x: number; y: number; width: number; height: number }) => void;
 }
 
@@ -175,16 +211,27 @@ export function FlowCanvas({
   securityBonus,
   rootAccessAchieved,
   modifiers,
+  hideInfoDrawers,
+  outcomeAnimationReady,
   onMonitorLayout,
 }: Props) {
   const { width: windowWidth } = useWindowDimensions();
-  const isSmallScreen = windowWidth < 768;
+  const isSmallScreen = windowWidth < 1024;
   const [disconnectPromptOpen, setDisconnectPromptOpen] = useState(false);
 
   const tx = useSharedValue(0);
   const ty = useSharedValue(0);
   const scale = useSharedValue(1);
   const pulse = useSharedValue(0.15);
+  const keyholePulse = useSharedValue(0);
+  const draggedRef = useRef(false);
+
+  const resetDrag = useCallback(() => {
+    draggedRef.current = false;
+  }, []);
+  const markDragged = useCallback(() => {
+    draggedRef.current = true;
+  }, []);
 
   useEffect(() => {
     pulse.value = withRepeat(
@@ -193,6 +240,15 @@ export function FlowCanvas({
       true
     );
   }, [pulse]);
+
+  useEffect(() => {
+    keyholePulse.value = withRepeat(
+      withTiming(0.55, { duration: 700, easing: Easing.inOut(Easing.sin) }),
+      -1,
+      true,
+    );
+    return () => cancelAnimation(keyholePulse);
+  }, [keyholePulse]);
 
   // Live measurements of the visible canvas area (the bezel).
   // Initialized from window dims; refined via onLayout as soon as the wrapper mounts.
@@ -210,11 +266,8 @@ export function FlowCanvas({
   const viewW = useSharedValue(0);
   const viewH = useSharedValue(0);
 
-  // Maximum |tx|/|ty| allowed given the current zoom + viewport. When the
-  // scaled canvas is larger than the viewport, the canvas is anchored and
-  // can only pan between [-bound, 0] (so its right/bottom edge never
-  // uncovers the bezel). When it's smaller or equal, bound is 0 and the
-  // canvas is locked to the top-left origin (no scrolling past it).
+  // Translation range that keeps the scaled canvas covering the viewport.
+  // The canvas starts at the origin and may move only up/left from there.
   const txBound = useDerivedValue(() => {
     const scaledW = CANVAS_WIDTH * scale.value;
     const extra = scaledW - viewW.value;
@@ -228,16 +281,18 @@ export function FlowCanvas({
 
   const panGesture = Gesture.Pan()
     .onStart(() => {
+      runOnJS(resetDrag)();
       startTx.value = tx.value;
       startTy.value = ty.value;
     })
     .onUpdate((e) => {
+      if (Math.abs(e.translationX) > 8 || Math.abs(e.translationY) > 8) {
+        runOnJS(markDragged)();
+      }
       const nextX = startTx.value + e.translationX;
       const nextY = startTy.value + e.translationY;
       const bX = txBound.value;
       const bY = tyBound.value;
-      // Clamp into [-b, 0]: pulling right (positive e.translationX) can
-      // only go up to 0; pulling left can go down to -b.
       tx.value = Math.max(-bX, Math.min(0, nextX));
       ty.value = Math.max(-bY, Math.min(0, nextY));
     });
@@ -250,6 +305,34 @@ export function FlowCanvas({
       scale.value = Math.max(0.5, Math.min(2, startScale.value * e.scale));
     });
 
+  const handleWheel = useCallback((event: {
+    deltaY: number;
+    clientX?: number;
+    clientY?: number;
+    offsetX?: number;
+    offsetY?: number;
+    currentTarget?: { getBoundingClientRect?: () => { left: number; top: number } };
+    preventDefault?: () => void;
+  }) => {
+    event.preventDefault?.();
+    const nextScale = Math.max(0.5, Math.min(2, scale.value * Math.exp(-event.deltaY * 0.0015)));
+    const nextXBound = Math.max(0, CANVAS_WIDTH * nextScale - viewW.value);
+    const nextYBound = Math.max(0, CANVAS_HEIGHT * nextScale - viewH.value);
+    const rect = event.currentTarget?.getBoundingClientRect?.();
+    const cursorX = rect && event.clientX !== undefined
+      ? event.clientX - rect.left
+      : event.offsetX ?? viewW.value / 2;
+    const cursorY = rect && event.clientY !== undefined
+      ? event.clientY - rect.top
+      : event.offsetY ?? viewH.value / 2;
+    const scaleRatio = nextScale / scale.value;
+    const zoomedX = cursorX - (cursorX - tx.value) * scaleRatio;
+    const zoomedY = cursorY - (cursorY - ty.value) * scaleRatio;
+    scale.value = nextScale;
+    tx.value = Math.max(-nextXBound, Math.min(0, zoomedX));
+    ty.value = Math.max(-nextYBound, Math.min(0, zoomedY));
+  }, [scale, tx, ty, viewW, viewH]);
+
   const composed = Gesture.Simultaneous(panGesture, pinchGesture);
 
   const animatedStyle = useAnimatedStyle(() => {
@@ -258,6 +341,7 @@ export function FlowCanvas({
     const opacity = isReady ? 1 : 0;
     return {
       opacity: withTiming(opacity, { duration: 150 }),
+      transformOrigin: '0 0',
       transform: [
         { translateX: tx.value },
         { translateY: ty.value },
@@ -330,6 +414,7 @@ export function FlowCanvas({
     const target = positionedNodes.find((n) => n.id === targetId)
       ?? positionedNodes.find((n) => n.id === startId);
     if (!target) return;
+    const currentScale = scale.value;
     const nodeCenterX = target.x + NODE_WIDTH / 2;
     const nodeCenterY = target.y + NODE_WIDTH / 2;
     // The canvas is positioned inside `canvasContainer`, which is a child
@@ -338,21 +423,20 @@ export function FlowCanvas({
     // `(width/2, height/2)` regardless of where the bezel sits on screen.
     // Only the very first framing (mount, no explicit focus yet) puts
     // the start access lower-third so the level graph flows upward.
-    // Uses the dead center (or upper-quarter on mobile).
+    // Keep focused nodes two-thirds of the way up from the bottom of the canvas.
     const desiredX = viewRect.width / 2;
     const isInitialStart = !hasInitializedFocus.current && !focusTargetId;
 
-    const verticalCenter = isSmallScreen ? viewRect.height * 0.25 : viewRect.height / 2;
     const desiredY = isInitialStart
       ? viewRect.height * 0.72
-      : verticalCenter;
+      : viewRect.height / 3;
     // Bounds mirror the worklet's: canvas left/top edge must stay at or
     // before the bezel's left/top edge (tx ≤ 0), and the canvas must
     // extend past the bezel's right/bottom edge (tx ≥ -extra).
-    const bX = Math.max(0, CANVAS_WIDTH - viewRect.width);
-    const bY = Math.max(0, CANVAS_HEIGHT - viewRect.height);
-    const newTx = Math.max(-bX, Math.min(0, desiredX - nodeCenterX));
-    const newTy = Math.max(-bY, Math.min(0, desiredY - nodeCenterY));
+    const bX = Math.max(0, CANVAS_WIDTH * currentScale - viewRect.width);
+    const bY = Math.max(0, CANVAS_HEIGHT * currentScale - viewRect.height);
+    const newTx = Math.max(-bX, Math.min(0, desiredX - nodeCenterX * currentScale));
+    const newTy = Math.max(-bY, Math.min(0, desiredY - nodeCenterY * currentScale));
     if (!force && target.id === lastTargetId.current && hasInitializedFocus.current) return;
     lastTargetId.current = target.id;
     // Faster initial pan (mount), gentler follow pan on selection.
@@ -373,17 +457,31 @@ export function FlowCanvas({
 
   const handleSelect = useCallback(
     (node: FlowNode | null) => {
-      setFocusAnimating(true);
-      if (node) {
+      if (!node) {
+        setFocusAnimating(true);
+        onSelectNode?.(null);
+        return;
+      }
+      if (node && node.id !== focusId) {
+        setFocusAnimating(true);
         setFocusId(node.id);
         animateToFocus(node.id, true);
       }
       onSelectNode?.(node);
     },
-    [animateToFocus, onSelectNode],
+    [animateToFocus, focusId, onSelectNode],
   );
 
   const nodeById = useMemo(() => new Map(positionedNodes.map((n) => [n.id, n])), [positionedNodes]);
+  const noAvailableNodes = useMemo(() => {
+    if (mode !== 'game' || !reachableIds) return false;
+    return positionedNodes.every((node) => {
+      if (!reachableIds.has(node.id)) return true;
+      if (isCompleted(node, objectives)) return true;
+      const failures = objectives?.[node.id]?.failures ?? 0;
+      return node.category !== 'module' && failures >= 3;
+    });
+  }, [mode, objectives, positionedNodes, reachableIds]);
   const adjacentToUnlockedIds = useMemo(() => {
     const adjacent = new Set<string>();
     if (mode !== 'game' || !statusById) return adjacent;
@@ -401,7 +499,7 @@ export function FlowCanvas({
         ref={monitorRef}
         style={[
           styles.monitorFrame,
-          isSmallScreen ? { marginHorizontal: 8 } : null
+          isSmallScreen ? styles.monitorFrameSmall : null
         ]}
         onLayout={(e) => {
           const { x, y, width, height } = e.nativeEvent.layout;
@@ -413,8 +511,10 @@ export function FlowCanvas({
           }
         }}
       >
+        {!isSmallScreen && <View style={styles.monitorHighlight} />}
+        {!isSmallScreen && <View style={styles.monitorBase} />}
         {/* Chamfered Bezel Background */}
-        {viewRect.width > 0 && (
+        {!isSmallScreen && viewRect.width > 0 && (
           <>
             <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none' }}>
               <ChamferedFrame
@@ -439,18 +539,19 @@ export function FlowCanvas({
           </>
         )}
         {/* Soft top + bottom radial glows (SVG-based true radial gradients). */}
-        <MonitorGlow width={CANVAS_WIDTH} height={CANVAS_HEIGHT} />
-        <View
+        {!isSmallScreen && <MonitorGlow width={CANVAS_WIDTH} height={CANVAS_HEIGHT} />}
+        <WheelContainer
           onLayout={(e) => {
             const { width, height } = e.nativeEvent.layout;
             if (width > 0 && height > 0) setCanvasRect({ width, height });
           }}
+          onWheel={handleWheel}
           style={[
             styles.canvasContainer,
-            isSmallScreen ? { margin: 6 } : null
+            isSmallScreen ? styles.canvasContainerSmall : null
           ]}>
           {/* Inner Chamfered Frame */}
-          {canvasRect.width > 0 && (
+          {!isSmallScreen && canvasRect.width > 0 && (
             <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 20, pointerEvents: 'none' }}>
               <ChamferedFrame
                 width={canvasRect.width}
@@ -466,7 +567,13 @@ export function FlowCanvas({
             <Animated.View style={[styles.canvas, animatedStyle]}>
               <Pressable 
                 style={StyleSheet.absoluteFill} 
-                onPress={() => handleSelect(null)} 
+                onPress={() => {
+                  if (draggedRef.current) {
+                    draggedRef.current = false;
+                    return;
+                  }
+                  handleSelect(null);
+                }} 
               />
               <Svg
                 width={CANVAS_WIDTH}
@@ -508,6 +615,8 @@ export function FlowCanvas({
                       cx={startNode.x + NODE_WIDTH / 2}
                       cy={startNode.y + NODE_WIDTH + 80}
                       color="#22d3ee"
+                      glowing={noAvailableNodes}
+                      pulse={keyholePulse}
                     />
                     <SvgText 
                       x={startNode.x + NODE_WIDTH / 2} y={startNode.y + NODE_WIDTH + 120} 
@@ -532,6 +641,8 @@ export function FlowCanvas({
                       cx={rootNode.x + NODE_WIDTH / 2}
                       cy={rootNode.y - 80}
                       color={exitAvailable ? '#22d3ee' : '#475569'}
+                      glowing={noAvailableNodes && exitAvailable}
+                      pulse={keyholePulse}
                     />
                     <SvgText 
                       x={rootNode.x + NODE_WIDTH / 2} y={rootNode.y - 115} 
@@ -682,6 +793,8 @@ export function FlowCanvas({
                         rootAccessAchieved={rootAccessAchieved}
                         securityBonus={securityBonus}
                         modifiers={modifiers}
+                        hideInfoDrawers={hideInfoDrawers}
+                        outcomeAnimationReady={outcomeAnimationReady}
                       />
                     )}
                   </React.Fragment>
@@ -689,7 +802,7 @@ export function FlowCanvas({
               })}
             </Animated.View>
           </GestureDetector>
-        </View>
+          </WheelContainer>
       </View>
       <Modal
         visible={disconnectPromptOpen && mode === 'game' && !!onLogOut}
@@ -772,6 +885,10 @@ const styles = StyleSheet.create({
     elevation: 10,
     overflow: 'hidden',
   },
+  monitorFrameSmall: {
+    marginHorizontal: 0,
+    marginVertical: 0,
+  },
   // Outer bezel highlight (top sheen) — gives the bezel a subtle 3D bevel.
   monitorHighlight: {
     position: 'absolute',
@@ -802,6 +919,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.7)',
     elevation: 4,
+  },
+  canvasContainerSmall: {
+    margin: 0,
+    boxShadow: 'none',
+    elevation: 0,
   },
   canvas: {
     width: CANVAS_WIDTH,

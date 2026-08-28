@@ -16,7 +16,7 @@ import { ResultModal, type RollResultInfo } from '@/components/game/ResultModal'
 import { useGameStore } from '@/stores/gameStore';
 import { loadMap } from '@/lib/flow/persistence';
 import { listGames } from '@/lib/game/persistence';
-import { reachableNodes, nodeStatus, nodeProgress } from '@/lib/flow/reachability';
+import { isCompleted, reachableNodes, nodeStatus, nodeProgress } from '@/lib/flow/reachability';
 import { effectiveDC, securityBonusForMap } from '@/lib/starfinder/tables';
 import { resolve, type Outcome } from '@/lib/resolution';
 import { modifierFor, PASSWORD_HACKING_BONUS } from '@/lib/game/types';
@@ -226,12 +226,14 @@ function GameLaunchOverlay({ width, monitorRect, ready, animationComplete, onFin
         left: monitorRect.x,
         top: monitorRect.y,
       }]}>
-        <Animated.View style={[StyleSheet.absoluteFill, { opacity: contentOpacity, pointerEvents: 'none' }]}>
-          <ChamferedFrame width={windowWidth} height={windowHeight} chamfer={isSmallScreen ? 12 : 24} stroke="#111827" strokeWidth={12} fill="transparent" />
-          <View style={{ position: 'absolute', top: 14, left: 14 }}>
-            <ChamferedFrame width={Math.max(1, windowWidth - 28)} height={Math.max(1, windowHeight - 28)} chamfer={isSmallScreen ? 8 : 12} stroke="#475569" strokeWidth={4} fill="transparent" />
-          </View>
-        </Animated.View>
+        {!isSmallScreen && (
+          <Animated.View style={[StyleSheet.absoluteFill, { opacity: contentOpacity, pointerEvents: 'none' }]}>
+            <ChamferedFrame width={windowWidth} height={windowHeight} chamfer={24} stroke="#111827" strokeWidth={12} fill="transparent" />
+            <View style={{ position: 'absolute', top: 14, left: 14 }}>
+              <ChamferedFrame width={Math.max(1, windowWidth - 28)} height={Math.max(1, windowHeight - 28)} chamfer={12} stroke="#475569" strokeWidth={4} fill="transparent" />
+            </View>
+          </Animated.View>
+        )}
         <Animated.View style={[styles.gameLaunchWipeHalf, styles.gameLaunchWipeLeft, { width: windowWidth / 2, transform: [{ translateX: wipeProgress.interpolate({ inputRange: [0, 1], outputRange: [0, -(windowWidth / 2)] }) }] }]} />
         <Animated.View style={[styles.gameLaunchWipeHalf, styles.gameLaunchWipeRight, { width: windowWidth / 2, transform: [{ translateX: wipeProgress.interpolate({ inputRange: [0, 1], outputRange: [0, windowWidth / 2] }) }] }]} />
         <Animated.View style={[styles.gameLaunchVerticalReveal, styles.gameLaunchGlow, { opacity: centerFade, transform: [{ scaleY: verticalProgress }] }]} />
@@ -470,7 +472,7 @@ const panelStyles = StyleSheet.create({
 
 export default function GameScreen() {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-  const isSmallScreen = windowWidth < 768;
+  const isSmallScreen = windowWidth < 1024;
   const rollModalWidth = 400;
   const rollButtonWidth = 272;
 
@@ -572,10 +574,31 @@ export default function GameScreen() {
       visitedNodeIds: new Set(state.visitedNodeIds),
       permanentlyFailedNodeIds: new Set(state.permanentlyFailedNodeIds),
       hiddenNodeIds: new Set(state.hiddenNodeIds ?? []),
+      lockedOutNodeIds: new Set(state.lockedOutNodeIds ?? []),
       wipingNodeIds: new Set(state.wipingNodeIds ?? []),
       objectives: state.objectives,
     });
   }, [map, state]);
+
+  const noAvailableNodes = useMemo(() => {
+    if (!map || !state) return false;
+    return map.nodes.every((node) => {
+      if (!reachableIds.has(node.id)) return true;
+      if (isCompleted(node, state.objectives)) return true;
+      const failures = state.objectives[node.id]?.failures ?? 0;
+      const failureLimit = node.countermeasureType === 'wipe' ? 2 : 3;
+      return node.category !== 'module' && failures >= failureLimit;
+    });
+  }, [map, reachableIds, state]);
+
+  const failureLockdown = useMemo(() => {
+    if (!noAvailableNodes || !map || !state) return false;
+    return map.nodes.some((node) => (
+      reachableIds.has(node.id)
+      && node.category !== 'module'
+      && (state.objectives[node.id]?.failures ?? 0) >= (node.countermeasureType === 'wipe' ? 2 : 3)
+    ));
+  }, [map, noAvailableNodes, reachableIds, state]);
 
   // Per-node visual state and progress fraction for the ring overlay.
   const { statusById, progressById } = useMemo(() => {
@@ -589,6 +612,7 @@ export default function GameScreen() {
           visitedNodeIds: new Set(state.visitedNodeIds),
           permanentlyFailedNodeIds: new Set(state.permanentlyFailedNodeIds),
           hiddenNodeIds: new Set(state.hiddenNodeIds ?? []),
+          lockedOutNodeIds: new Set(state.lockedOutNodeIds ?? []),
           wipingNodeIds: new Set(state.wipingNodeIds ?? []),
           objectives: state.objectives,
         },
@@ -959,7 +983,7 @@ export default function GameScreen() {
 
   return (
     <View style={styles.container}>
-      <ScreenBackdrop />
+      {!isSmallScreen && <ScreenBackdrop />}
       <Toast
         visible={toast.visible}
         message={toast.message}
@@ -969,9 +993,18 @@ export default function GameScreen() {
       />
       <View style={{ flex: 1 }}>
         {/* Header — Turn Order, Round and Objectives */}
-        <View style={styles.header}>
+        <View style={[styles.header, { top: (isSmallScreen ? 0 : 10) + Math.max(16, (windowHeight - (isSmallScreen ? 0 : 20)) * 0.11) }]}>
         <View style={styles.mapTierRow}>
-          <Text style={styles.mapTitle}>{map.name}</Text>
+          <View style={styles.mapTitleGroup}>
+            <Text style={styles.mapTitle}>{map.name}</Text>
+            {noAvailableNodes ? (
+              <Text style={styles.noNodesHeader}>
+                {failureLockdown
+                  ? 'HACKING ATTEMPT DETECTED. SYSTEM LOCKDOWN INITIATED. PROCEED TO EXIT'
+                  : 'NO NODES AVAILABLE • SELECT AN EXIT'}
+              </Text>
+            ) : null}
+          </View>
           <Text style={[styles.mapTier, { color: '#22d3ee' }]}>TIER {map.tier}</Text>
         </View>
         {state.hackingMode === 'dynamic' && <View style={styles.headerRow}>
@@ -1097,7 +1130,7 @@ export default function GameScreen() {
       </View>
 
       {/* Canvas — constrained to the central monitor area (matches the bezel) */}
-      <View style={styles.canvasWrap}>
+      <View style={[styles.canvasWrap, isSmallScreen ? styles.canvasWrapSmall : null]}>
         <FlowCanvas
           map={map}
           mode="game"
@@ -1147,6 +1180,8 @@ export default function GameScreen() {
           mapTier={map.tier}
           securityBonus={securityBonus}
           rootAccessAchieved={state.rootAccessAchieved}
+          hideInfoDrawers={toast.visible}
+          outcomeAnimationReady={!resultModal.visible}
           modifiers={activePlayer ? {
             deceive: activePlayer.deceiveModifier,
             hack: activePlayer.hackModifier,
@@ -1623,7 +1658,7 @@ const styles = StyleSheet.create({
   loading: { flex: 1, backgroundColor: '#020617', alignItems: 'center', justifyContent: 'center' },
   loadingText: { color: '#94a3b8', fontSize: 16 },
   gameLaunchOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1729,7 +1764,6 @@ const styles = StyleSheet.create({
   gameLaunchEnterText: { color: '#fff', fontSize: 12, fontFamily: 'Orbitron-Bold', letterSpacing: 1 },
   header: {
     position: 'absolute',
-    top: '11%',
     left: '15%',
     right: '15%',
     zIndex: 1,
@@ -1802,11 +1836,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 8,
   },
+  mapTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flexShrink: 1,
+  },
   mapTitle: {
     color: '#f1f5f9',
     fontSize: 13,
     fontWeight: '800',
     fontFamily: 'Orbitron-Bold',
+    flexShrink: 1,
+  },
+  noNodesHeader: {
+    color: '#fbbf24',
+    fontSize: 10,
+    fontWeight: '900',
+    fontFamily: 'Orbitron-Black',
+    letterSpacing: 1,
   },
   mapTier: {
     color: '#22d3ee',
@@ -2025,6 +2073,10 @@ const styles = StyleSheet.create({
     flex: 1,
     marginTop: 10,
     marginBottom: 10,
+  },
+  canvasWrapSmall: {
+    marginTop: 0,
+    marginBottom: 0,
   },
   playerChip: {
     paddingHorizontal: 12,

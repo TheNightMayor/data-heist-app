@@ -110,6 +110,14 @@ export interface GameState {
   hiddenNodeIds?: string[];
   /** Node IDs currently showing the Wipe transition. */
   wipingNodeIds?: string[];
+  /** Penalty applied to the next Resolve check by Feedback. */
+  feedbackPenalty?: number;
+  /** Countermeasure nodes revealed to be Fake Shells. */
+  decoyNodeIds?: string[];
+  /** Countermeasure nodes that have triggered an Alarm. */
+  alarmNodeIds?: string[];
+  /** Countermeasure nodes currently enforcing a Lockout. */
+  lockedOutNodeIds?: string[];
   /** Active objectives and their progress. */
   objectives: Record<string, ObjectiveProgress>;
   /** Recent actions for the log panel. */

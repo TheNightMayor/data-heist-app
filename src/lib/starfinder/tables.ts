@@ -4,6 +4,7 @@
  */
 
 import type { FlowMap, ObjectiveResolve, Subskill } from '../flow/types';
+import { BASIC_MODULE_RESOLVE, HARDENED_MODULE_RESOLVE } from '../flow/modules';
 
 /**
  * Starfinder 1e: base DC to hack a computer = 13 + 4 × tier.
@@ -36,10 +37,8 @@ export function securityBonusForMap(map: FlowMap, collectedNodeIds: Iterable<str
  * Designers can use these as starting points.
  */
 export const OBJECTIVE_PRESETS: Record<string, ObjectiveResolve> = {
-  // Module (data) — easier, single-success
-  basicModule: { subskill: 'hack', dcModifier: 0, successesRequired: 1 },
-  // Module (hardened) — beat-by-10 multi-success
-  hardenedModule: { subskill: 'hack', dcModifier: 0, successesRequired: 2 },
+  basicModule: BASIC_MODULE_RESOLVE,
+  hardenedModule: HARDENED_MODULE_RESOLVE,
   // Countermeasure (basic firewall) — Deceive+Hack
   firewall: { subskill: 'hack', dcModifier: 0, successesRequired: 1 },
   // Countermeasure (counterhacker) — multi-success, dangerous

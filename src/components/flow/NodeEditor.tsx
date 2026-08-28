@@ -3,7 +3,8 @@
  */
 
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView } from 'react-native';
-import type { CountermeasureType, FlowNode, NodeCategory } from '@/lib/flow/types';
+import type { FlowNode, NodeCategory } from '@/lib/flow/types';
+import { COUNTERMEASURE_OPTIONS } from '@/lib/flow/countermeasures';
 import { ChamferedFrame } from '../ui/ChamferedFrame';
 
 interface Props {
@@ -18,15 +19,6 @@ interface Props {
 
 export function NodeEditor({ node, onUpdate, onDelete, onClose, availableNodes = [], targetNodeIds = new Set(), onToggleTarget }: Props) {
   if (!node) return null;
-  const countermeasureTypes: { value: CountermeasureType; label: string }[] = [
-    { value: 'wipe', label: 'Wipe' },
-    { value: 'feedback', label: 'Feedback' },
-    { value: 'fake-shell', label: 'Fake Shell' },
-    { value: 'alarm', label: 'Alarm' },
-    { value: 'lockout', label: 'Lockout' },
-    { value: 'shock-grid', label: 'Shock Grid' },
-    { value: 'firewall', label: 'Firewall' },
-  ];
   return (
     <View style={styles.editor}>
       <View style={{ ...StyleSheet.absoluteFill, top: -1, pointerEvents: 'none' }}>
@@ -63,7 +55,7 @@ export function NodeEditor({ node, onUpdate, onDelete, onClose, availableNodes =
           <>
             <Text style={styles.label}>Countermeasure</Text>
             <View style={styles.row}>
-              {countermeasureTypes.map((type) => (
+              {COUNTERMEASURE_OPTIONS.map((type) => (
                 <Pressable
                   key={type.value}
                   style={[styles.pill, node.countermeasureType === type.value && styles.pillActive]}

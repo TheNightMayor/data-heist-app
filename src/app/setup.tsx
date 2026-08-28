@@ -647,7 +647,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#020617' },
   container: { flex: 1, backgroundColor: 'transparent' },
   launchOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(2, 6, 23, 0.92)',
     alignItems: 'center',
     justifyContent: 'center',

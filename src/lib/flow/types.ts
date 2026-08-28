@@ -3,8 +3,23 @@
  * Used by both Build mode (edit) and Game mode (play).
  */
 
-export type NodeCategory = 'module' | 'countermeasure' | 'access';
-export type CountermeasureType = 'wipe' | 'feedback' | 'fake-shell' | 'alarm' | 'lockout' | 'shock-grid' | 'firewall';
+export type { NodeCategory } from './nodes';
+export type { CountermeasureType } from './countermeasures';
+export type { ModuleType } from './modules';
+import type { NodeCategory } from './nodes';
+import type { CountermeasureType } from './countermeasures';
+import type { ModuleType } from './modules';
+import {
+  ACCESS_NODE_CATEGORY,
+  ACCESS_NODE_DEFAULT_NAME,
+  ACCESS_NODE_RESOLVE,
+  COUNTERMEASURE_NODE_CATEGORY,
+  COUNTERMEASURE_NODE_DEFAULT_NAME,
+  MODULE_NODE_CATEGORY,
+  MODULE_NODE_DEFAULT_NAME,
+} from './nodes';
+import { WIPE_COUNTERMEASURE } from './countermeasures';
+import { BASIC_MODULE } from './modules';
 
 export type Subskill = 'deceive' | 'hack' | 'process';
 
@@ -28,6 +43,8 @@ export interface FlowNode {
   y: number;
   /** Category drives which checks are required. */
   category: NodeCategory;
+  /** Module variant, when this is a module node. */
+  moduleType?: ModuleType;
   /** Optional known password that can resolve this node without a hack roll. */
   password?: string;
   /** Security-module bonus applied to all DCs until this module is collected. */
@@ -80,12 +97,13 @@ export function createNode(partial: Partial<FlowNode> & Pick<FlowNode, 'id' | 'x
     x: partial.x,
     y: partial.y,
     category,
+    moduleType: partial.moduleType ?? (category === MODULE_NODE_CATEGORY ? BASIC_MODULE : undefined),
     password: partial.password,
     security: partial.security,
     isRootAccess: partial.isRootAccess,
     resolve,
     countdown: partial.countdown,
-    countermeasureType: partial.countermeasureType ?? (category === 'countermeasure' ? 'wipe' : undefined),
+    countermeasureType: partial.countermeasureType ?? (category === COUNTERMEASURE_NODE_CATEGORY ? WIPE_COUNTERMEASURE : undefined),
     targetNodeIds: partial.targetNodeIds,
     description: partial.description,
   };
@@ -93,22 +111,22 @@ export function createNode(partial: Partial<FlowNode> & Pick<FlowNode, 'id' | 'x
 
 function defaultResolveFor(category: NodeCategory): ObjectiveResolve | undefined {
   switch (category) {
-    case 'module':
+    case MODULE_NODE_CATEGORY:
       return undefined;
-    case 'countermeasure':
+    case COUNTERMEASURE_NODE_CATEGORY:
       return { subskill: 'hack', dcModifier: 0, successesRequired: 1 };
-    case 'access':
-      return { subskill: 'hack', dcModifier: -2, successesRequired: 1 };
+    case ACCESS_NODE_CATEGORY:
+      return ACCESS_NODE_RESOLVE;
   }
 }
 
 function defaultNameFor(category: NodeCategory): string {
   switch (category) {
-    case 'module':
-      return 'Data Module';
-    case 'countermeasure':
-      return 'Firewall';
-    case 'access':
-      return 'Access';
+    case MODULE_NODE_CATEGORY:
+      return MODULE_NODE_DEFAULT_NAME;
+    case COUNTERMEASURE_NODE_CATEGORY:
+      return COUNTERMEASURE_NODE_DEFAULT_NAME;
+    case ACCESS_NODE_CATEGORY:
+      return ACCESS_NODE_DEFAULT_NAME;
   }
 }

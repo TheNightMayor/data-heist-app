@@ -26,6 +26,8 @@ export interface ReachabilityState {
   hiddenNodeIds?: Set<string>;
   /** IDs currently showing a Wipe transition; does not affect reachability. */
   wipingNodeIds?: Set<string>;
+  /** IDs temporarily inaccessible due to Lockout. */
+  lockedOutNodeIds?: Set<string>;
 }
 
 /**
@@ -58,6 +60,7 @@ export function isReachable(
   // Permanently-failed nodes are never reachable again.
   if (state.permanentlyFailedNodeIds?.has(node.id)) return false;
   if (state.hiddenNodeIds?.has(node.id)) return false;
+  if (state.lockedOutNodeIds?.has(node.id)) return false;
 
   // Already-completed (or fully-visited-in-some-form) nodes stay reachable —
   // players can re-tap them for info, to retry after a failure, etc.
@@ -110,6 +113,9 @@ export function nodeStatus(
   }
   if (state.hiddenNodeIds?.has(node.id)) {
     return 'concealed';
+  }
+  if (state.lockedOutNodeIds?.has(node.id)) {
+    return 'blocked';
   }
   if (isCompleted(node, state.objectives)) {
     return 'unlocked';

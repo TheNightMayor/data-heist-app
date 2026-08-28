@@ -299,7 +299,8 @@ function rollResolve(
   const baseModifier = modifierFor(player, subskill, state.hackingMode);
   const penalty = turnPenalty(state.actionsTaken, effectiveRPCommitted);
   const passwordBonus = state.passwordAccessAchieved ? PASSWORD_HACKING_BONUS : 0;
-  const modifier = baseModifier + passwordBonus + penalty + (action.aidBonus ?? 0);
+  const feedbackPenalty = state.feedbackPenalty ?? 0;
+  const modifier = baseModifier + passwordBonus + penalty + feedbackPenalty + (action.aidBonus ?? 0);
 
   const outcome: Outcome = resolveRoll({
     d20: action.d20,
@@ -344,13 +345,17 @@ function rollResolve(
 
   const hiddenNodeIds = [...(state.hiddenNodeIds ?? [])];
   const wipingNodeIds = [...(state.wipingNodeIds ?? [])];
+  const decoyNodeIds = [...(state.decoyNodeIds ?? [])];
+  const alarmNodeIds = [...(state.alarmNodeIds ?? [])];
+  const lockedOutNodeIds = [...(state.lockedOutNodeIds ?? [])];
+  let nextFeedbackPenalty = state.feedbackPenalty ?? 0;
   const objectiveCompleted = newObjectives[node.id].successes >= successesRequired;
   const wipeTriggered =
     failed &&
     !objectiveCompleted &&
     node.category === 'countermeasure' &&
     node.countermeasureType === 'wipe' &&
-    (newObjectives[node.id].failures === 3 || outcome.kind === 'nat1');
+    (newObjectives[node.id].failures === 2 || outcome.kind === 'nat1');
   if (
     wipeTriggered &&
     map
@@ -361,6 +366,41 @@ function rollResolve(
     for (const targetId of targetIds) {
       if (!hiddenNodeIds.includes(targetId)) hiddenNodeIds.push(targetId);
       if (!wipingNodeIds.includes(targetId)) wipingNodeIds.push(targetId);
+    }
+  }
+
+  const effectLog: GameLogEntry[] = [];
+  if (failed && !objectiveCompleted && node.category === 'countermeasure') {
+    switch (node.countermeasureType) {
+      case 'feedback':
+        nextFeedbackPenalty = -2;
+        effectLog.push({ turn: state.turn, playerId: player.id, nodeId: node.id, outcome: 'countermeasure-feedback' });
+        break;
+      case 'fake-shell':
+        if (!decoyNodeIds.includes(node.id)) decoyNodeIds.push(node.id);
+        effectLog.push({ turn: state.turn, playerId: player.id, nodeId: node.id, outcome: 'countermeasure-fake-shell' });
+        break;
+      case 'alarm':
+        if (!alarmNodeIds.includes(node.id)) alarmNodeIds.push(node.id);
+        effectLog.push({ turn: state.turn, playerId: player.id, nodeId: node.id, outcome: 'countermeasure-alarm' });
+        break;
+      case 'lockout':
+        if ((newObjectives[node.id]?.failures ?? 0) >= 3) {
+          if (!lockedOutNodeIds.includes(node.id)) lockedOutNodeIds.push(node.id);
+          newObjectives[node.id] = { ...newObjectives[node.id], countdown: node.countdown ?? 3 };
+          effectLog.push({ turn: state.turn, playerId: player.id, nodeId: node.id, outcome: 'countermeasure-lockout' });
+        }
+        break;
+      case 'shock-grid':
+        if (state.hackingMode === 'dynamic') {
+          updatedPlayers = updatedPlayers.map((candidate) => candidate.id === player.id
+            ? { ...candidate, currentCP: Math.max(0, candidate.currentCP - 1), ejected: candidate.currentCP - 1 <= 0 }
+            : candidate);
+        }
+        effectLog.push({ turn: state.turn, playerId: player.id, nodeId: node.id, outcome: 'countermeasure-shock-grid', cpLost: 1 });
+        break;
+      default:
+        break;
     }
   }
 
@@ -389,6 +429,7 @@ function rollResolve(
           : 0,
       rpSpent: rpCost,
     },
+    ...effectLog,
     ...state.log,
   ].slice(0, 20);
 
@@ -418,6 +459,10 @@ function rollResolve(
     objectives: newObjectives,
     hiddenNodeIds,
     wipingNodeIds,
+    feedbackPenalty: feedbackPenalty !== 0 ? 0 : nextFeedbackPenalty,
+    decoyNodeIds,
+    alarmNodeIds,
+    lockedOutNodeIds,
     log,
     finished,
     result,
@@ -509,16 +554,29 @@ function advanceTurn(state: GameState, _map?: FlowMap): GameState {
 
 function endPhase(state: GameState, map?: FlowMap): GameState {
   const newObjectives = { ...state.objectives };
+  const permanentlyFailedNodeIds = [...state.permanentlyFailedNodeIds];
+  const lockedOutNodeIds = [...(state.lockedOutNodeIds ?? [])];
   for (const objId of Object.keys(newObjectives)) {
     const obj = newObjectives[objId];
     if (obj.countdown !== undefined && obj.countdown > 0) {
-      newObjectives[objId] = { ...obj, countdown: obj.countdown - 1 };
+      const countdown = obj.countdown - 1;
+      newObjectives[objId] = { ...obj, countdown };
+      if (countdown === 0) {
+        const lockoutIndex = lockedOutNodeIds.indexOf(objId);
+        if (lockoutIndex >= 0) {
+          lockedOutNodeIds.splice(lockoutIndex, 1);
+        } else if (!permanentlyFailedNodeIds.includes(objId)) {
+          permanentlyFailedNodeIds.push(objId);
+        }
+      }
     }
   }
   void map;
   return {
     ...state,
     objectives: newObjectives,
+    permanentlyFailedNodeIds,
+    lockedOutNodeIds,
     turn: state.turn + 1,
   };
 }

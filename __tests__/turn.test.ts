@@ -41,6 +41,16 @@ const wipeMap: FlowMap = {
   updatedAt: '2026-08-20T00:00:00.000Z',
 };
 
+const countermeasure = (type: NonNullable<FlowNode['countermeasureType']>): FlowNode => ({
+  id: `${type}-1`,
+  name: type,
+  x: 0,
+  y: 0,
+  category: 'countermeasure',
+  countermeasureType: type,
+  resolve: { subskill: 'hack', dcModifier: 0, successesRequired: 1 },
+});
+
 const makeState = (overrides: Partial<GameState> = {}): GameState => ({
   id: 'g1',
   mapId: 'm1',
@@ -169,6 +179,70 @@ describe('turn reducer — ROLL_RESOLVE', () => {
     expect(next.objectives['wipe-1'].successes).toBe(1);
     expect(next.hiddenNodeIds).toEqual([]);
     expect(next.wipingNodeIds).toEqual([]);
+  });
+
+  test('Wipe triggers after two failures', () => {
+    const first = reducer(makeState(), {
+      type: 'ROLL_RESOLVE', playerId: 'p1', node: wipeNode, d20: 5,
+    }, wipeMap);
+    const next = reducer(first, {
+      type: 'ROLL_RESOLVE', playerId: 'p1', node: wipeNode, d20: 5,
+    }, wipeMap);
+    expect(next.objectives['wipe-1'].failures).toBe(2);
+    expect(next.hiddenNodeIds).toEqual(['target-1']);
+    expect(next.wipingNodeIds).toEqual(['target-1']);
+  });
+
+  test('Feedback applies a -2 penalty to the next Resolve only', () => {
+    const state = makeState();
+    const feedback = reducer(state, {
+      type: 'ROLL_RESOLVE', playerId: 'p1', node: countermeasure('feedback'), d20: 5,
+    });
+    expect(feedback.feedbackPenalty).toBe(-2);
+
+    const next = reducer(feedback, {
+      type: 'ROLL_RESOLVE', playerId: 'p1', node: { ...node, id: 'later' }, d20: 10,
+    });
+    expect(next.log[0].total).toBe(8);
+    expect(next.feedbackPenalty).toBe(0);
+  });
+
+  test('Fake Shell and Alarm record their triggered nodes', () => {
+    const fakeShell = reducer(makeState(), {
+      type: 'ROLL_RESOLVE', playerId: 'p1', node: countermeasure('fake-shell'), d20: 5,
+    });
+    expect(fakeShell.decoyNodeIds).toEqual(['fake-shell-1']);
+
+    const alarm = reducer(makeState(), {
+      type: 'ROLL_RESOLVE', playerId: 'p1', node: countermeasure('alarm'), d20: 5,
+    });
+    expect(alarm.alarmNodeIds).toEqual(['alarm-1']);
+    expect(alarm.log.some((entry) => entry.outcome === 'countermeasure-alarm')).toBe(true);
+  });
+
+  test('Shock Grid costs 1 CP on a failed dynamic resolve', () => {
+    const next = reducer(makeState(), {
+      type: 'ROLL_RESOLVE', playerId: 'p1', node: countermeasure('shock-grid'), d20: 5,
+    });
+    expect(next.players[0].currentCP).toBe(19);
+    expect(next.log.some((entry) => entry.outcome === 'countermeasure-shock-grid')).toBe(true);
+  });
+
+  test('Lockout activates after three failures and expires', () => {
+    const lockout = countermeasure('lockout');
+    let state = makeState();
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      state = reducer(state, { type: 'ROLL_RESOLVE', playerId: 'p1', node: lockout, d20: 5 });
+    }
+    expect(state.lockedOutNodeIds).toEqual(['lockout-1']);
+    expect(state.objectives['lockout-1'].countdown).toBe(3);
+
+    state = reducer(state, { type: 'END_PHASE' });
+    state = reducer(state, { type: 'END_PHASE' });
+    expect(state.lockedOutNodeIds).toEqual(['lockout-1']);
+    state = reducer(state, { type: 'END_PHASE' });
+    expect(state.lockedOutNodeIds).toEqual([]);
+    expect(state.permanentlyFailedNodeIds).not.toContain('lockout-1');
   });
 
   test('root access reduces later DCs by 20 without finishing the session', () => {
