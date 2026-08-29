@@ -167,7 +167,7 @@ export function NodeActionPanel({
 
   React.useEffect(() => {
     if (closing) {
-      contentOpacity.value = withTiming(0, { duration: 180 });
+      contentOpacity.value = 0;
       infoProgress.value = withTiming(0, { duration: 120 });
       revealOpacity.value = 1;
       horizontalProgress.value = withTiming(0, { duration: 240 });
@@ -327,9 +327,9 @@ export function NodeActionPanel({
             <Text style={styles.name} numberOfLines={1}>
               {isReachable ? node.name : 'Unknown Host'}
             </Text>
-            {!isModule && <Text style={styles.meta}>
+            <Text style={styles.meta}>
               {node.category.toUpperCase()} • DC {dc}
-            </Text>}
+            </Text>
           </View>
         </View>
       ) : isReachable ? (
@@ -338,16 +338,16 @@ export function NodeActionPanel({
             <Text style={styles.name} numberOfLines={1}>
               {isReachable ? node.name : 'Unknown Host'}
             </Text>
-            {!isModule && <Text style={styles.meta}>
+            <Text style={styles.meta}>
               DC {dc}
               {` • ${subskill[0].toUpperCase() + subskill.slice(1)}`}
               {successesRequired > 0 ? ` • ${successes}/${successesRequired}` : ''}
-            </Text>}
+            </Text>
           </View>
         </View>
       ) : null}
 
-      {isReachable && hackingMode === 'dynamic' && !isModule && (
+      {isReachable && hackingMode === 'dynamic' && (
         <View style={styles.progressDrawer}>
           <View style={styles.progressLine}>
             <Text style={styles.progressLabel}>SUCCESSES</Text>
@@ -560,7 +560,7 @@ export function NodeActionPanel({
         )}
       </View>
 
-      {isReachable && hackingMode === 'basic' && !isModule && (
+      {isReachable && hackingMode === 'basic' && (
         <View style={[styles.basicProgressCard, basicOutcome ? styles.outcomeFaded : null]}>
           <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
             <ChamferedFrame

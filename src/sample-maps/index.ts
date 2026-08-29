@@ -11,7 +11,9 @@ const sampleMapA: FlowMap = {
   tier: 1,
   description: 'Learn about node hacking, countermeasures, and module rewards.',
   builtIn: true,
-  updatedAt: '2026-08-24T12:00:00.000Z',
+  builtInVersion: 7,
+  routeExitAnchorId: 'tut-n5',
+  updatedAt: '2026-08-28T12:01:00.000Z',
   nodes: [
     // Single starting access node.
     {
@@ -43,8 +45,18 @@ const sampleMapA: FlowMap = {
       security: 1,
       description: 'Security I module. Collecting it removes its +1 DC bonus from the system.',
     },
+    // Root access is a direct branch from the initial login.
+    {
+      id: 'tut-root',
+      name: 'Root Access',
+      x: 400,
+      y: 200,
+      category: 'access',
+      isRootAccess: true,
+      resolve: { subskill: 'hack', successesRequired: 1 },
+    },
     // Branching fork: a hard countermeasure with a deadline.
-    // DC 21 with successesRequired: 2.
+    // Base DC 17 with successesRequired: 2.
     {
       id: 'tut-n3',
       name: 'Wipe',
@@ -56,22 +68,21 @@ const sampleMapA: FlowMap = {
       failureLimit: 3,
       targetNodeIds: ['tut-n5'],
       description: 'Wipes downstream nodes after 3 failures or a critical failure',
-      resolve: { subskill: 'deceive', dcModifier: -4, successesRequired: 2 },
+      resolve: { subskill: 'deceive', successesRequired: 2 },
     },
     // Win condition: clearing Records DB ends the heist.
     {
       id: 'tut-n4',
       name: 'Records DB',
-      x: 480,
+      x: 560,
       y: 200,
       category: 'module',
-      isRootAccess: true,
       resolve: { subskill: 'hack', successesRequired: 1 },
     },
-    // Secure Data module behind the countermeasure.
+    // Secure Cache module behind the countermeasure.
     {
       id: 'tut-n5',
-      name: 'Secure Data',
+      name: 'Secure Cache',
       x: 480,
       y: 360,
       category: 'module',
@@ -81,7 +92,8 @@ const sampleMapA: FlowMap = {
   edges: [
     { id: 'te1', fromNodeId: 'tut-n1', toNodeId: 'tut-n2' },
     { id: 'te5', fromNodeId: 'tut-n1', toNodeId: 'tut-n6' },
-    { id: 'te2', fromNodeId: 'tut-n2', toNodeId: 'tut-n4' },
+    { id: 'te2', fromNodeId: 'tut-n1', toNodeId: 'tut-root' },
+    { id: 'te6', fromNodeId: 'tut-n2', toNodeId: 'tut-n4' },
     { id: 'te3', fromNodeId: 'tut-n2', toNodeId: 'tut-n3' },
     { id: 'te4', fromNodeId: 'tut-n3', toNodeId: 'tut-n5' },
   ],

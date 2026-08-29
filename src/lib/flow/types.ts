@@ -87,6 +87,10 @@ export interface FlowMap {
   updatedAt: string;
   /** True if bundled with the app (cannot be deleted). */
   builtIn?: boolean;
+  /** Revision for bundled maps; used to migrate stored copies. */
+  builtInVersion?: number;
+  /** Node where the special Route Exit keyhole is displayed. */
+  routeExitAnchorId?: string;
   /** 'basic' uses Total Mod for all checks; 'dynamic' uses specific sub-skills. */
   hackingMode?: 'basic' | 'dynamic';
   /** Map-wide failed-attempt threshold for Lockout; defaults to 3 when absent. */

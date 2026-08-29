@@ -361,6 +361,10 @@ export function FlowCanvas({
 
   const startNode = useMemo(() => positionedNodes.find(n => n.id === startId), [positionedNodes, startId]);
   const rootNode = useMemo(() => positionedNodes.find(n => n.isRootAccess), [positionedNodes]);
+  const exitAnchorNode = useMemo(
+    () => positionedNodes.find((node) => node.id === map.routeExitAnchorId) ?? rootNode,
+    [map.routeExitAnchorId, positionedNodes, rootNode],
+  );
   const exitAvailable = rootNode ? isCompleted(rootNode, objectives) : false;
 
   useEffect(() => {
@@ -404,7 +408,7 @@ export function FlowCanvas({
     const timer = setTimeout(() => {
       setFocusAnimating(false);
       setDisplayedPanelId(selectedId ?? null);
-    }, 600);
+    }, 420);
     return () => clearTimeout(timer);
   }, [focusAnimating, selectedId]);
 
@@ -632,25 +636,25 @@ export function FlowCanvas({
                   </G>
                 )}
                 {/* Exit Access Decoration (above the completed final node) */}
-                {rootNode && (
+                    {exitAnchorNode && (
                   <G>
                    <Line 
-                      x1={rootNode.x + NODE_WIDTH / 2} y1={rootNode.y} 
-                      x2={rootNode.x + NODE_WIDTH / 2} y2={rootNode.y - 60} 
+                      x1={exitAnchorNode.x + NODE_WIDTH / 2} y1={exitAnchorNode.y} 
+                      x2={exitAnchorNode.x + NODE_WIDTH / 2} y2={exitAnchorNode.y - 60} 
                       stroke={exitAvailable ? '#22d3ee' : '#1e293b'}
                       strokeWidth={exitAvailable ? 3 : 2}
                       strokeOpacity={exitAvailable ? 1 : 0.7}
                       strokeDasharray="6 4"
                     />
                     <EndpointKeyhole
-                      cx={rootNode.x + NODE_WIDTH / 2}
-                      cy={rootNode.y - 80}
+                      cx={exitAnchorNode.x + NODE_WIDTH / 2}
+                      cy={exitAnchorNode.y - 80}
                       color={exitAvailable ? '#22d3ee' : '#475569'}
                       glowing={noAvailableNodes && exitAvailable}
                       pulse={keyholePulse}
                     />
                     <SvgText 
-                      x={rootNode.x + NODE_WIDTH / 2} y={rootNode.y - 115} 
+                      x={exitAnchorNode.x + NODE_WIDTH / 2} y={exitAnchorNode.y - 115} 
                       fontSize={10} textAnchor="middle"
                       fill={exitAvailable ? '#22d3ee' : '#475569'} fontWeight="800"
                     >
@@ -740,9 +744,9 @@ export function FlowCanvas({
                   accessibilityLabel="Local datajack"
                 />
               )}
-              {rootNode && exitAvailable && mode === 'game' && onLogOut && (
+              {exitAnchorNode && exitAvailable && mode === 'game' && onLogOut && (
                 <Pressable
-                  style={[styles.entryJackPressTarget, { left: rootNode.x + NODE_WIDTH / 2 - 30, top: rootNode.y - 110 }]}
+                  style={[styles.entryJackPressTarget, { left: exitAnchorNode.x + NODE_WIDTH / 2 - 30, top: exitAnchorNode.y - 110 }]}
                   onPress={() => setDisconnectPromptOpen(true)}
                   accessibilityLabel="Root exit"
                 />
@@ -900,6 +904,35 @@ const styles = StyleSheet.create({
   disconnectCancelText: { color: '#cbd5e1', fontFamily: 'Orbitron-Bold', fontSize: 11 },
   disconnectConfirm: { minWidth: 120, paddingVertical: 10, alignItems: 'center', backgroundColor: '#92400e', borderWidth: 1, borderColor: '#fbbf24' },
   disconnectConfirmText: { color: '#fef3c7', fontFamily: 'Orbitron-Bold', fontSize: 11 },
+  closingVerticalReveal: {
+    position: 'absolute',
+    top: 0,
+    left: 129,
+    width: 2,
+    height: 320,
+    marginLeft: -1,
+    backgroundColor: '#22d3ee',
+  },
+  closingHorizontalReveal: {
+    position: 'absolute',
+    left: 12,
+    width: 236,
+    top: 160,
+    height: 2,
+    marginTop: -1,
+    backgroundColor: '#22d3ee',
+  },
+  closingRevealDot: {
+    position: 'absolute',
+    left: 127,
+    top: 157,
+    width: 6,
+    height: 6,
+    marginLeft: -3,
+    marginTop: -3,
+    borderRadius: 3,
+    backgroundColor: '#67e8f9',
+  },
   // Outer monitor/tablet bezel — about 70% wide (15% margin each side), centered,
   // with vertical insets so it doesn't touch the top or bottom of the screen.
   // Thick layered look with a subtle highlight rim for dimension/texture.

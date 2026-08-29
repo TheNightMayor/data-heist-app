@@ -233,7 +233,7 @@ function BrickWallIcon() {
   );
 }
 
-function AccessGatewayIcon() {
+function AccessGatewayIcon({ isRootAccess = false }: { isRootAccess?: boolean }) {
   const spiralRotation = useSharedValue(0);
 
   useEffect(() => {
@@ -257,6 +257,18 @@ function AccessGatewayIcon() {
 
   return (
     <View style={styles.gatewayIcon}>
+      {isRootAccess && (
+        <Svg width={32} height={20} viewBox="0 0 32 20" style={styles.rootCrown}>
+          <Path
+            d="M 3 4 L 9 10 L 16 2 L 23 10 L 29 4 L 26 17 H 6 Z"
+            fill="#fbbf24"
+            stroke="#78350f"
+            strokeWidth={1.5}
+            strokeLinejoin="round"
+          />
+          <Path d="M 7 14 H 25" stroke="#fef08a" strokeWidth={1.5} strokeLinecap="round" />
+        </Svg>
+      )}
       <View style={styles.gatewayArch}>
         <Svg width={36.4} height={39} viewBox="0 0 28 30">
           <Path
@@ -418,7 +430,7 @@ export const FlowNodeView = memo(function FlowNodeView({ node, mode, status = 'a
         )}
         {!concealed && (
           <View style={[styles.hexContent, concealed ? { opacity: concealedOpacity } : null, styles.noPointerEvents]}>
-            {node.category === 'access' ? <AccessGatewayIcon /> : node.category === 'module' ? (
+            {node.category === 'access' ? <AccessGatewayIcon isRootAccess={node.isRootAccess} /> : node.category === 'module' ? (
               <View style={styles.moduleIcon}>
                 <TreasureChestIcon />
                 {!collected && (
@@ -492,6 +504,12 @@ const styles = StyleSheet.create({
     width: 36.4,
     height: 39,
     position: 'relative',
+  },
+  rootCrown: {
+    position: 'absolute',
+    top: -13,
+    left: 2,
+    zIndex: 4,
   },
   trapIcon: {
     width: 62,

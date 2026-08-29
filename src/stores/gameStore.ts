@@ -86,7 +86,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     return copy;
   },
 
-  startGame: (map, players, hackingMode = 'dynamic') => {
+  startGame: (map, players, hackingMode = 'basic') => {
     const playersForMode = hackingMode === 'basic'
       ? [players.find((p) => p.class === 'lead') ?? players[0]].filter(Boolean)
       : players;

@@ -130,7 +130,10 @@ export default function HomeScreen() {
       const merged = stored.map((m) => {
         const bundled = SAMPLE_MAPS.find((sm) => sm.id === m.id);
         const looksBuiltIn = m.builtIn !== false;
-        if (bundled && looksBuiltIn && m.updatedAt < bundled.updatedAt) {
+        if (bundled && looksBuiltIn && (
+          (m.builtInVersion ?? 0) < (bundled.builtInVersion ?? 0)
+            || m.updatedAt < bundled.updatedAt
+        )) {
           return bundled;
         }
         return m;
@@ -143,7 +146,7 @@ export default function HomeScreen() {
     })();
   }, [refreshAll]);
 
-  const handlePlaySample = (mapId: string, mode: 'basic' | 'dynamic' = 'dynamic') => {
+  const handlePlaySample = (mapId: string, mode: 'basic' | 'dynamic' = 'basic') => {
     router.push(`/setup?mapId=${mapId}&hackingMode=${mode}`);
   };
 
@@ -204,7 +207,7 @@ export default function HomeScreen() {
 
       <Text style={styles.sectionHeader}>Sample Maps</Text>
       {SAMPLE_MAPS.map((m) => {
-        const mode = hackingModes[m.id] || 'dynamic';
+        const mode = hackingModes[m.id] || 'basic';
         const nodeCount = m.nodes.filter((node) => node.category === 'access').length;
         const moduleCount = m.nodes.filter((node) => node.category === 'module').length;
         const countermeasureCount = m.nodes.filter((node) => node.category === 'countermeasure').length;
@@ -283,7 +286,7 @@ export default function HomeScreen() {
           {allMaps
             .filter((m) => !m.builtIn)
             .map((m) => {
-              const mode = hackingModes[m.id] || 'dynamic';
+              const mode = hackingModes[m.id] || 'basic';
               return (
                 <View key={m.id} style={{ position: 'relative', width: cardWidth }}>
                   <HudCard

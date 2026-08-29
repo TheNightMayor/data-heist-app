@@ -37,7 +37,10 @@ export async function loadMap(id: string): Promise<FlowMap | null> {
   const bundled = SAMPLE_MAPS.find((m) => m.id === id);
   const storedLooksBuiltIn = stored?.builtIn !== false;
 
-  if (stored && bundled && storedLooksBuiltIn && stored.updatedAt < bundled.updatedAt) {
+  if (stored && bundled && storedLooksBuiltIn && (
+    (stored.builtInVersion ?? 0) < (bundled.builtInVersion ?? 0)
+      || stored.updatedAt < bundled.updatedAt
+  )) {
     await saveMap(bundled);
     return bundled;
   }

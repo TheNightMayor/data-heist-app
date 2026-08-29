@@ -192,7 +192,7 @@ interface DraftPlayer {
 
 export default function SetupScreen() {
   const { mapId, hackingMode: modeParam } = useLocalSearchParams<{ mapId: string, hackingMode?: 'basic' | 'dynamic' }>();
-  const hackingMode = modeParam || 'dynamic';
+  const hackingMode = modeParam || 'basic';
   const router = useRouter();
   const startGame = useGameStore((s) => s.startGame);
 

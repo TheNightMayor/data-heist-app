@@ -511,6 +511,7 @@ export default function GameScreen() {
   const [shockSaveModifier, setShockSaveModifier] = useState('0');
   const [shockSaveResult, setShockSaveResult] = useState<{ playerId: string; info: RollResultInfo } | null>(null);
   const alarmPulse = useRef(new Animated.Value(0)).current;
+  const bootedMapId = useRef<string | null>(null);
   const [booting, setBooting] = useState(true);
   const [launching, setLaunching] = useState(launch === '1');
   const [launchAnimationComplete, setLaunchAnimationComplete] = useState(false);
@@ -524,10 +525,8 @@ export default function GameScreen() {
 
   // Boot: restore the saved session for this map before falling back to setup.
   useEffect(() => {
-    if (!mapId || state) {
-      if (state) setBooting(false);
-      return;
-    }
+    if (!mapId || bootedMapId.current === mapId) return;
+    bootedMapId.current = mapId;
 
     let cancelled = false;
     (async () => {
@@ -1161,7 +1160,9 @@ export default function GameScreen() {
                     {obj.successes}/{node?.resolve?.successesRequired || 1}
                   </Text>
                   {' • '}
-                  <Text style={styles.failureStatValue}>{obj.failures ?? 0}/3</Text>
+                  <Text style={styles.failureStatValue}>
+                    {node?.failureLimit !== undefined ? `${obj.failures ?? 0}/${node.failureLimit}` : obj.failures ?? 0}
+                  </Text>
                 </Text>
               </View>
             );
