@@ -94,6 +94,8 @@ export interface GameState {
   phase: PhaseStatus;
   /** How many phases have elapsed. */
   turn: number;
+  /** Elapsed system time in seconds. */
+  systemTimeSeconds?: number;
   /** How many full rounds have elapsed (round = all non-ejected players have taken a turn). */
   round: number;
   /** Lead's committed number of major actions this turn (1-4). 0 for Support / pre-planning. */

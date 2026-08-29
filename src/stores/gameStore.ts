@@ -141,6 +141,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       activePlayerIndex: 0,
       phase: 'idle',
       turn: 0,
+      systemTimeSeconds: 0,
       round: 0,
       actionsCommitted: 0,
       rpCommitted: 0,

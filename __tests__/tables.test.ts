@@ -27,8 +27,12 @@ describe('DC tables', () => {
     expect(effectiveDC(1, { subskill: 'hack', dcOverride: 22, dcModifier: 2, successesRequired: 1 }, 1)).toBe(25);
   });
 
-  test('effectiveDC reduces DC by 20 after root access', () => {
-    expect(effectiveDC(3, undefined, 0, true)).toBe(5);
+  test('root access is DC 20 above the map DC', () => {
+    expect(effectiveDC(3, undefined, 0, false, true)).toBe(45);
+  });
+
+  test('root access makes later node checks DC 10', () => {
+    expect(effectiveDC(3, undefined, 0, true)).toBe(10);
   });
 
   test('uncollected Security modules raise DCs until collected', () => {

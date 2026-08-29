@@ -386,7 +386,7 @@ function rollResolve(
   const effectiveRPCommitted = state.actionsCommitted > 0 ? state.rpCommitted : 0;
 
   const securityBonus = map ? securityBonusForMap(map, state.visitedNodeIds) : 0;
-  const dc = effectiveDC(map?.tier ?? 1, node.resolve, securityBonus, state.rootAccessAchieved);
+  const dc = effectiveDC(map?.tier ?? 1, node.resolve, securityBonus, state.rootAccessAchieved, node.isRootAccess);
   const subskill = node.resolve?.subskill ?? 'hack';
   const baseModifier = modifierFor(player, subskill, state.hackingMode);
   const penalty = turnPenalty(state.actionsTaken, effectiveRPCommitted);
@@ -621,6 +621,7 @@ function rollResolve(
   const nextPhase: typeof state.phase = state.hackingMode === 'basic' && !finished
     ? 'advancing'
     : 'resolved';
+  const actionDuration = node.category === 'module' ? 60 : 6;
 
   return {
     ...state,
@@ -641,6 +642,7 @@ function rollResolve(
     result,
     rootAccessAchieved,
     actionsTaken,
+    systemTimeSeconds: (state.systemTimeSeconds ?? 0) + actionDuration,
     // Persist the effective commitment so the rest of the system (UI badges,
     // exhaustion checks) sees the same value the roll was computed with.
     actionsCommitted: effectiveCommitted,

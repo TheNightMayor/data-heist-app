@@ -19,9 +19,17 @@ export function dcForTier(tier: number): number {
  * Compute the effective DC for a check against a node.
  * Root access reduces subsequent DCs by 20.
  */
-export function effectiveDC(tier: number, resolve?: ObjectiveResolve, securityBonus = 0, rootAccess = false): number {
+export function effectiveDC(
+  tier: number,
+  resolve?: ObjectiveResolve,
+  securityBonus = 0,
+  rootAccess = false,
+  isRootAccess = false,
+): number {
+  if (isRootAccess) return dcForTier(tier) + securityBonus + 20;
+  if (rootAccess) return 10;
   const base = resolve?.dcOverride ?? dcForTier(tier);
-  return base + securityBonus + (resolve?.dcModifier ?? 0) - (rootAccess ? 20 : 0);
+  return base + securityBonus + (resolve?.dcModifier ?? 0);
 }
 
 /** Highest active Security-module bonus before the listed modules are collected. */

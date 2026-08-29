@@ -79,6 +79,13 @@ const LAUNCH_PHRASE_PAIRS = [
   ['ESCAPING', 'THE LOCKDOWN'],
   ['COMMITTING', 'THE FINAL OVERRIDE'],
 ];
+
+function formatSystemTime(totalSeconds: number): string {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return [hours, minutes, seconds].map((value) => value.toString().padStart(2, '0')).join(':');
+}
 const LAUNCH_VERTICAL_DURATION = 620;
 const LAUNCH_DOT_HOLD = 360;
 const LAUNCH_HORIZONTAL_DELAY = 1040;
@@ -415,7 +422,7 @@ function CurrentTargetPanel({
     access: { fill: '#1e3a8a', border: '#60a5fa', icon: 'A' },
   };
   const cat = catColors[targetNode.category];
-  const dc = effectiveDC(mapTier, targetNode.resolve, securityBonus, rootAccessAchieved);
+  const dc = effectiveDC(mapTier, targetNode.resolve, securityBonus, rootAccessAchieved, targetNode.isRootAccess);
   const subskill = targetNode.resolve?.subskill ?? 'hack';
   const successesRequired = targetNode.resolve?.successesRequired ?? 0;
 
@@ -753,7 +760,7 @@ export default function GameScreen() {
     const passwordBonus = state.passwordAccessAchieved ? PASSWORD_HACKING_BONUS : 0;
     const baseModifier = modifierFor(activePlayer, subskill, state.hackingMode) + passwordBonus;
     let modifier = baseModifier;
-    const dc = effectiveDC(map.tier, node.resolve, securityBonus, state.rootAccessAchieved);
+    const dc = effectiveDC(map.tier, node.resolve, securityBonus, state.rootAccessAchieved, node.isRootAccess);
 
     // Apply multi-action penalty
     const penalty = turnPenalty(state.actionsTaken, state.rpCommitted);
@@ -900,7 +907,7 @@ export default function GameScreen() {
     // Roll the Aid check immediately.
     const d20 = rollDie(20);
     const modifier = modifierFor(activePlayer, 'hack') + (state.passwordAccessAchieved ? PASSWORD_HACKING_BONUS : 0);
-    const baseDC = effectiveDC(map.tier, target.resolve, securityBonus, state.rootAccessAchieved);
+    const baseDC = effectiveDC(map.tier, target.resolve, securityBonus, state.rootAccessAchieved, target.isRootAccess);
     const dc = Math.max(10, baseDC - 10);
     const outcome = resolve({ d20, modifier, dc });
 
@@ -1068,6 +1075,10 @@ export default function GameScreen() {
             ) : null}
           </View>
           <Text style={[styles.mapTier, { color: '#22d3ee' }]}>TIER {map.tier}</Text>
+          <View style={styles.systemClock}>
+            <Text style={styles.systemClockLabel}>SYSTEM TIME</Text>
+            <Text style={styles.systemClockValue}>{formatSystemTime(state.systemTimeSeconds ?? 0)}</Text>
+          </View>
         </View>
         {state.hackingMode === 'dynamic' && <View style={styles.headerRow}>
           <ScrollView
@@ -1368,7 +1379,7 @@ export default function GameScreen() {
                     </Text>
                   </View>
                   <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700', marginLeft: 8 }}>
-                    DC {effectiveDC(map.tier, pendingRollNode.resolve, securityBonus, state.rootAccessAchieved)}
+                      DC {effectiveDC(map.tier, pendingRollNode.resolve, securityBonus, state.rootAccessAchieved, pendingRollNode.isRootAccess)}
                   </Text>
                 </View>
                 {activePlayer && (
@@ -1661,7 +1672,7 @@ export default function GameScreen() {
             title: state.hackingMode === 'basic' ? pendingRollNode.name : 'Major Actions',
             subtitle: state.hackingMode === 'basic' ? 'Computers Skill Check' : pendingRollNode.name,
             subskill: pendingRollNode.resolve?.subskill ?? 'hack',
-            dc: effectiveDC(map.tier, pendingRollNode.resolve, securityBonus, state.rootAccessAchieved),
+            dc: effectiveDC(map.tier, pendingRollNode.resolve, securityBonus, state.rootAccessAchieved, pendingRollNode.isRootAccess),
             modifier: activePlayer
               ? modifierFor(activePlayer, pendingRollNode.resolve?.subskill ?? 'hack', state.hackingMode) + (state.passwordAccessAchieved ? PASSWORD_HACKING_BONUS : 0)
               : 0,
@@ -1965,6 +1976,22 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '900',
     fontFamily: 'Orbitron-Black',
+  },
+  systemClock: {
+    alignItems: 'flex-end',
+    marginRight: 52,
+  },
+  systemClockLabel: {
+    color: '#64748b',
+    fontSize: 8,
+    fontFamily: 'Orbitron-Bold',
+    letterSpacing: 1,
+  },
+  systemClockValue: {
+    color: '#67e8f9',
+    fontSize: 13,
+    fontFamily: 'Orbitron-Bold',
+    letterSpacing: 1,
   },
   headerTitle: {
     fontSize: 12,

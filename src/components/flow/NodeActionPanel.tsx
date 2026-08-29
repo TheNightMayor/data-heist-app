@@ -86,7 +86,7 @@ export function NodeActionPanel({
   const [drawerSize, setDrawerSize] = useState({ width: 0, height: 0 });
   const [modifierDrawerOpen, setModifierDrawerOpen] = useState(false);
   const [modifierDrawerMounted, setModifierDrawerMounted] = useState(false);
-  const dc = effectiveDC(mapTier, node.resolve, securityBonus, rootAccessAchieved);
+  const dc = effectiveDC(mapTier, node.resolve, securityBonus, rootAccessAchieved, node.isRootAccess);
   const subskill = node.resolve?.subskill ?? 'hack';
   const successesRequired = node.resolve?.successesRequired ?? 0;
   const isModule = node.category === 'module';

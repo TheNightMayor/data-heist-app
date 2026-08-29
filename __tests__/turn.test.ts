@@ -108,14 +108,14 @@ describe('turn reducer — ROLL_RESOLVE', () => {
     const next = reducer(state, {
       type: 'ROLL_RESOLVE',
       playerId: 'p1',
-      node,
+      node: { ...node, isRootAccess: false },
       d20: 15,
     });
     expect(next.visitedNodeIds).toContain('n1');
     expect(next.objectives['n1'].successes).toBe(1);
     expect(next.phase).toBe('resolved');
-    expect(next.finished).toBe(false); // root access grants the DC reduction, not a win
-    expect(next.rootAccessAchieved).toBe(true);
+    expect(next.finished).toBe(false);
+    expect(next.rootAccessAchieved).toBe(false);
   });
 
   test('failure does not add successes but marks visited', () => {
@@ -460,7 +460,7 @@ describe('turn reducer — ROLL_RESOLVE', () => {
     expect(state.alarmNodeIds).toEqual([]);
   });
 
-  test('root access reduces later DCs by 20 without finishing the session', () => {
+  test('root access sets later node DC to 10 without finishing the session', () => {
     const state = makeState({ rootAccessAchieved: true });
     const next = reducer(state, {
       type: 'ROLL_RESOLVE',
@@ -470,7 +470,7 @@ describe('turn reducer — ROLL_RESOLVE', () => {
     });
 
     expect(next.finished).toBe(false);
-    expect(next.log[0].dc).toBe(-3);
+    expect(next.log[0].dc).toBe(10);
   });
 
   test('nat 1 deals CP damage on 1d6 roll of 1-3', () => {
