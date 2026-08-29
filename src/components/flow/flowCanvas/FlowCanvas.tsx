@@ -132,6 +132,8 @@ interface Props {
   statusById?: Record<string, NodeStatus>;
   progressById?: Record<string, number>;
   wipingNodeIds?: Set<string>;
+  hiddenCountermeasureIds?: Set<string>;
+  fakeShellActive?: boolean;
   onSelectNode?: (node: FlowNode | null) => void;
   mode: 'build' | 'game';
 
@@ -184,6 +186,8 @@ export function FlowCanvas({
   statusById, 
   progressById,
   wipingNodeIds,
+  hiddenCountermeasureIds,
+  fakeShellActive,
   onSelectNode, 
   mode,
   activePlayerClass,
@@ -656,14 +660,24 @@ export function FlowCanvas({
 
                 {/* Decorative stub branches — fake traces ending in small PCB vias */}
                 <StubBranches 
-                  positionedNodes={positionedNodes} 
-                  positionedEdges={positionedEdges} 
+                  positionedNodes={mode === 'game'
+                    ? positionedNodes.filter((node) => !hiddenCountermeasureIds?.has(node.id)
+                      && (!fakeShellActive || (node.category === 'countermeasure' && node.countermeasureType === 'fake-shell')))
+                    : positionedNodes}
+                  positionedEdges={mode === 'game'
+                    ? positionedEdges.filter((edge) => !hiddenCountermeasureIds?.has(edge.fromNodeId)
+                      && !hiddenCountermeasureIds?.has(edge.toNodeId)
+                      && (!fakeShellActive || (nodeById.get(edge.fromNodeId)?.countermeasureType === 'fake-shell'
+                        && nodeById.get(edge.toNodeId)?.category === 'countermeasure'
+                        && nodeById.get(edge.toNodeId)?.countermeasureType === 'fake-shell')))
+                    : positionedEdges}
                 />
                 {/* Edges — circuit-style right-angle paths with rounded corners */}
                 {positionedEdges.map((edge) => {
                   const from = nodeById.get(edge.fromNodeId);
                   const to = nodeById.get(edge.toNodeId);
                   if (!from || !to) return null;
+                  if (mode === 'game' && (hiddenCountermeasureIds?.has(from.id) || hiddenCountermeasureIds?.has(to.id))) return null;
                   // Anchor: bottom-center of source node, top-center of target node.
                   // Source node is BELOW the target on screen (higher y = lower on screen).
                   const sx = from.x + NODE_WIDTH / 2;
@@ -701,10 +715,21 @@ export function FlowCanvas({
                   );
                 })}
                 <TravelLine
-                  nodes={positionedNodes}
-                  edges={positionedEdges}
+                  nodes={mode === 'game'
+                    ? positionedNodes.filter((node) => !hiddenCountermeasureIds?.has(node.id)
+                      && (!fakeShellActive || (node.category === 'countermeasure' && node.countermeasureType === 'fake-shell')))
+                    : positionedNodes}
+                  edges={mode === 'game'
+                    ? positionedEdges.filter((edge) => !hiddenCountermeasureIds?.has(edge.fromNodeId)
+                      && !hiddenCountermeasureIds?.has(edge.toNodeId)
+                      && (!fakeShellActive || (nodeById.get(edge.fromNodeId)?.category === 'countermeasure'
+                        && nodeById.get(edge.fromNodeId)?.countermeasureType === 'fake-shell'
+                        && nodeById.get(edge.toNodeId)?.category === 'countermeasure'
+                        && nodeById.get(edge.toNodeId)?.countermeasureType === 'fake-shell')))
+                    : positionedEdges}
                   selectedId={selectedId ?? null}
                   wipingNodeIds={wipingNodeIds}
+                  hiddenCountermeasureIds={hiddenCountermeasureIds}
                 />
               </Svg>
               {startNode && mode === 'game' && onLogOut && (
@@ -722,6 +747,7 @@ export function FlowCanvas({
                 />
               )}
               {positionedNodes.map((node) => {
+                if (mode === 'game' && hiddenCountermeasureIds?.has(node.id)) return null;
                 const status = statusById?.[node.id] ?? 'available';
                 const isActive = activeId === node.id;
                 const isSelected = selectedId === node.id;

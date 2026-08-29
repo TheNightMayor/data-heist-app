@@ -7,6 +7,7 @@ import { FlowNodeView } from '@/components/flow/FlowNode';
 import { NodePalette } from '@/components/flow/NodePalette';
 import { NodeEditor } from '@/components/flow/NodeEditor';
 import type { NodeCategory, FlowNode } from '@/lib/flow/types';
+import { multipleShockGrids, overlappingFirewallTargets, shockGridsWithInvalidRank } from '@/lib/flow/validation';
 import { ChamferedFrame } from '@/components/ui/ChamferedFrame';
 
 export default function BuildMapScreen() {
@@ -22,6 +23,7 @@ export default function BuildMapScreen() {
     addEdge,
     removeEdge,
     setName,
+    setCumulativeFailureLimit,
     saveCurrent,
     dirty,
   } = useMapStore();
@@ -40,6 +42,11 @@ export default function BuildMapScreen() {
       </View>
     );
   }
+
+  const firewallConflicts = overlappingFirewallTargets(current);
+  const firewallConflictNames = firewallConflicts.map((id) => current.nodes.find((node) => node.id === id)?.name ?? id);
+  const shockGridWarnings = shockGridsWithInvalidRank(current).map((id) => current.nodes.find((node) => node.id === id)?.name ?? id);
+  const multipleShockGridWarnings = multipleShockGrids(current).map((id) => current.nodes.find((node) => node.id === id)?.name ?? id);
 
   const handleCanvasTap = (x: number, y: number) => {
     if (pickingCategory) {
@@ -63,6 +70,18 @@ export default function BuildMapScreen() {
             placeholderTextColor="#475569"
           />
         </View>
+        <View style={styles.failureLimitField}>
+          <Text style={styles.failureLimitLabel}>Lockout</Text>
+          <TextInput
+            style={styles.failureLimitInput}
+            value={(current.cumulativeFailureLimit ?? 3).toString()}
+            onChangeText={(value) => {
+              const limit = Number(value);
+              if (Number.isFinite(limit)) setCumulativeFailureLimit(limit);
+            }}
+            keyboardType="numeric"
+          />
+        </View>
         <View style={{ width: 80, height: 36 }}>
           <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
             <ChamferedFrame width={80} height={36} chamfer={6} stroke="#22d3ee" fill="#0e7490" />
@@ -72,6 +91,28 @@ export default function BuildMapScreen() {
           </Pressable>
         </View>
       </View>
+
+      {firewallConflicts.length > 0 && (
+        <View style={styles.warning}>
+          <Text style={styles.warningText}>
+            Firewall overlap: {firewallConflictNames.join(', ')} have multiple Firewall layers.
+          </Text>
+        </View>
+      )}
+      {shockGridWarnings.length > 0 && (
+        <View style={styles.warning}>
+          <Text style={styles.warningText}>
+            Shock Grid rank missing or invalid: {shockGridWarnings.join(', ')} need rank 1-5.
+          </Text>
+        </View>
+      )}
+      {multipleShockGridWarnings.length > 0 && (
+        <View style={styles.warning}>
+          <Text style={styles.warningText}>
+            Only one Shock Grid is allowed per map: {multipleShockGridWarnings.join(', ')}.
+          </Text>
+        </View>
+      )}
 
       {/* Canvas — using a simple tap-anywhere approach */}
       <Pressable
@@ -187,6 +228,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: 'Orbitron-Bold',
   },
+  failureLimitField: { width: 74, height: 36 },
+  failureLimitLabel: { color: '#64748b', fontSize: 9, fontFamily: 'Orbitron' },
+  failureLimitInput: { height: 24, color: '#f1f5f9', fontSize: 13, fontFamily: 'Orbitron-Bold', padding: 0 },
   saveBtn: {
     height: 36,
     alignItems: 'center',
@@ -196,6 +240,14 @@ const styles = StyleSheet.create({
   canvasContainer: { flex: 1, position: 'relative' },
   loading: { flex: 1, backgroundColor: '#020617', alignItems: 'center', justifyContent: 'center' },
   loadingText: { color: '#94a3b8', fontSize: 16, fontFamily: 'Orbitron' },
+  warning: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#451a03',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f59e0b',
+  },
+  warningText: { color: '#fbbf24', fontSize: 11, fontFamily: 'Orbitron' },
   connectBanner: {
     position: 'absolute',
     top: 8,

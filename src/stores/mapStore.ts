@@ -25,6 +25,7 @@ interface MapStore {
   addEdge: (fromNodeId: string, toNodeId: string) => void;
   removeEdge: (id: string) => void;
   setName: (name: string) => void;
+  setCumulativeFailureLimit: (limit: number) => void;
 }
 
 export const useMapStore = create<MapStore>((set, get) => ({
@@ -41,6 +42,7 @@ export const useMapStore = create<MapStore>((set, get) => ({
       updatedAt: new Date().toISOString(),
       nodes: [],
       edges: [],
+      cumulativeFailureLimit: 3,
     };
     set({ current: newMap, dirty: true });
     return newMap;
@@ -173,6 +175,15 @@ export const useMapStore = create<MapStore>((set, get) => ({
     if (!cur) return;
     set({
       current: { ...cur, name },
+      dirty: true,
+    });
+  },
+
+  setCumulativeFailureLimit: (limit) => {
+    const cur = get().current;
+    if (!cur) return;
+    set({
+      current: { ...cur, cumulativeFailureLimit: Math.max(1, Math.floor(limit)) },
       dirty: true,
     });
   },

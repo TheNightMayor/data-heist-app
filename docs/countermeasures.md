@@ -57,8 +57,15 @@ A failure by 5 or more infects the device used for the attempt, imposing a tempo
 
 Potential Basic-mode interpretation:
 
-- Apply a temporary penalty to the next one or more resolve checks.
-- Display the penalty in the game log and active-player panel.
+- A hacking attempt on any node that fails by 5 or more activates Feedback.
+- Apply one global -5 penalty to every player's later hacking checks.
+- Keep the penalty active until the Feedback countermeasure is successfully hacked.
+- Clear the penalty for the whole party when that countermeasure is hacked.
+- Display the penalty activation and clearing in the game log and active-player panel.
+
+Decisions:
+
+- Multiple Feedback countermeasures do not stack; the party has one global -5 penalty.
 
 ### Fake Shell
 
@@ -80,15 +87,22 @@ Potential Basic-mode interpretation:
 - Optionally escalate the map state or reveal a configured consequence.
 - Keep the consequence configurable rather than assuming combat rules.
 
+Current app interpretation:
+
+- The second and later global failed hacking attempts activate every unresolved Alarm and record their countermeasure IDs.
+- A successfully hacked Alarm stays disabled during ordinary failures; only a global Lockout can reactivate it.
+- An `ALARM ACTIVE` warning flashes in the game header while any Alarm remains active.
+- Successfully completing the Alarm countermeasure disables its warning.
+- No outside-the-app combat, robot, trap, or weapon consequence is modeled.
+
 ### Lockout
 
-After repeated failures, makes the system inaccessible for a specified duration. A standard lockout commonly uses three failed attempts within 24 hours, but the threshold and duration can be customized. Physical access can bypass it with an Engineering check.
+After three failed attempts, makes the entire system inaccessible and ends the encounter in a total failure. Physical access bypass and countdowns are not modeled.
 
-Potential Basic-mode interpretation:
+Current app interpretation:
 
 - Track failed attempts separately from ordinary node failures.
-- Mark the node locked for a map-configured duration or number of phases.
-- Allow a GM-configured bypass action.
+- Lock every node and end the encounter as a loss when the map-wide failure threshold is reached. The threshold is chosen in map creation and defaults to three failed attempts.
 
 This is the countermeasure most likely to use a countdown, but countdowns are not universal.
 
@@ -96,11 +110,12 @@ This is the countermeasure most likely to use a countdown, but countdowns are no
 
 On a failed access attempt, nearby creatures must save or become stunned. A lethal setting also deals electricity damage, with a save for half damage. The DC and damage depend on the grid rank.
 
-Potential Basic-mode interpretation:
+Current app interpretation:
 
-- Use the existing CP system for damage.
-- Add a temporary stunned state if the game needs action denial.
-- Store rank, save DC, damage, and stun duration on the countermeasure configuration.
+- Only one Shock Grid is allowed per map, with an explicitly configured rank from 1 to 5.
+- The first global failure prompts every player for a Fortitude save; a failed save stuns that player until their next turn.
+- The second and later global failures prompt every player for a Reflex save; a failed save reports the rank-based damage without reducing CP.
+- Save modifiers are entered temporarily in the dice-roll modal.
 
 ### Firewall
 
@@ -110,11 +125,8 @@ Current app interpretation:
 
 - Available as a countermeasure type in the map builder.
 - Use `targetNodeIds` to identify the protected modules.
-- The node graph still controls normal downstream reachability.
-
-Open decision:
-
-- Whether protected targets should require a separate Firewall check, or whether completing the Firewall node is sufficient for the current abstract Basic-mode flow.
+- Protected targets are concealed and unreachable until the Firewall node is completed, even when an alternate graph path exists. Completing the Firewall node is the additional Computers check at the system DC plus 2.
+- Multiple Firewalls may protect different modules. A module targeted by more than one Firewall is flagged as a builder warning.
 
 ## Official countermeasure not currently modeled
 

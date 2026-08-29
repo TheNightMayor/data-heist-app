@@ -57,6 +57,10 @@ export interface FlowNode {
   countdown?: number;
   /** Variant used to identify the countermeasure's eventual gameplay effect. */
   countermeasureType?: CountermeasureType;
+  /** Official rank for Shock Grid countermeasures (1-5). */
+  countermeasureRank?: number;
+  /** Optional DC a hacking roll must meet to reveal this countermeasure. */
+  visibilityDC?: number;
   /** Explicit nodes affected by this countermeasure, independent of graph edges. */
   targetNodeIds?: string[];
   /** Optional flavor text shown when the node is tapped. */
@@ -83,7 +87,7 @@ export interface FlowMap {
   builtIn?: boolean;
   /** 'basic' uses Total Mod for all checks; 'dynamic' uses specific sub-skills. */
   hackingMode?: 'basic' | 'dynamic';
-  /** Optional map-wide failure limit. When absent, cumulative failures are not tracked or shown. */
+  /** Map-wide failed-attempt threshold for Lockout; defaults to 3 when absent. */
   cumulativeFailureLimit?: number;
 }
 
@@ -104,6 +108,8 @@ export function createNode(partial: Partial<FlowNode> & Pick<FlowNode, 'id' | 'x
     resolve,
     countdown: partial.countdown,
     countermeasureType: partial.countermeasureType ?? (category === COUNTERMEASURE_NODE_CATEGORY ? WIPE_COUNTERMEASURE : undefined),
+    countermeasureRank: partial.countermeasureRank,
+    visibilityDC: partial.visibilityDC,
     targetNodeIds: partial.targetNodeIds,
     description: partial.description,
   };

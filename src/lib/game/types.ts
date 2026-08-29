@@ -54,6 +54,18 @@ export interface ObjectiveProgress {
   countdown?: number;
 }
 
+export type ShockGridSaveType = 'fortitude' | 'reflex';
+
+export interface PendingShockGridSave {
+  nodeId: string;
+  saveType: ShockGridSaveType;
+  playerIds: string[];
+  currentPlayerIndex: number;
+  rank: number;
+  dc: number;
+  damage: string;
+}
+
 export interface GameLogEntry {
   turn: number;
   playerId: string;
@@ -110,14 +122,22 @@ export interface GameState {
   hiddenNodeIds?: string[];
   /** Node IDs currently showing the Wipe transition. */
   wipingNodeIds?: string[];
+  /** Countermeasures revealed by a successful visibility check. */
+  revealedCountermeasureIds?: string[];
   /** Penalty applied to the next Resolve check by Feedback. */
   feedbackPenalty?: number;
   /** Countermeasure nodes revealed to be Fake Shells. */
   decoyNodeIds?: string[];
+  /** True once the map-wide Fake Shell has been disabled. */
+  fakeShellDisabled?: boolean;
   /** Countermeasure nodes that have triggered an Alarm. */
   alarmNodeIds?: string[];
   /** Countermeasure nodes currently enforcing a Lockout. */
   lockedOutNodeIds?: string[];
+  /** Sequential Shock Grid saves waiting for player input. */
+  pendingShockGridSave?: PendingShockGridSave;
+  /** Players who lose their next turn after a failed Fortitude save. */
+  stunnedPlayerIds?: string[];
   /** Active objectives and their progress. */
   objectives: Record<string, ObjectiveProgress>;
   /** Recent actions for the log panel. */

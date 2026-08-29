@@ -501,6 +501,9 @@ export default function GameScreen() {
     rolling: false,
     info: null,
   });
+  const [shockSaveModifier, setShockSaveModifier] = useState('0');
+  const [shockSaveResult, setShockSaveResult] = useState<{ playerId: string; info: RollResultInfo } | null>(null);
+  const alarmPulse = useRef(new Animated.Value(0)).current;
   const [booting, setBooting] = useState(true);
   const [launching, setLaunching] = useState(launch === '1');
   const [launchAnimationComplete, setLaunchAnimationComplete] = useState(false);
@@ -575,6 +578,13 @@ export default function GameScreen() {
       permanentlyFailedNodeIds: new Set(state.permanentlyFailedNodeIds),
       hiddenNodeIds: new Set(state.hiddenNodeIds ?? []),
       lockedOutNodeIds: new Set(state.lockedOutNodeIds ?? []),
+      hiddenCountermeasureIds: new Set(map.nodes
+        .filter((node) => node.category === 'countermeasure'
+          && ((node.visibilityDC !== undefined && node.countermeasureType !== 'fake-shell')
+            || (state.fakeShellDisabled && node.countermeasureType === 'fake-shell')))
+        .filter((node) => !(state.revealedCountermeasureIds ?? []).includes(node.id))
+        .map((node) => node.id)),
+      fakeShellActive: map.nodes.some((node) => node.countermeasureType === 'fake-shell') && !state.fakeShellDisabled,
       wipingNodeIds: new Set(state.wipingNodeIds ?? []),
       objectives: state.objectives,
     });
@@ -590,6 +600,20 @@ export default function GameScreen() {
       return node.category !== 'module' && failures >= failureLimit;
     });
   }, [map, reachableIds, state]);
+
+  const alarmActive = (state?.alarmNodeIds?.length ?? 0) > 0;
+  useEffect(() => {
+    alarmPulse.stopAnimation();
+    if (alarmActive) {
+      alarmPulse.setValue(0);
+      Animated.loop(Animated.sequence([
+        Animated.timing(alarmPulse, { toValue: 1, duration: 500, useNativeDriver: true }),
+        Animated.timing(alarmPulse, { toValue: 0, duration: 500, useNativeDriver: true }),
+      ])).start();
+    } else {
+      alarmPulse.setValue(0);
+    }
+  }, [alarmActive, alarmPulse]);
 
   const failureLockdown = useMemo(() => {
     if (!noAvailableNodes || !map || !state) return false;
@@ -613,6 +637,13 @@ export default function GameScreen() {
           permanentlyFailedNodeIds: new Set(state.permanentlyFailedNodeIds),
           hiddenNodeIds: new Set(state.hiddenNodeIds ?? []),
           lockedOutNodeIds: new Set(state.lockedOutNodeIds ?? []),
+          hiddenCountermeasureIds: new Set(map.nodes
+            .filter((candidate) => candidate.category === 'countermeasure'
+              && ((candidate.visibilityDC !== undefined && candidate.countermeasureType !== 'fake-shell')
+                || (state.fakeShellDisabled && candidate.countermeasureType === 'fake-shell')))
+            .filter((candidate) => !(state.revealedCountermeasureIds ?? []).includes(candidate.id))
+            .map((candidate) => candidate.id)),
+          fakeShellActive: map.nodes.some((candidate) => candidate.countermeasureType === 'fake-shell') && !state.fakeShellDisabled,
           wipingNodeIds: new Set(state.wipingNodeIds ?? []),
           objectives: state.objectives,
         },
@@ -933,6 +964,37 @@ export default function GameScreen() {
     setToast({ visible: true, message, detail, kind });
   };
 
+  const handleShockSave = () => {
+    if (!state?.pendingShockGridSave || shockSaveResult) return;
+    const pending = state.pendingShockGridSave;
+    const playerId = pending.playerIds[pending.currentPlayerIndex];
+    const player = state.players.find((candidate) => candidate.id === playerId);
+    if (!player) return;
+    const modifier = Number(shockSaveModifier) || 0;
+    const d20 = rollDie(20);
+    const success = d20 + modifier >= pending.dc;
+    const info: RollResultInfo = {
+      d20,
+      modifier,
+      baseModifier: modifier,
+      dc: pending.dc,
+      total: d20 + modifier,
+      outcomeLabel: success
+        ? `${pending.saveType.toUpperCase()} SAVE SUCCESS`
+        : pending.saveType === 'fortitude' ? 'STUNNED' : `DAMAGE ${pending.damage}`,
+      successes: 0,
+      kind: success ? 'success' : 'failure',
+      detail: success
+        ? 'Shock Grid effect resisted.'
+        : pending.saveType === 'fortitude'
+          ? 'Stunned until your next turn.'
+          : `Report ${pending.damage} damage to the player.`,
+      nodeName: 'Shock Grid',
+    };
+    setShockSaveResult({ playerId, info });
+    dispatch({ type: 'RESOLVE_SHOCK_SAVE', playerId, d20, modifier });
+  };
+
   const handleNewGame = () => {
     endGame();
     router.replace('/');
@@ -1055,6 +1117,20 @@ export default function GameScreen() {
         </View>}
 
         <View style={styles.statRow}>
+          {state.feedbackPenalty ? (
+            <View style={[styles.statBox, styles.feedbackActiveBox]}>
+              <Text style={styles.feedbackActiveText}>FEEDBACK COUNTERMEASURE ACTIVE</Text>
+              <Text style={styles.feedbackActivePenalty}>-5 HACKING</Text>
+            </View>
+          ) : null}
+          {alarmActive ? (
+            <Animated.View style={[styles.statBox, styles.alarmActiveBox, {
+              opacity: alarmPulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] }),
+            }]}>
+              <Text style={styles.alarmActiveText}>ALARM ACTIVE</Text>
+              <Text style={styles.alarmActiveDetail}>DISABLE COUNTERMEASURE</Text>
+            </Animated.View>
+          ) : null}
           {cumulativeFailureLimit !== undefined ? (
             <View style={[styles.statBox, styles.failuresStatBox]}>
               <Text style={styles.statLabel}>TOTAL FAILURES</Text>
@@ -1138,6 +1214,13 @@ export default function GameScreen() {
           activeId={activeTargetId}
           statusById={statusById}
           progressById={progressById}
+          hiddenCountermeasureIds={new Set(map.nodes
+            .filter((node) => node.category === 'countermeasure'
+              && ((node.visibilityDC !== undefined && node.countermeasureType !== 'fake-shell')
+                || (state.fakeShellDisabled && node.countermeasureType === 'fake-shell')))
+            .filter((node) => !(state.revealedCountermeasureIds ?? []).includes(node.id))
+            .map((node) => node.id))}
+          fakeShellActive={map.nodes.some((node) => node.countermeasureType === 'fake-shell') && !state.fakeShellDisabled}
           wipingNodeIds={resultModal.visible ? new Set<string>() : new Set(state.wipingNodeIds ?? [])}
           selectedId={selectedNode?.id}
           onSelectNode={onSelectNode}
@@ -1599,6 +1682,32 @@ export default function GameScreen() {
         />
       ) : null}
 
+      {(state.pendingShockGridSave || shockSaveResult) && !modalOpen && !resultModal.visible ? (
+        <ResultModal
+          visible
+          rolling={false}
+          result={shockSaveResult?.info ?? null}
+          playerName={state.players.find((player) => player.id === (shockSaveResult?.playerId ?? state.pendingShockGridSave?.playerIds[state.pendingShockGridSave.currentPlayerIndex]))?.name ?? 'Player'}
+          nodeName="Shock Grid"
+          hackingMode="dynamic"
+          preRoll={state.pendingShockGridSave && !shockSaveResult ? {
+            title: `${state.pendingShockGridSave.saveType.toUpperCase()} SAVE`,
+            subtitle: `Shock Grid Rank ${state.pendingShockGridSave.rank}`,
+            subskill: state.pendingShockGridSave.saveType.toUpperCase(),
+            dc: state.pendingShockGridSave.dc,
+            modifier: Number(shockSaveModifier) || 0,
+            modifierLabel: `${state.pendingShockGridSave.saveType} modifier`,
+            editableModifier: true,
+            onModifierChange: setShockSaveModifier,
+            canSpendRP: false,
+            showSpendRP: false,
+            onRoll: handleShockSave,
+            onCancel: () => undefined,
+          } : undefined}
+          onDismiss={() => setShockSaveResult(null)}
+        />
+      ) : null}
+
       {/* Win/Lose modal */}
       <Modal visible={!!state.finished} transparent animationType="fade">
         <View style={styles.modalBackdrop}>
@@ -2015,6 +2124,37 @@ const styles = StyleSheet.create({
   },
   failuresStatBox: {
     marginLeft: 8,
+  },
+  feedbackActiveBox: {
+    borderColor: '#f87171',
+    backgroundColor: '#450a0a',
+  },
+  feedbackActiveText: {
+    color: '#fecaca',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  feedbackActivePenalty: {
+    color: '#f87171',
+    fontSize: 14,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+  alarmActiveBox: {
+    marginLeft: 8,
+    borderColor: '#ef4444',
+    backgroundColor: '#450a0a',
+  },
+  alarmActiveText: {
+    color: '#fecaca',
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  alarmActiveDetail: {
+    color: '#f87171',
+    fontSize: 9,
+    fontWeight: '800',
+    marginTop: 2,
   },
   statLabel: { fontSize: 9, color: '#64748b', fontWeight: '700', textTransform: 'uppercase' },
   statValue: { fontSize: 14, color: '#22d3ee', fontWeight: '800' },

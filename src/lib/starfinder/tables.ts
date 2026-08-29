@@ -32,6 +32,16 @@ export function securityBonusForMap(map: FlowMap, collectedNodeIds: Iterable<str
   ), 0));
 }
 
+export const SHOCK_GRID_RANKS = {
+  1: { dc: 20, damage: '8d6' },
+  2: { dc: 22, damage: '10d6' },
+  3: { dc: 24, damage: '12d6' },
+  4: { dc: 27, damage: '14d6' },
+  5: { dc: 30, damage: '16d6' },
+} as const;
+
+export type ShockGridRank = keyof typeof SHOCK_GRID_RANKS;
+
 /**
  * Sample objective presets for Build mode.
  * Designers can use these as starting points.

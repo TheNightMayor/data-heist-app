@@ -65,6 +65,18 @@ export function NodeEditor({ node, onUpdate, onDelete, onClose, availableNodes =
                 </Pressable>
               ))}
             </View>
+            <Text style={styles.label}>Visibility DC</Text>
+            <TextInput
+              style={styles.input}
+              value={node.visibilityDC?.toString() ?? ''}
+              placeholder="Optional: hidden until met"
+              placeholderTextColor="#64748b"
+              keyboardType="numeric"
+              onChangeText={(value) => {
+                const visibilityDC = value.trim() === '' ? undefined : Number(value);
+                onUpdate({ visibilityDC: Number.isFinite(visibilityDC) ? visibilityDC : undefined });
+              }}
+            />
             <Text style={styles.label}>Targets</Text>
             <View style={styles.connectionList}>
               {availableNodes.filter((candidate) => candidate.id !== node.id).map((candidate) => {
@@ -80,6 +92,22 @@ export function NodeEditor({ node, onUpdate, onDelete, onClose, availableNodes =
                 );
               })}
             </View>
+            {node.countermeasureType === 'shock-grid' ? (
+              <>
+                <Text style={styles.label}>Shock Grid Rank (1-5)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={node.countermeasureRank?.toString() ?? ''}
+                  placeholder="Required"
+                  placeholderTextColor="#64748b"
+                  keyboardType="numeric"
+                  onChangeText={(value) => {
+                    const rank = value.trim() === '' ? undefined : Number(value);
+                    onUpdate({ countermeasureRank: Number.isFinite(rank) ? rank : undefined });
+                  }}
+                />
+              </>
+            ) : null}
           </>
         ) : null}
 

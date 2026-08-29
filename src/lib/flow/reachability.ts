@@ -18,8 +18,7 @@ export interface ReachabilityState {
   objectives?: Record<string, ObjectiveProgress>;
   /**
    * IDs of nodes that have been permanently failed (e.g. countermeasure
-   * countdown elapsed, or a flagged nat-1). Currently only the data slot is
-   * wired — the trigger that populates this array is TODO.
+    * countdown elapsed, or a flagged nat-1).
    */
   permanentlyFailedNodeIds?: Set<string>;
   /** IDs of nodes concealed by a countermeasure. */
@@ -28,6 +27,10 @@ export interface ReachabilityState {
   wipingNodeIds?: Set<string>;
   /** IDs temporarily inaccessible due to Lockout. */
   lockedOutNodeIds?: Set<string>;
+  /** Countermeasures hidden until their visibility DC is met. */
+  hiddenCountermeasureIds?: Set<string>;
+  /** While active, only Fake Shell countermeasure nodes are offered. */
+  fakeShellActive?: boolean;
 }
 
 /**
@@ -52,6 +55,19 @@ export function isCompleted(
   return !!obj && obj.successes >= required;
 }
 
+export function isProtectedByFirewall(
+  node: FlowNode,
+  map: FlowMap,
+  objectives: Record<string, ObjectiveProgress> = {},
+): boolean {
+  return map.nodes.some((countermeasure) => (
+    countermeasure.category === 'countermeasure'
+      && countermeasure.countermeasureType === 'firewall'
+      && countermeasure.targetNodeIds?.includes(node.id)
+      && !isCompleted(countermeasure, objectives)
+  ));
+}
+
 export function isReachable(
   node: FlowNode,
   state: ReachabilityState,
@@ -61,6 +77,10 @@ export function isReachable(
   if (state.permanentlyFailedNodeIds?.has(node.id)) return false;
   if (state.hiddenNodeIds?.has(node.id)) return false;
   if (state.lockedOutNodeIds?.has(node.id)) return false;
+  if (node.category === 'countermeasure' && state.hiddenCountermeasureIds?.has(node.id)) return false;
+  if (state.fakeShellActive && !(node.category === 'countermeasure' && node.countermeasureType === 'fake-shell')) return false;
+  // A Firewall protects its explicit targets regardless of alternate graph paths.
+  if (isProtectedByFirewall(node, map, state.objectives)) return false;
 
   // Already-completed (or fully-visited-in-some-form) nodes stay reachable —
   // players can re-tap them for info, to retry after a failure, etc.
@@ -114,7 +134,16 @@ export function nodeStatus(
   if (state.hiddenNodeIds?.has(node.id)) {
     return 'concealed';
   }
+  if (isProtectedByFirewall(node, map, state.objectives)) {
+    return 'concealed';
+  }
   if (state.lockedOutNodeIds?.has(node.id)) {
+    return 'blocked';
+  }
+  if (node.category === 'countermeasure' && state.hiddenCountermeasureIds?.has(node.id)) {
+    return 'blocked';
+  }
+  if (state.fakeShellActive && !(node.category === 'countermeasure' && node.countermeasureType === 'fake-shell')) {
     return 'blocked';
   }
   if (isCompleted(node, state.objectives)) {

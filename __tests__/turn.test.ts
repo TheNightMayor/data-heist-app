@@ -51,6 +51,12 @@ const countermeasure = (type: NonNullable<FlowNode['countermeasureType']>): Flow
   resolve: { subskill: 'hack', dcModifier: 0, successesRequired: 1 },
 });
 
+const hiddenFeedback: FlowNode = {
+  ...countermeasure('feedback'),
+  id: 'hidden-feedback',
+  visibilityDC: 15,
+};
+
 const makeState = (overrides: Partial<GameState> = {}): GameState => ({
   id: 'g1',
   mapId: 'm1',
@@ -155,6 +161,36 @@ describe('turn reducer — ROLL_RESOLVE', () => {
     expect(next.passwordAccessAchieved).toBe(true);
   });
 
+  test('an incorrect password records a global failure', () => {
+    const passwordNode = { ...node, password: 'DATAPAD' };
+    const next = reducer(makeState(), {
+      type: 'ENTER_PASSWORD', playerId: 'p1', node: passwordNode, password: 'WRONG',
+    });
+    expect(next.objectives.n1.failures).toBe(1);
+    expect(next.objectives.n1.successes).toBe(0);
+    expect(next.log[0].outcome).toBe('password-failure');
+  });
+
+  test('incorrect passwords trigger Alarms and global Lockout', () => {
+    const passwordNode = { ...node, password: 'DATAPAD', isRootAccess: false };
+    const alarm = countermeasure('alarm');
+    const lockout = countermeasure('lockout');
+    const map: FlowMap = { ...wipeMap, nodes: [passwordNode, alarm, lockout] };
+    let state = makeState();
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      state = reducer(state, {
+        type: 'ENTER_PASSWORD', playerId: 'p1', node: passwordNode, password: 'WRONG',
+      }, map);
+    }
+    expect(state.alarmNodeIds).toEqual(['alarm-1']);
+    expect(state.finished).toBe(false);
+    state = reducer(state, {
+      type: 'ENTER_PASSWORD', playerId: 'p1', node: passwordNode, password: 'WRONG',
+    }, map);
+    expect(state.finished).toBe(true);
+    expect(state.result).toBe('lose');
+  });
+
   test('password access adds +5 to later hacking rolls', () => {
     const state = makeState({ passwordAccessAchieved: true });
     const next = reducer(state, {
@@ -193,17 +229,60 @@ describe('turn reducer — ROLL_RESOLVE', () => {
     expect(next.wipingNodeIds).toEqual(['target-1']);
   });
 
-  test('Feedback applies a -2 penalty to the next Resolve only', () => {
+  test('Feedback applies a global -5 penalty until hacked', () => {
     const state = makeState();
     const feedback = reducer(state, {
       type: 'ROLL_RESOLVE', playerId: 'p1', node: countermeasure('feedback'), d20: 5,
     });
-    expect(feedback.feedbackPenalty).toBe(-2);
+    expect(feedback.feedbackPenalty).toBe(-5);
 
     const next = reducer(feedback, {
       type: 'ROLL_RESOLVE', playerId: 'p1', node: { ...node, id: 'later' }, d20: 10,
     });
-    expect(next.log[0].total).toBe(8);
+    expect(next.log[0].total).toBe(5);
+    expect(next.feedbackPenalty).toBe(-5);
+
+    const cleared = reducer(next, {
+      type: 'ROLL_RESOLVE', playerId: 'p1', node: countermeasure('feedback'), d20: 20,
+    });
+    expect(cleared.feedbackPenalty).toBe(0);
+  });
+
+  test('a hacking roll meeting visibility DC reveals a countermeasure without progress', () => {
+    const map: FlowMap = {
+      ...wipeMap,
+      nodes: [hiddenFeedback],
+    };
+    const next = reducer(makeState(), {
+      type: 'ROLL_RESOLVE', playerId: 'p1', node: { ...node, id: 'other' }, d20: 15,
+    }, map);
+    expect(next.revealedCountermeasureIds).toEqual(['hidden-feedback']);
+    expect(next.objectives['hidden-feedback']).toBeUndefined();
+  });
+
+  test('a hacking roll below visibility DC does not reveal a countermeasure', () => {
+    const map: FlowMap = {
+      ...wipeMap,
+      nodes: [hiddenFeedback],
+    };
+    const next = reducer(makeState(), {
+      type: 'ROLL_RESOLVE', playerId: 'p1', node: { ...node, id: 'other' }, d20: 9,
+    }, map);
+    expect(next.revealedCountermeasureIds).toEqual([]);
+  });
+
+  test('the roll that reveals hidden Feedback does not activate it', () => {
+    const map: FlowMap = {
+      ...wipeMap,
+      nodes: [hiddenFeedback],
+    };
+    const next = reducer(makeState(), {
+      type: 'ROLL_RESOLVE',
+      playerId: 'p1',
+      node: { ...node, id: 'hard-target', resolve: { subskill: 'hack', dcOverride: 30, successesRequired: 1 } },
+      d20: 16,
+    }, map);
+    expect(next.revealedCountermeasureIds).toEqual(['hidden-feedback']);
     expect(next.feedbackPenalty).toBe(0);
   });
 
@@ -213,36 +292,158 @@ describe('turn reducer — ROLL_RESOLVE', () => {
     });
     expect(fakeShell.decoyNodeIds).toEqual(['fake-shell-1']);
 
-    const alarm = reducer(makeState(), {
-      type: 'ROLL_RESOLVE', playerId: 'p1', node: countermeasure('alarm'), d20: 5,
-    });
+    const alarmNode = countermeasure('alarm');
+    const alarmMap = { ...wipeMap, nodes: [alarmNode, { ...node, id: 'target-node', isRootAccess: false }] };
+    const firstAlarmFailure = reducer(makeState(), {
+      type: 'ROLL_RESOLVE', playerId: 'p1', node: alarmNode, d20: 5,
+    }, alarmMap);
+    const alarm = reducer(firstAlarmFailure, {
+      type: 'ROLL_RESOLVE', playerId: 'p1', node: { ...node, id: 'target-node', isRootAccess: false }, d20: 5,
+    }, alarmMap);
     expect(alarm.alarmNodeIds).toEqual(['alarm-1']);
     expect(alarm.log.some((entry) => entry.outcome === 'countermeasure-alarm')).toBe(true);
   });
 
-  test('Shock Grid costs 1 CP on a failed dynamic resolve', () => {
-    const next = reducer(makeState(), {
-      type: 'ROLL_RESOLVE', playerId: 'p1', node: countermeasure('shock-grid'), d20: 5,
-    });
-    expect(next.players[0].currentCP).toBe(19);
-    expect(next.log.some((entry) => entry.outcome === 'countermeasure-shock-grid')).toBe(true);
+  test('a failed hack anywhere activates the map Alarm', () => {
+    const alarmNode = countermeasure('alarm');
+    const map: FlowMap = { ...wipeMap, nodes: [alarmNode, node] };
+    const firstFailure = reducer(makeState(), {
+      type: 'ROLL_RESOLVE', playerId: 'p1', node, d20: 1,
+    }, map);
+    expect(firstFailure.alarmNodeIds).toEqual([]);
+    const failedHack = reducer(firstFailure, {
+      type: 'ROLL_RESOLVE', playerId: 'p1', node: { ...node, id: 'second-target', isRootAccess: false }, d20: 1,
+    }, map);
+    expect(failedHack.alarmNodeIds).toEqual(['alarm-1']);
+    expect(failedHack.log.some((entry) => (
+      entry.nodeId === 'alarm-1' && entry.outcome === 'countermeasure-alarm'
+    ))).toBe(true);
   });
 
-  test('Lockout activates after three failures and expires', () => {
+  test('successfully hacking an Alarm disables its warning', () => {
+    const alarmNode = countermeasure('alarm');
+    const target = { ...node, id: 'target-node', isRootAccess: false };
+    const map: FlowMap = { ...wipeMap, nodes: [alarmNode, target] };
+    const firstFailure = reducer(makeState(), {
+      type: 'ROLL_RESOLVE', playerId: 'p1', node: alarmNode, d20: 1,
+    }, map);
+    const active = reducer(firstFailure, {
+      type: 'ROLL_RESOLVE', playerId: 'p1', node: target, d20: 1,
+    }, map);
+    const disabled = reducer(active, {
+      type: 'ROLL_RESOLVE', playerId: 'p1', node: alarmNode, d20: 20,
+    }, map);
+    expect(active.alarmNodeIds).toEqual(['alarm-1']);
+    expect(disabled.alarmNodeIds).toEqual([]);
+  });
+
+  test('map DC plus five disables all Fake Shell decoys', () => {
+    const map: FlowMap = {
+      ...wipeMap,
+      nodes: [countermeasure('fake-shell'), { ...node, id: 'real-node' }],
+    };
+    const next = reducer(makeState(), {
+      type: 'ROLL_RESOLVE', playerId: 'p1', node: { ...node, id: 'fake-shell-1' }, d20: 17,
+    }, map);
+    expect(next.fakeShellDisabled).toBe(true);
+  });
+
+  test('Shock Grid queues a Fortitude save on the first global failure', () => {
+    const shockGrid = { ...countermeasure('shock-grid'), countermeasureRank: 1 };
+    const next = reducer(makeState(), {
+      type: 'ROLL_RESOLVE', playerId: 'p1', node: shockGrid, d20: 5,
+    }, { ...wipeMap, nodes: [shockGrid] });
+    expect(next.players[0].currentCP).toBe(20);
+    expect(next.pendingShockGridSave?.saveType).toBe('fortitude');
+    const saved = reducer(next, {
+      type: 'RESOLVE_SHOCK_SAVE', playerId: 'p1', d20: 1, modifier: 0,
+    });
+    expect(saved.stunnedPlayerIds).toEqual(['p1']);
+  });
+
+  test('Lockout after three failures ends the map and locks every node', () => {
     const lockout = countermeasure('lockout');
+    const otherNode = { ...node, id: 'other-node', isRootAccess: false };
+    const map: FlowMap = { ...wipeMap, nodes: [lockout, otherNode] };
     let state = makeState();
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      state = reducer(state, { type: 'ROLL_RESOLVE', playerId: 'p1', node: lockout, d20: 5 });
+      state = reducer(state, { type: 'ROLL_RESOLVE', playerId: 'p1', node: lockout, d20: 5 }, map);
     }
-    expect(state.lockedOutNodeIds).toEqual(['lockout-1']);
-    expect(state.objectives['lockout-1'].countdown).toBe(3);
+    expect(state.finished).toBe(true);
+    expect(state.result).toBe('lose');
+    expect(state.lockedOutNodeIds).toEqual(['lockout-1', 'other-node']);
+    expect(state.objectives['lockout-1'].countdown).toBeUndefined();
+  });
 
-    state = reducer(state, { type: 'END_PHASE' });
-    state = reducer(state, { type: 'END_PHASE' });
-    expect(state.lockedOutNodeIds).toEqual(['lockout-1']);
-    state = reducer(state, { type: 'END_PHASE' });
-    expect(state.lockedOutNodeIds).toEqual([]);
-    expect(state.permanentlyFailedNodeIds).not.toContain('lockout-1');
+  test('Lockout triggers from three failures across different nodes', () => {
+    const lockout = countermeasure('lockout');
+    const alarm = countermeasure('alarm');
+    const target = { ...node, id: 'target-node', isRootAccess: false };
+    const map: FlowMap = { ...wipeMap, nodes: [lockout, alarm, target] };
+    let state = makeState();
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      state = reducer(state, { type: 'ROLL_RESOLVE', playerId: 'p1', node: target, d20: 5 }, map);
+    }
+    expect(state.finished).toBe(true);
+    expect(state.result).toBe('lose');
+    expect(state.lockedOutNodeIds).toEqual(['lockout-1', 'alarm-1', 'target-node']);
+    expect(state.alarmNodeIds).toEqual(['alarm-1']);
+  });
+
+  test('Lockout uses the map-wide configured failure threshold', () => {
+    const lockout = countermeasure('lockout');
+    const target = { ...node, id: 'target-node', isRootAccess: false };
+    const map: FlowMap = { ...wipeMap, nodes: [lockout, target], cumulativeFailureLimit: 2 };
+    let state = makeState();
+    state = reducer(state, { type: 'ROLL_RESOLVE', playerId: 'p1', node: target, d20: 5 }, map);
+    expect(state.finished).toBe(false);
+    state = reducer(state, { type: 'ROLL_RESOLVE', playerId: 'p1', node: target, d20: 5 }, map);
+    expect(state.finished).toBe(true);
+    expect(state.result).toBe('lose');
+  });
+
+  test('Lockout rejects all later hacking and module collection actions', () => {
+    const lockout = countermeasure('lockout');
+    const target = { ...node, id: 'target-node', isRootAccess: false };
+    const module = { ...moduleNode, id: 'module-node' };
+    const map: FlowMap = { ...wipeMap, nodes: [lockout, target, module] };
+    let state = makeState();
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      state = reducer(state, { type: 'ROLL_RESOLVE', playerId: 'p1', node: target, d20: 5 }, map);
+    }
+    const afterLockout = state;
+    state = reducer(state, { type: 'ROLL_RESOLVE', playerId: 'p1', node: target, d20: 20 }, map);
+    state = reducer(state, { type: 'COLLECT_MODULE', playerId: 'p1', node: module }, map);
+    expect(state).toEqual(afterLockout);
+  });
+
+  test('global Lockout reactivates an Alarm that was already hacked', () => {
+    const lockout = countermeasure('lockout');
+    const alarm = countermeasure('alarm');
+    const target = { ...node, id: 'target-node', isRootAccess: false };
+    const map: FlowMap = { ...wipeMap, nodes: [lockout, alarm, target] };
+    let state = reducer(makeState(), {
+      type: 'ROLL_RESOLVE', playerId: 'p1', node: alarm, d20: 20,
+    }, map);
+    expect(state.alarmNodeIds).toEqual([]);
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      state = reducer(state, { type: 'ROLL_RESOLVE', playerId: 'p1', node: target, d20: 5 }, map);
+    }
+    expect(state.finished).toBe(true);
+    expect(state.alarmNodeIds).toEqual(['alarm-1']);
+  });
+
+  test('ordinary failures do not reactivate an Alarm that was already hacked', () => {
+    const alarm = countermeasure('alarm');
+    const target = { ...node, id: 'target-node', isRootAccess: false };
+    const map: FlowMap = { ...wipeMap, nodes: [alarm, target] };
+    let state = reducer(makeState(), {
+      type: 'ROLL_RESOLVE', playerId: 'p1', node: alarm, d20: 20,
+    }, map);
+    state = reducer(state, {
+      type: 'ROLL_RESOLVE', playerId: 'p1', node: target, d20: 5,
+    }, map);
+    expect(state.alarmNodeIds).toEqual([]);
   });
 
   test('root access reduces later DCs by 20 without finishing the session', () => {

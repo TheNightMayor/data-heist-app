@@ -1,5 +1,6 @@
 import { reachableNodes, isReachable, downstreamNodes, upstreamNodes, nodeStatus, nodeProgress } from '../src/lib/flow/reachability';
 import type { FlowMap } from '../src/lib/flow/types';
+import { multipleShockGrids, overlappingFirewallTargets } from '../src/lib/flow/validation';
 
 const map: FlowMap = {
   id: 'm1',
@@ -52,6 +53,65 @@ describe('reachability', () => {
     expect(set.has('c')).toBe(false); // not yet reachable
     expect(set.has('d')).toBe(false);
   });
+
+  test('an incomplete Firewall conceals and blocks its targets across alternate paths', () => {
+    const firewall = {
+      id: 'firewall',
+      name: 'Firewall',
+      x: 0,
+      y: 1,
+      category: 'countermeasure' as const,
+      countermeasureType: 'firewall' as const,
+      targetNodeIds: ['target'],
+      resolve: { subskill: 'hack' as const, successesRequired: 1 },
+    };
+    const target = {
+      id: 'target',
+      name: 'Protected Data',
+      x: 1,
+      y: 1,
+      category: 'module' as const,
+      resolve: { subskill: 'hack' as const, successesRequired: 1 },
+    };
+    const protectedMap: FlowMap = {
+      ...map,
+      nodes: [...map.nodes, firewall, target],
+      edges: [...map.edges, { id: 'e4', fromNodeId: 'a', toNodeId: 'target' }],
+    };
+    const baseState = { visitedNodeIds: new Set(['a']), objectives: { a: { nodeId: 'a', successes: 1 } } };
+
+    expect(isReachable(target, baseState, protectedMap)).toBe(false);
+    expect(isReachable(target, {
+      ...baseState,
+      objectives: {
+        ...baseState.objectives,
+        firewall: { nodeId: 'firewall', successes: 1 },
+      },
+    }, protectedMap)).toBe(true);
+    expect(nodeStatus(target, baseState, protectedMap)).toBe('concealed');
+    expect(nodeStatus(target, {
+      ...baseState,
+      objectives: {
+        ...baseState.objectives,
+        firewall: { nodeId: 'firewall', successes: 1 },
+      },
+    }, protectedMap)).toBe('available');
+  });
+
+  test('allows multiple Firewalls when each protects different modules', () => {
+    const firewallA = { id: 'firewall-a', name: 'Firewall A', x: 0, y: 0, category: 'countermeasure' as const, countermeasureType: 'firewall' as const, targetNodeIds: ['b'] };
+    const firewallB = { id: 'firewall-b', name: 'Firewall B', x: 0, y: 0, category: 'countermeasure' as const, countermeasureType: 'firewall' as const, targetNodeIds: ['d'] };
+    expect(overlappingFirewallTargets({ ...map, nodes: [...map.nodes, firewallA, firewallB] })).toEqual([]);
+    expect(overlappingFirewallTargets({ ...map, nodes: [...map.nodes, firewallA, { ...firewallB, targetNodeIds: ['b', 'd'] }] })).toEqual(['b']);
+  });
+
+  test('reports maps with more than one Shock Grid', () => {
+    const shockGrid = { id: 'shock-a', name: 'Shock A', x: 0, y: 0, category: 'countermeasure' as const, countermeasureType: 'shock-grid' as const };
+    const secondShockGrid = { ...shockGrid, id: 'shock-b', name: 'Shock B' };
+    expect(multipleShockGrids({ ...map, nodes: [...map.nodes, shockGrid] })).toEqual([]);
+    expect(multipleShockGrids({ ...map, nodes: [...map.nodes, shockGrid, secondShockGrid] })).toEqual(['shock-b']);
+  });
+
 
   test('downstreamNodes traverses edges transitively', () => {
     const down = downstreamNodes('a', map);

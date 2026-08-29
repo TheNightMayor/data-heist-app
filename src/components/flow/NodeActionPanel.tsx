@@ -437,7 +437,6 @@ export function NodeActionPanel({
                   placeholder="Enter password"
                   placeholderTextColor="#64748b"
                   autoCapitalize="none"
-                  secureTextEntry
                   editable={!majorDisabled}
                 />
                 <Pressable

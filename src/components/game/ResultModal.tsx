@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useState, useRef } from 'react';
-import { Modal, View, Text, Pressable, StyleSheet, Animated } from 'react-native';
+import { Modal, View, Text, Pressable, StyleSheet, Animated, TextInput } from 'react-native';
 import { GLView, type ExpoWebGLRenderingContext } from 'expo-gl';
 import * as THREE from 'three';
 import { ChamferedFrame } from '../ui/ChamferedFrame';
@@ -52,6 +52,10 @@ interface Props {
     modifier: number;
     aidBonus?: number;
     canSpendRP: boolean;
+    modifierLabel?: string;
+    editableModifier?: boolean;
+    onModifierChange?: (value: string) => void;
+    showSpendRP?: boolean;
     onRoll: (spendRP: boolean) => void;
     onCancel: () => void;
   };
@@ -228,7 +232,18 @@ export function ResultModal({ visible, result, rolling, playerName, nodeName, ha
                 {hackingMode === 'dynamic' ? <Text style={styles.preRollSkill}>{preRoll.subskill}</Text> : null}
                 <Text style={styles.preRollDc}>DC {preRoll.dc}</Text>
               </View>
-              <Text style={styles.preRollModifier}>Computers Modifier: +{preRoll.modifier}</Text>
+              {preRoll.editableModifier ? (
+                <TextInput
+                  style={styles.saveModifierInput}
+                  value={preRoll.modifier.toString()}
+                  onChangeText={preRoll.onModifierChange}
+                  keyboardType="numbers-and-punctuation"
+                  placeholder={preRoll.modifierLabel ?? 'Save modifier'}
+                  placeholderTextColor="#64748b"
+                />
+              ) : (
+                <Text style={styles.preRollModifier}>{preRoll.modifierLabel ?? 'Computers Modifier'}: +{preRoll.modifier}</Text>
+              )}
               {preRoll.aidBonus ? <Text style={styles.preRollAid}>Aid +{preRoll.aidBonus}</Text> : null}
               <Pressable style={styles.preRollButton} onPress={() => preRoll.onRoll(false)}>
                 <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
@@ -236,7 +251,7 @@ export function ResultModal({ visible, result, rolling, playerName, nodeName, ha
                 </View>
                 <Text style={styles.preRollButtonText}>Roll d20</Text>
               </Pressable>
-              {hackingMode === 'dynamic' ? (
+              {hackingMode === 'dynamic' && preRoll.showSpendRP !== false ? (
                 <Pressable style={[styles.preRollButton, !preRoll.canSpendRP ? styles.preRollDisabled : null]} onPress={() => preRoll.onRoll(true)} disabled={!preRoll.canSpendRP}>
                   <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
                     <ChamferedFrame width={272} height={48} chamfer={8} stroke="#a855f7" fill="#1e293b" />
@@ -332,6 +347,7 @@ const styles = StyleSheet.create({
   preRollSkill: { color: '#94a3b8', fontSize: 10, fontFamily: 'Orbitron-Bold', textTransform: 'uppercase', borderWidth: 1, borderColor: '#334155', paddingHorizontal: 8, paddingVertical: 3 },
   preRollDc: { color: '#fff', fontSize: 14, fontFamily: 'Orbitron-Bold' },
   preRollModifier: { color: '#64748b', fontSize: 11 },
+  saveModifierInput: { width: 160, height: 34, borderWidth: 1, borderColor: '#334155', color: '#f1f5f9', textAlign: 'center', fontFamily: 'Orbitron-Bold' },
   preRollAid: { color: '#22d3ee', fontSize: 11, fontFamily: 'Orbitron-Bold' },
   preRollButton: { width: 272, height: 48, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
   preRollButtonText: { color: '#fff', fontSize: 13, fontFamily: 'Orbitron-Bold', textTransform: 'uppercase' },

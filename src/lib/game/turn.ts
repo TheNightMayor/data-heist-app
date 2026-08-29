@@ -13,10 +13,12 @@ import { resolve as resolveRoll, type Outcome } from '../resolution';
 import type {
   GameState,
   GameLogEntry,
+  PendingShockGridSave,
 } from './types';
 import type { FlowNode, FlowMap } from '../flow/types';
 import { modifierFor, PASSWORD_HACKING_BONUS } from './types';
-import { isReachable } from '../flow/reachability';
+import { isCompleted, isReachable } from '../flow/reachability';
+import { SHOCK_GRID_RANKS, type ShockGridRank } from '../starfinder/tables';
 
 export type GameAction =
   | {
@@ -47,6 +49,12 @@ export type GameAction =
   | { type: 'COLLECT_MODULE'; playerId: string; node: FlowNode }
   | { type: 'ADVANCE_TURN' }
   | { type: 'END_PHASE' }
+  | {
+      type: 'RESOLVE_SHOCK_SAVE';
+      playerId: string;
+      d20: number;
+      modifier: number;
+    }
   | { type: 'SUPPORT_UPGRADE'; playerId: string }
   | { type: 'SET_PAIRED_LEAD'; supportId: string; leadId?: string }
   | { type: 'SUPPORT_BUY_ACTION'; playerId: string }
@@ -82,6 +90,8 @@ export function reducer(state: GameState, action: GameAction, map?: FlowMap): Ga
       return advanceTurn(state, map);
     case 'END_PHASE':
       return endPhase(state, map);
+    case 'RESOLVE_SHOCK_SAVE':
+      return resolveShockSave(state, action);
     case 'SUPPORT_UPGRADE':
       return upgradeSupport(state, action.playerId);
     case 'SUPPORT_AID':
@@ -104,9 +114,91 @@ function enterPassword(
   action: Extract<GameAction, { type: 'ENTER_PASSWORD' }>,
   map?: FlowMap,
 ): GameState {
+  if (state.finished) return state;
   const player = state.players.find((candidate) => candidate.id === action.playerId);
   if (!player || player.ejected || !action.node.password) return state;
-  if (action.password.trim().toLowerCase() !== action.node.password.trim().toLowerCase()) return state;
+  const effectiveCommitted = state.actionsCommitted > 0 ? state.actionsCommitted : 1;
+  if (action.password.trim().toLowerCase() !== action.node.password.trim().toLowerCase()) {
+    const existing = state.objectives[action.node.id] ?? {
+      nodeId: action.node.id,
+      successes: 0,
+      failures: 0,
+    };
+    const objectives = {
+      ...state.objectives,
+      [action.node.id]: {
+        ...existing,
+        failures: (existing.failures ?? 0) + 1,
+      },
+    };
+    const globalFailures = Object.values(objectives).reduce(
+      (total, objective) => total + (objective.failures ?? 0),
+      0,
+    );
+    const lockoutTriggered = Boolean(
+      map?.nodes.some((candidate) => (
+        candidate.category === 'countermeasure' && candidate.countermeasureType === 'lockout'
+      ))
+      && globalFailures >= (map?.cumulativeFailureLimit ?? 3),
+    );
+    const alarmNodeIds = [...(state.alarmNodeIds ?? [])];
+    if (map && (lockoutTriggered || globalFailures >= 2)) {
+      for (const alarmNode of map.nodes.filter((candidate) => (
+        candidate.category === 'countermeasure'
+        && candidate.countermeasureType === 'alarm'
+        && (lockoutTriggered || !isCompleted(candidate, objectives))
+      ))) {
+        if (!alarmNodeIds.includes(alarmNode.id)) alarmNodeIds.push(alarmNode.id);
+      }
+    }
+    const lockedOutNodeIds = [...(state.lockedOutNodeIds ?? [])];
+    if (lockoutTriggered && map) {
+      for (const candidate of map.nodes) {
+        if (!lockedOutNodeIds.includes(candidate.id)) lockedOutNodeIds.push(candidate.id);
+      }
+    }
+    let pendingShockGridSave: PendingShockGridSave | undefined;
+    const shockGrid = map?.nodes.find((candidate) => (
+      candidate.category === 'countermeasure' && candidate.countermeasureType === 'shock-grid'
+    ));
+    if (shockGrid && !lockoutTriggered && globalFailures >= 1) {
+      const rank = shockGrid.countermeasureRank as ShockGridRank;
+      const rankData = SHOCK_GRID_RANKS[rank];
+      if (rankData) {
+        pendingShockGridSave = {
+          nodeId: shockGrid.id,
+          saveType: globalFailures === 1 ? 'fortitude' : 'reflex',
+          playerIds: state.players.map((candidate) => candidate.id),
+          currentPlayerIndex: 0,
+          rank,
+          dc: rankData.dc,
+          damage: rankData.damage,
+        };
+      }
+    }
+    const visitedNodeIds = state.visitedNodeIds.includes(action.node.id)
+      ? state.visitedNodeIds
+      : [...state.visitedNodeIds, action.node.id];
+    return {
+      ...state,
+      visitedNodeIds,
+      objectives,
+      alarmNodeIds,
+      lockedOutNodeIds,
+      pendingShockGridSave,
+      log: [{
+        turn: state.turn,
+        playerId: player.id,
+        nodeId: action.node.id,
+        outcome: 'password-failure',
+      }, ...state.log].slice(0, 20),
+      actionsCommitted: effectiveCommitted,
+      actionsTaken: state.actionsTaken + 1,
+      phase: state.hackingMode === 'basic' && !lockoutTriggered ? 'advancing' : 'resolved',
+      finished: lockoutTriggered,
+      result: lockoutTriggered ? 'lose' : state.result,
+    };
+  }
   if (map && !isReachable(action.node, {
     visitedNodeIds: new Set(state.visitedNodeIds),
     permanentlyFailedNodeIds: new Set(state.permanentlyFailedNodeIds),
@@ -124,7 +216,6 @@ function enterPassword(
     ...existing,
     successes: successesRequired,
   };
-  const effectiveCommitted = state.actionsCommitted > 0 ? state.actionsCommitted : 1;
   const actionsTaken = state.actionsTaken + 1;
   const nextPhase: typeof state.phase = state.hackingMode === 'basic' && !state.finished
     ? 'advancing'
@@ -270,6 +361,7 @@ function rollResolve(
   action: Extract<GameAction, { type: 'ROLL_RESOLVE' }>,
   map?: FlowMap,
 ): GameState {
+  if (state.finished) return state;
   const player = state.players.find((p) => p.id === action.playerId);
   if (!player) return state;
   if (player.ejected) return state;
@@ -345,11 +437,44 @@ function rollResolve(
 
   const hiddenNodeIds = [...(state.hiddenNodeIds ?? [])];
   const wipingNodeIds = [...(state.wipingNodeIds ?? [])];
+  const revealedCountermeasureIds = [...(state.revealedCountermeasureIds ?? [])];
+  const fakeShellDisabled = Boolean(state.fakeShellDisabled)
+    || Boolean(map?.nodes.some((candidate) => candidate.countermeasureType === 'fake-shell')
+      && outcome.total >= effectiveDC(map?.tier ?? 1, undefined, securityBonus, state.rootAccessAchieved) + 5);
+  if (map) {
+    for (const candidate of map.nodes) {
+      if (
+        candidate.category === 'countermeasure'
+        && candidate.visibilityDC !== undefined
+        && outcome.total >= candidate.visibilityDC
+        && !revealedCountermeasureIds.includes(candidate.id)
+      ) {
+        revealedCountermeasureIds.push(candidate.id);
+      }
+    }
+  }
   const decoyNodeIds = [...(state.decoyNodeIds ?? [])];
   const alarmNodeIds = [...(state.alarmNodeIds ?? [])];
   const lockedOutNodeIds = [...(state.lockedOutNodeIds ?? [])];
+  let lockoutTriggered = false;
   let nextFeedbackPenalty = state.feedbackPenalty ?? 0;
   const objectiveCompleted = newObjectives[node.id].successes >= successesRequired;
+  const globalFailures = Object.values(newObjectives).reduce(
+    (total, objective) => total + (objective.failures ?? 0),
+    0,
+  );
+  if (
+    failed
+    && globalFailures >= (map?.cumulativeFailureLimit ?? 3)
+    && map?.nodes.some((candidate) => (
+      candidate.category === 'countermeasure' && candidate.countermeasureType === 'lockout'
+    ))
+  ) {
+    lockoutTriggered = true;
+    for (const candidate of map.nodes) {
+      if (!lockedOutNodeIds.includes(candidate.id)) lockedOutNodeIds.push(candidate.id);
+    }
+  }
   const wipeTriggered =
     failed &&
     !objectiveCompleted &&
@@ -369,39 +494,79 @@ function rollResolve(
     }
   }
 
+  const feedbackNodeActive = node.category === 'countermeasure' && node.countermeasureType === 'feedback'
+    ? !objectiveCompleted
+    : Boolean(map?.nodes.some((candidate) => (
+      candidate.category === 'countermeasure'
+      && candidate.countermeasureType === 'feedback'
+      && (candidate.visibilityDC === undefined || state.revealedCountermeasureIds?.includes(candidate.id))
+      && !isCompleted(candidate, newObjectives)
+    )));
+  const feedbackTriggered = failed && feedbackNodeActive && outcome.total <= dc - 5;
   const effectLog: GameLogEntry[] = [];
-  if (failed && !objectiveCompleted && node.category === 'countermeasure') {
+  let pendingShockGridSave: PendingShockGridSave | undefined;
+  const shockGrid = map?.nodes.find((candidate) => (
+    candidate.category === 'countermeasure' && candidate.countermeasureType === 'shock-grid'
+  ));
+  if (failed && shockGrid && globalFailures >= 1 && !lockoutTriggered) {
+    const rank = shockGrid.countermeasureRank as ShockGridRank;
+    const rankData = SHOCK_GRID_RANKS[rank];
+    if (rankData) {
+      pendingShockGridSave = {
+        nodeId: shockGrid.id,
+        saveType: globalFailures === 1 ? 'fortitude' : 'reflex',
+        playerIds: state.players.map((candidate) => candidate.id),
+        currentPlayerIndex: 0,
+        rank,
+        dc: rankData.dc,
+        damage: rankData.damage,
+      };
+      effectLog.push({ turn: state.turn, playerId: player.id, nodeId: shockGrid.id, outcome: `countermeasure-shock-grid-${pendingShockGridSave.saveType}` });
+    }
+  }
+  if (feedbackTriggered) {
+    nextFeedbackPenalty = -5;
+    effectLog.push({ turn: state.turn, playerId: player.id, nodeId: node.id, outcome: 'countermeasure-feedback' });
+  }
+  if (failed && !objectiveCompleted && node.category === 'countermeasure' && node.countermeasureType !== 'feedback') {
     switch (node.countermeasureType) {
-      case 'feedback':
-        nextFeedbackPenalty = -2;
-        effectLog.push({ turn: state.turn, playerId: player.id, nodeId: node.id, outcome: 'countermeasure-feedback' });
-        break;
       case 'fake-shell':
         if (!decoyNodeIds.includes(node.id)) decoyNodeIds.push(node.id);
         effectLog.push({ turn: state.turn, playerId: player.id, nodeId: node.id, outcome: 'countermeasure-fake-shell' });
         break;
       case 'alarm':
-        if (!alarmNodeIds.includes(node.id)) alarmNodeIds.push(node.id);
-        effectLog.push({ turn: state.turn, playerId: player.id, nodeId: node.id, outcome: 'countermeasure-alarm' });
         break;
       case 'lockout':
-        if ((newObjectives[node.id]?.failures ?? 0) >= 3) {
-          if (!lockedOutNodeIds.includes(node.id)) lockedOutNodeIds.push(node.id);
-          newObjectives[node.id] = { ...newObjectives[node.id], countdown: node.countdown ?? 3 };
-          effectLog.push({ turn: state.turn, playerId: player.id, nodeId: node.id, outcome: 'countermeasure-lockout' });
-        }
-        break;
-      case 'shock-grid':
-        if (state.hackingMode === 'dynamic') {
-          updatedPlayers = updatedPlayers.map((candidate) => candidate.id === player.id
-            ? { ...candidate, currentCP: Math.max(0, candidate.currentCP - 1), ejected: candidate.currentCP - 1 <= 0 }
-            : candidate);
-        }
-        effectLog.push({ turn: state.turn, playerId: player.id, nodeId: node.id, outcome: 'countermeasure-shock-grid', cpLost: 1 });
         break;
       default:
         break;
     }
+  }
+
+  if (lockoutTriggered) {
+    effectLog.push({ turn: state.turn, playerId: player.id, nodeId: node.id, outcome: 'countermeasure-lockout' });
+  }
+
+  if (failed && map && (lockoutTriggered || globalFailures >= 2)) {
+    for (const alarmNode of map.nodes.filter((candidate) => (
+      candidate.category === 'countermeasure'
+      && candidate.countermeasureType === 'alarm'
+      && (lockoutTriggered || !isCompleted(candidate, newObjectives))
+    ))) {
+      if (!alarmNodeIds.includes(alarmNode.id)) {
+        alarmNodeIds.push(alarmNode.id);
+        effectLog.push({ turn: state.turn, playerId: player.id, nodeId: alarmNode.id, outcome: 'countermeasure-alarm' });
+      }
+    }
+  }
+
+  const feedbackCleared = !failed
+    && node.category === 'countermeasure'
+    && node.countermeasureType === 'feedback'
+    && objectiveCompleted;
+  if (!failed && node.category === 'countermeasure' && node.countermeasureType === 'alarm' && objectiveCompleted) {
+    const alarmIndex = alarmNodeIds.indexOf(node.id);
+    if (alarmIndex >= 0) alarmNodeIds.splice(alarmIndex, 1);
   }
 
   const visited = state.visitedNodeIds.includes(node.id)
@@ -436,8 +601,12 @@ function rollResolve(
   const rootAccessAchieved = state.rootAccessAchieved || (
     node.isRootAccess && newObjectives[node.id].successes >= successesRequired
   );
-  let finished = state.finished;
+  let finished: boolean = state.finished;
   let result = state.result;
+  if (lockoutTriggered) {
+    finished = true;
+    result = 'lose';
+  }
   if (state.hackingMode === 'dynamic' && updatedPlayers.every((p) => p.ejected || p.currentCP <= 0)) {
     finished = true;
     result = 'lose';
@@ -459,10 +628,13 @@ function rollResolve(
     objectives: newObjectives,
     hiddenNodeIds,
     wipingNodeIds,
-    feedbackPenalty: feedbackPenalty !== 0 ? 0 : nextFeedbackPenalty,
+    revealedCountermeasureIds,
+    feedbackPenalty: feedbackCleared ? 0 : nextFeedbackPenalty,
     decoyNodeIds,
+    fakeShellDisabled,
     alarmNodeIds,
     lockedOutNodeIds,
+    pendingShockGridSave,
     log,
     finished,
     result,
@@ -477,11 +649,50 @@ function rollResolve(
   };
 }
 
+function resolveShockSave(
+  state: GameState,
+  action: Extract<GameAction, { type: 'RESOLVE_SHOCK_SAVE' }>,
+): GameState {
+  const pending = state.pendingShockGridSave;
+  if (!pending || pending.playerIds[pending.currentPlayerIndex] !== action.playerId) return state;
+
+  const success = action.d20 + action.modifier >= pending.dc;
+  const player = state.players.find((candidate) => candidate.id === action.playerId);
+  if (!player) return state;
+  const logEntry: GameLogEntry = {
+    turn: state.turn,
+    playerId: player.id,
+    nodeId: pending.nodeId,
+    roll: action.d20,
+    total: action.d20 + action.modifier,
+    dc: pending.dc,
+    outcome: success
+      ? `shock-grid-${pending.saveType}-success`
+      : pending.saveType === 'fortitude'
+        ? 'shock-grid-stunned'
+        : `shock-grid-damage-${pending.damage}`,
+  };
+  const stunnedPlayerIds = [...(state.stunnedPlayerIds ?? [])];
+  if (!success && pending.saveType === 'fortitude' && !stunnedPlayerIds.includes(player.id)) {
+    stunnedPlayerIds.push(player.id);
+  }
+  const nextIndex = pending.currentPlayerIndex + 1;
+  return {
+    ...state,
+    pendingShockGridSave: nextIndex >= pending.playerIds.length
+      ? undefined
+      : { ...pending, currentPlayerIndex: nextIndex },
+    stunnedPlayerIds,
+    log: [logEntry, ...state.log].slice(0, 20),
+  };
+}
+
 function collectModule(
   state: GameState,
   action: Extract<GameAction, { type: 'COLLECT_MODULE' }>,
   map?: FlowMap,
 ): GameState {
+  if (state.finished) return state;
   const player = state.players.find((p) => p.id === action.playerId);
   if (!player || player.ejected || action.node.category !== 'module') return state;
   if (state.visitedNodeIds.includes(action.node.id)) return state;
@@ -516,9 +727,15 @@ function advanceTurn(state: GameState, _map?: FlowMap): GameState {
   let safety = orderLen;
   let wrapped = false;
   let found = -1;
+  const stunnedPlayerIds = new Set(state.stunnedPlayerIds ?? []);
   while (safety-- > 0) {
     const candidate = state.players.find((p) => p.id === state.turnOrder[next]);
     if (candidate && !candidate.ejected) {
+      if (stunnedPlayerIds.has(candidate.id)) {
+        stunnedPlayerIds.delete(candidate.id);
+        next = (next + 1) % orderLen;
+        continue;
+      }
       found = next;
       break;
     }
@@ -528,7 +745,7 @@ function advanceTurn(state: GameState, _map?: FlowMap): GameState {
   }
   // If we couldn't find any non-ejected player, stay put and don't increment.
   if (found === -1) {
-    return { ...state, phase: 'idle' };
+    return { ...state, phase: 'idle', stunnedPlayerIds: [...stunnedPlayerIds] };
   }
 
   // Round increments when active player wraps back to index 0
@@ -547,6 +764,7 @@ function advanceTurn(state: GameState, _map?: FlowMap): GameState {
     rpCommitted: 0,
     actionsTaken: 0,
     minorActionsTaken: 0,
+    stunnedPlayerIds: [...stunnedPlayerIds],
     // Note: pendingAid is NOT reset here. It persists until the targeted Lead 
     // consumes it on their own turn.
   };
@@ -565,7 +783,8 @@ function endPhase(state: GameState, map?: FlowMap): GameState {
         const lockoutIndex = lockedOutNodeIds.indexOf(objId);
         if (lockoutIndex >= 0) {
           lockedOutNodeIds.splice(lockoutIndex, 1);
-        } else if (!permanentlyFailedNodeIds.includes(objId)) {
+        }
+        if (!permanentlyFailedNodeIds.includes(objId)) {
           permanentlyFailedNodeIds.push(objId);
         }
       }

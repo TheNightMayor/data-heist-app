@@ -71,11 +71,13 @@ export function TravelLine({
   edges,
   selectedId,
   wipingNodeIds,
+  hiddenCountermeasureIds,
 }: {
   nodes: FlowNode[];
   edges: FlowEdge[];
   selectedId?: string | null;
   wipingNodeIds?: Set<string>;
+  hiddenCountermeasureIds?: Set<string>;
 }) {
   const nodeById = new Map(nodes.map((n) => [n.id, n]));
   const selectedNode = selectedId ? nodeById.get(selectedId) : undefined;
@@ -88,12 +90,13 @@ export function TravelLine({
         : edges.filter((edge) => edge.fromNodeId === node.id).map((edge) => edge.toNodeId);
       return targetIds.some((targetId) => wipingNodeIds?.has(targetId));
     }),
-  ].filter((node, index, all) => all.findIndex((candidate) => candidate.id === node.id) === index);
+  ].filter((node, index, all) => !hiddenCountermeasureIds?.has(node.id)
+    && all.findIndex((candidate) => candidate.id === node.id) === index);
   const highlightedEdges = sourceNodes.flatMap((sourceNode) => {
     const targetIds = sourceNode.targetNodeIds?.length
       ? sourceNode.targetNodeIds
       : edges.filter((edge) => edge.fromNodeId === sourceNode.id).map((edge) => edge.toNodeId);
-    return targetIds.map((targetId, index) => ({
+    return targetIds.filter((targetId) => !hiddenCountermeasureIds?.has(targetId)).map((targetId, index) => ({
       id: `target-${sourceNode.id}-${targetId}-${index}`,
       fromNodeId: sourceNode.id,
       toNodeId: targetId,
