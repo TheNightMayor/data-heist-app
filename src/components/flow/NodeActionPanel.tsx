@@ -244,6 +244,11 @@ export function NodeActionPanel({
   }), [failureOutcomeOpacity, failureOutcomeProgress]);
 
   const formatModifier = (value: number) => `${value >= 0 ? '+' : ''}${value}`;
+  const defaultDescription = node.category === 'module'
+    ? 'A useful system module. Resolve it successfully to collect its data and reward.'
+    : node.category === 'countermeasure'
+      ? 'A security countermeasure protecting the system. Resolve it carefully to keep the route open.'
+      : 'An access point in the system. Resolve it to continue through the connected network.';
 
   return (
     <Pressable style={[
@@ -658,7 +663,7 @@ export function NodeActionPanel({
               </Svg>
             </View>
             <Text style={styles.descriptionText}>
-              {node.description || 'No description available.'}
+              {node.description || defaultDescription}
             </Text>
           </Animated.View>
         )}
@@ -681,8 +686,8 @@ export function NodeActionPanel({
                   cy={9}
                   r={7}
                   fill="none"
-                  stroke="#64748b"
-                  strokeWidth={1}
+                  stroke="#22d3ee"
+                  strokeWidth={1.5}
                 />
               </Svg>
             </View>
@@ -756,7 +761,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   infoButtonText: {
-    color: '#cbd5e1',
+    color: '#22d3ee',
     fontSize: 11,
     fontFamily: 'Orbitron-Bold',
   },
