@@ -1,18 +1,10 @@
 /**
- * layoutGraph — BFS-based auto-layout for FlowMaps.
+ * layoutGraph — radial auto-layout for FlowMaps.
  *
- * Computes pixel positions for every node in a FlowMap, anchored at the
- * start access and fanning upward through topological levels. Pure
- * function with no React dependencies so it can be tested in isolation
- * and reused by any renderer.
- *
- * Convention:
- *  - Level 0 (start) sits at the bottom of the layout band.
- *  - Each subsequent level moves UP by ROW_HEIGHT.
- *  - Within a level, nodes are spread horizontally and sorted
- *    alphabetically by id for stable rendering.
- *  - Disconnected nodes are placed in a synthetic top row so they
- *    remain visible.
+ * Each node places its children around its six flat hexagon faces. The face
+ * order is shuffled per parent, then consumed without repetition before it
+ * is shuffled again. The hash-based shuffle keeps the result stable between
+ * renders while still distributing children unpredictably.
  */
 
 import type { FlowEdge, FlowMap, FlowNode } from './types';
@@ -21,17 +13,59 @@ import type { FlowEdge, FlowMap, FlowNode } from './types';
 export const CANVAS_WIDTH = 3200;
 export const CANVAS_HEIGHT = 2800;
 
-/** Vertical distance between layout levels. */
+/** Center-to-center distance between a parent and its children. */
 export const ROW_HEIGHT = 220;
 
 /** Width and height of a single node (square). */
 export const NODE_WIDTH = 100;
 
-/** Horizontal padding between sibling nodes within a row. */
+/** Kept for compatibility with existing layout consumers. */
 export const ROW_PADDING = 80;
 
-/** Center-to-center horizontal stride between sibling nodes. */
+/** Kept for compatibility with existing layout consumers. */
 export const NODE_GAP = 140;
+
+const FACE_ANGLES = [-Math.PI / 2, -Math.PI / 6, Math.PI / 6, Math.PI / 2, 5 * Math.PI / 6, 7 * Math.PI / 6];
+const HEX_APOTHEM = (NODE_WIDTH * Math.sqrt(3)) / 4;
+
+export function nodeFaceAnchor(node: NodePosition, toward: NodePosition): NodePosition {
+  const center = { x: node.x + NODE_WIDTH / 2, y: node.y + NODE_WIDTH / 2 };
+  const towardCenter = { x: toward.x + NODE_WIDTH / 2, y: toward.y + NODE_WIDTH / 2 };
+  const dx = towardCenter.x - center.x;
+  const dy = towardCenter.y - center.y;
+  const angle = Math.atan2(dy, dx);
+  const faceAngle = FACE_ANGLES.reduce((closest, candidate) => {
+    const distance = Math.abs(Math.atan2(Math.sin(angle - candidate), Math.cos(angle - candidate)));
+    const closestDistance = Math.abs(Math.atan2(Math.sin(angle - closest), Math.cos(angle - closest)));
+    return distance < closestDistance ? candidate : closest;
+  });
+  const offsetAngle = angle - faceAngle;
+  const distance = HEX_APOTHEM / Math.cos(offsetAngle);
+  return {
+    x: center.x + Math.cos(angle) * distance,
+    y: center.y + Math.sin(angle) * distance,
+  };
+}
+
+function hashString(value: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function shuffledFaces(parentId: string): number[] {
+  const faces = FACE_ANGLES.map((_, index) => index);
+  let seed = hashString(parentId);
+  for (let index = faces.length - 1; index > 0; index -= 1) {
+    seed = Math.imul(seed ^ (seed >>> 16), 2246822519) >>> 0;
+    const swapIndex = seed % (index + 1);
+    [faces[index], faces[swapIndex]] = [faces[swapIndex], faces[index]];
+  }
+  return faces;
+}
 
 export interface NodePosition {
   x: number;
@@ -57,7 +91,7 @@ export function layoutGraph(map: FlowMap): LayoutResult {
     : map.nodes.reduce((a, b) => (a.x < b.x ? a : b));
   const startId = start.id;
 
-  // Build adjacency for BFS.
+  // Build adjacency for radial traversal.
   const outById = new Map<string, string[]>();
   for (const n of map.nodes) outById.set(n.id, []);
   for (const e of map.edges) {
@@ -65,64 +99,59 @@ export function layoutGraph(map: FlowMap): LayoutResult {
     if (arr) arr.push(e.toNodeId);
   }
 
-  const levelById = new Map<string, number>();
-  const order: string[] = [];
+  const parentFaces = new Map<string, number[]>();
+  const parentFaceCycles = new Map<string, number>();
   const queue: string[] = [startId];
-  levelById.set(startId, 0);
+  positions.set(startId, {
+    x: CANVAS_WIDTH / 2 - NODE_WIDTH / 2,
+    y: CANVAS_HEIGHT / 2 - NODE_WIDTH / 2,
+  });
+  const placed = new Set<string>([startId]);
+  let levelCount = 1;
+
   while (queue.length > 0) {
-    const id = queue.shift()!;
-    order.push(id);
-    const outs = outById.get(id) ?? [];
-    for (const t of outs) {
-      if (!levelById.has(t)) {
-        levelById.set(t, (levelById.get(id) ?? 0) + 1);
-        queue.push(t);
+    const parentId = queue.shift()!;
+    const parent = positions.get(parentId)!;
+    let faces = parentFaces.get(parentId) ?? [];
+    const children = [...(outById.get(parentId) ?? [])].sort();
+
+    for (const childId of children) {
+      if (placed.has(childId)) continue;
+      if (faces.length === 0) {
+        const cycle = parentFaceCycles.get(parentId) ?? 0;
+        faces = shuffledFaces(`${parentId}:${cycle}`);
+        parentFaceCycles.set(parentId, cycle + 1);
       }
+      const face = faces.shift()!;
+      const angle = FACE_ANGLES[face];
+      const childCenterX = parent.x + NODE_WIDTH / 2 + Math.cos(angle) * ROW_HEIGHT;
+      const childCenterY = parent.y + NODE_WIDTH / 2 + Math.sin(angle) * ROW_HEIGHT;
+      positions.set(childId, {
+        x: childCenterX - NODE_WIDTH / 2,
+        y: childCenterY - NODE_WIDTH / 2,
+      });
+      placed.add(childId);
+      queue.push(childId);
+      levelCount = Math.max(levelCount, Math.ceil(Math.hypot(
+        positions.get(childId)!.x - CANVAS_WIDTH / 2,
+        positions.get(childId)!.y - CANVAS_HEIGHT / 2,
+      ) / ROW_HEIGHT) + 1);
     }
+    parentFaces.set(parentId, faces);
   }
 
-  // Disconnected nodes: place at a synthetic top row.
-  let maxLevel = 0;
-  for (const n of map.nodes) {
-    if (!levelById.has(n.id)) {
-      maxLevel += 1;
-      levelById.set(n.id, maxLevel);
-      order.push(n.id);
-    } else {
-      maxLevel = Math.max(maxLevel, levelById.get(n.id) ?? 0);
-    }
-  }
-
-  // Group nodes by level.
-  const byLevel = new Map<number, string[]>();
-  for (const id of order) {
-    const lvl = levelById.get(id) ?? 0;
-    const arr = byLevel.get(lvl) ?? [];
-    arr.push(id);
-    byLevel.set(lvl, arr);
-  }
-  // Sort each level alphabetically for stable rendering.
-  for (const ids of byLevel.values()) ids.sort();
-
-  // Position rows centered vertically on the canvas midpoint so the
-  // layout sits in the middle of the grid rather than glued to the
-  // bottom. Level 0 (start) is at the bottom; deeper levels go up.
-  const cx = CANVAS_WIDTH / 2;
-  const layoutLevels = maxLevel + 1;
-  const layoutHeight = (layoutLevels - 1) * ROW_HEIGHT + NODE_WIDTH;
-  const layoutTop = (CANVAS_HEIGHT - layoutHeight) / 2;
-  const layoutBottom = layoutTop + layoutHeight;
-  for (const [lvl, ids] of byLevel) {
-    const rowY = layoutBottom - NODE_WIDTH - lvl * ROW_HEIGHT;
-    const total = ids.length;
-    const stride = NODE_WIDTH + NODE_GAP;
-    ids.forEach((id, i) => {
-      const offset = (i - (total - 1) / 2) * stride;
-      positions.set(id, { x: cx + offset, y: rowY });
+  // Keep disconnected nodes visible in a separate ring around the layout.
+  const disconnected = map.nodes.filter((node) => !placed.has(node.id)).sort((a, b) => a.id.localeCompare(b.id));
+  disconnected.forEach((node, index) => {
+    const angle = (index / Math.max(disconnected.length, 1)) * Math.PI * 2;
+    const radius = ROW_HEIGHT * Math.max(levelCount, 2);
+    positions.set(node.id, {
+      x: CANVAS_WIDTH / 2 - NODE_WIDTH / 2 + Math.cos(angle) * radius,
+      y: CANVAS_HEIGHT / 2 - NODE_WIDTH / 2 + Math.sin(angle) * radius,
     });
-  }
+  });
 
-  return { positions, startId, levelCount: maxLevel + 1 };
+  return { positions, startId, levelCount };
 }
 
 /**

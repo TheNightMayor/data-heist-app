@@ -18,7 +18,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import type { FlowNode, FlowEdge } from '@/lib/flow/types';
-import { NODE_WIDTH } from '@/lib/flow/layoutGraph';
+import { nodeFaceAnchor } from '@/lib/flow/layoutGraph';
 import { circuitPath } from './circuitPath';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
@@ -110,10 +110,12 @@ export function TravelLine({
         const to = nodeById.get(edge.toNodeId);
         if (!from || !to) return null;
 
-        const x1 = from.x + NODE_WIDTH / 2;
-        const y1 = from.y;
-        const x2 = to.x + NODE_WIDTH / 2;
-        const y2 = to.y + NODE_WIDTH;
+        const sourceAnchor = nodeFaceAnchor(from, to);
+        const targetAnchor = nodeFaceAnchor(to, from);
+        const x1 = sourceAnchor.x;
+        const y1 = sourceAnchor.y;
+        const x2 = targetAnchor.x;
+        const y2 = targetAnchor.y;
         const { d, points } = circuitPath(x1, y1, x2, y2);
         const pathLength = points.slice(1).reduce((length, point, index) => {
           const previous = points[index];

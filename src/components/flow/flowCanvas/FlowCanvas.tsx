@@ -41,7 +41,7 @@ import type { FlowMap, FlowNode, FlowEdge } from '@/lib/flow/types';
 import type { ObjectiveProgress } from '@/lib/game/types';
 import { isCompleted, type NodeStatus } from '@/lib/flow/reachability';
 import { GRID_SIZE } from '@/lib/flow/layout';
-import { CANVAS_WIDTH, CANVAS_HEIGHT, NODE_WIDTH, layoutGraph, applyLayout } from '@/lib/flow/layoutGraph';
+import { CANVAS_WIDTH, CANVAS_HEIGHT, NODE_WIDTH, layoutGraph, applyLayout, nodeFaceAnchor } from '@/lib/flow/layoutGraph';
 import { circuitPath } from './circuitPath';
 import { MonitorGlow } from './MonitorGlow';
 import { StubBranches } from './StubBranches';
@@ -360,6 +360,34 @@ export function FlowCanvas({
   }, [map]);
 
   const startNode = useMemo(() => positionedNodes.find(n => n.id === startId), [positionedNodes, startId]);
+  const localJackDirection = useMemo(() => {
+    if (!startNode) return -Math.PI;
+    const center = { x: startNode.x + NODE_WIDTH / 2, y: startNode.y + NODE_WIDTH / 2 };
+    // Include both face normals and vertices so the jack can use the clearest
+    // available direction, even when that direction points at a hex corner.
+    const candidateAngles = [0, -Math.PI / 3, Math.PI / 3, -2 * Math.PI / 3, 2 * Math.PI / 3, Math.PI, -Math.PI / 2, -Math.PI / 6, Math.PI / 6, Math.PI / 2, 5 * Math.PI / 6, 7 * Math.PI / 6];
+    const surroundingAngles = positionedNodes
+      .filter((node) => node.id !== startNode.id)
+      .map((node) => Math.atan2(node.y + NODE_WIDTH / 2 - center.y, node.x + NODE_WIDTH / 2 - center.x));
+    return candidateAngles.reduce((leastCrowded, candidate) => {
+      const crowding = surroundingAngles.filter((nodeAngle) => (
+        Math.abs(Math.atan2(Math.sin(nodeAngle - candidate), Math.cos(nodeAngle - candidate))) < Math.PI / 4
+      )).length;
+      const leastCrowding = surroundingAngles.filter((nodeAngle) => (
+        Math.abs(Math.atan2(Math.sin(nodeAngle - leastCrowded), Math.cos(nodeAngle - leastCrowded))) < Math.PI / 4
+      )).length;
+      return crowding < leastCrowding ? candidate : leastCrowded;
+    }, candidateAngles[0]);
+  }, [positionedNodes, startNode]);
+  const localJackFace = useMemo(() => {
+    if (!startNode) return null;
+    const center = { x: startNode.x + NODE_WIDTH / 2, y: startNode.y + NODE_WIDTH / 2 };
+    const cornerRadius = NODE_WIDTH / 2;
+    return { x: center.x + Math.cos(localJackDirection) * cornerRadius, y: center.y + Math.sin(localJackDirection) * cornerRadius };
+  }, [localJackDirection, startNode]);
+  const localJackCenter = startNode
+    ? { x: startNode.x + NODE_WIDTH / 2 + Math.cos(localJackDirection) * 80, y: startNode.y + NODE_WIDTH / 2 + Math.sin(localJackDirection) * 80 }
+    : null;
   const rootNode = useMemo(() => positionedNodes.find(n => n.isRootAccess), [positionedNodes]);
   const exitAnchorNode = useMemo(
     () => positionedNodes.find((node) => node.id === map.routeExitAnchorId) ?? rootNode,
@@ -607,28 +635,28 @@ export function FlowCanvas({
                 </Defs>
                 <Rect x="0" y="0" width={CANVAS_WIDTH} height={CANVAS_HEIGHT} fill="url(#grid)" />
 
-                {/* Entry Access Decoration (below start node) */}
-                {startNode && (
+                {/* Entry Access Decoration (to the left of the start node) */}
+                {startNode && localJackFace && localJackCenter && (
                   <G>
                     <Line
-                      x1={startNode.x + NODE_WIDTH / 2} y1={startNode.y + NODE_WIDTH}
-                      x2={startNode.x + NODE_WIDTH / 2} y2={startNode.y + NODE_WIDTH + 60}
+                      x1={localJackFace.x} y1={localJackFace.y}
+                      x2={localJackCenter.x} y2={localJackCenter.y}
                       stroke="#22d3ee" strokeWidth={9} strokeOpacity={0.16} strokeLinecap="round"
                     />
                     <Line 
-                      x1={startNode.x + NODE_WIDTH / 2} y1={startNode.y + NODE_WIDTH} 
-                      x2={startNode.x + NODE_WIDTH / 2} y2={startNode.y + NODE_WIDTH + 60} 
+                      x1={localJackFace.x} y1={localJackFace.y}
+                      x2={localJackCenter.x} y2={localJackCenter.y}
                       stroke="#22d3ee" strokeWidth={3} strokeDasharray="6 4"
                     />
                     <EndpointKeyhole
-                      cx={startNode.x + NODE_WIDTH / 2}
-                      cy={startNode.y + NODE_WIDTH + 80}
+                      cx={localJackCenter.x}
+                      cy={localJackCenter.y}
                       color="#22d3ee"
                       glowing={noAvailableNodes}
                       pulse={keyholePulse}
                     />
                     <SvgText 
-                      x={startNode.x + NODE_WIDTH / 2} y={startNode.y + NODE_WIDTH + 120} 
+                      x={localJackCenter.x} y={localJackCenter.y + 42}
                       fontSize={10} textAnchor="middle" fill="#475569" fontWeight="800"
                     >
                       LOCAL_JACK
@@ -683,12 +711,12 @@ export function FlowCanvas({
                   const to = nodeById.get(edge.toNodeId);
                   if (!from || !to) return null;
                   if (mode === 'game' && (hiddenCountermeasureIds?.has(from.id) || hiddenCountermeasureIds?.has(to.id))) return null;
-                  // Anchor: bottom-center of source node, top-center of target node.
-                  // Source node is BELOW the target on screen (higher y = lower on screen).
-                  const sx = from.x + NODE_WIDTH / 2;
-                  const sy = from.y; // bottom edge of source
-                  const tx2 = to.x + NODE_WIDTH / 2;
-                  const ty2 = to.y + NODE_WIDTH; // top edge of target
+                  const sourceAnchor = nodeFaceAnchor(from, to);
+                  const targetAnchor = nodeFaceAnchor(to, from);
+                  const sx = sourceAnchor.x;
+                  const sy = sourceAnchor.y;
+                  const tx2 = targetAnchor.x;
+                  const ty2 = targetAnchor.y;
                   const { d, points } = circuitPath(sx, sy, tx2, ty2);
                   const status = statusById?.[edge.toNodeId] ?? 'available';
                   const isAvailablePath = mode === 'game' && (status === 'available' || status === 'visited' || status === 'unlocked');
@@ -737,9 +765,9 @@ export function FlowCanvas({
                   hiddenCountermeasureIds={hiddenCountermeasureIds}
                 />
               </Svg>
-              {startNode && mode === 'game' && onLogOut && (
+              {startNode && localJackCenter && mode === 'game' && onLogOut && (
                 <Pressable
-                  style={[styles.entryJackPressTarget, { left: startNode.x + NODE_WIDTH / 2 - 30, top: startNode.y + NODE_WIDTH + 50 }]}
+                  style={[styles.entryJackPressTarget, { left: localJackCenter.x - 30, top: localJackCenter.y - 30 }]}
                   onPress={() => setDisconnectPromptOpen(true)}
                   accessibilityLabel="Local datajack"
                 />
