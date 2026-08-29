@@ -92,11 +92,11 @@ export function NodeActionPanel({
   const isModule = node.category === 'module';
   const requiredSuccesses = successesRequired || 1;
   const moduleCollected = isModule && successes >= requiredSuccesses;
-  const failuresRequired = node.countermeasureType === 'wipe' ? 2 : 3;
-  const basicOutcome = !isModule && hackingMode === 'basic'
+  const failuresRequired = node.failureLimit;
+  const basicOutcome = hackingMode === 'basic'
     ? successes >= requiredSuccesses
       ? 'success'
-      : failures >= failuresRequired
+      : failuresRequired !== undefined && failures >= failuresRequired
         ? 'failure'
         : null
     : null;
@@ -355,7 +355,7 @@ export function NodeActionPanel({
           </View>
           <View style={styles.progressLine}>
             <Text style={styles.progressLabel}>FAILURES</Text>
-            <Text style={[styles.progressValue, styles.failureValue]}>{failures}/{failuresRequired}</Text>
+            <Text style={[styles.progressValue, styles.failureValue]}>{failures}{failuresRequired !== undefined ? `/${failuresRequired}` : ''}</Text>
           </View>
         </View>
       )}
@@ -579,7 +579,7 @@ export function NodeActionPanel({
             </View>
             <View style={styles.basicProgressItem}>
               <Text style={styles.progressLabel}>FAILURES</Text>
-              <Text style={[styles.progressValue, styles.failureValue]}>{failures}/{failuresRequired}</Text>
+              <Text style={[styles.progressValue, styles.failureValue]}>{failures}{failuresRequired !== undefined ? `/${failuresRequired}` : ''}</Text>
             </View>
           </View>
         </View>

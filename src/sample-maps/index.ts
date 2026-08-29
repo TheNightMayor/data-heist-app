@@ -53,6 +53,7 @@ const sampleMapA: FlowMap = {
       category: 'countermeasure',
       countdown: 2,
       countermeasureType: 'wipe',
+      failureLimit: 3,
       targetNodeIds: ['tut-n5'],
       description: 'Wipes downstream nodes after 3 failures or a critical failure',
       resolve: { subskill: 'deceive', dcModifier: -4, successesRequired: 2 },
@@ -65,7 +66,7 @@ const sampleMapA: FlowMap = {
       y: 200,
       category: 'module',
       isRootAccess: true,
-      resolve: { subskill: 'hack', dcModifier: -6, successesRequired: 1 },
+      resolve: { subskill: 'hack', successesRequired: 1 },
     },
     // Secure Data module behind the countermeasure.
     {

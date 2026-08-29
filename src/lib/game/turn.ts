@@ -480,7 +480,8 @@ function rollResolve(
     !objectiveCompleted &&
     node.category === 'countermeasure' &&
     node.countermeasureType === 'wipe' &&
-    (newObjectives[node.id].failures === 2 || outcome.kind === 'nat1');
+    node.failureLimit !== undefined &&
+    (newObjectives[node.id]?.failures ?? 0) >= node.failureLimit;
   if (
     wipeTriggered &&
     map

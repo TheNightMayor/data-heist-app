@@ -111,6 +111,24 @@ export function NodeEditor({ node, onUpdate, onDelete, onClose, availableNodes =
           </>
         ) : null}
 
+        <Text style={styles.label}>Failure Attempts</Text>
+        <TextInput
+          style={styles.input}
+          value={node.failureLimit?.toString() ?? ''}
+          placeholder="Optional: never fails"
+          placeholderTextColor="#64748b"
+          keyboardType="numeric"
+          onChangeText={(value) => {
+            const parsedLimit = value.trim() === '' ? undefined : Number(value);
+            const failureLimit = typeof parsedLimit === 'number'
+              && Number.isFinite(parsedLimit)
+              && parsedLimit > 0
+              ? Math.floor(parsedLimit)
+              : undefined;
+            onUpdate({ failureLimit });
+          }}
+        />
+
         {node.category !== 'module' ? (
           <>
             <Text style={styles.label}>Custom DC Override</Text>

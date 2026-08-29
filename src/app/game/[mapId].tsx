@@ -596,8 +596,8 @@ export default function GameScreen() {
       if (!reachableIds.has(node.id)) return true;
       if (isCompleted(node, state.objectives)) return true;
       const failures = state.objectives[node.id]?.failures ?? 0;
-      const failureLimit = node.countermeasureType === 'wipe' ? 2 : 3;
-      return node.category !== 'module' && failures >= failureLimit;
+      return node.failureLimit !== undefined
+        && failures >= node.failureLimit;
     });
   }, [map, reachableIds, state]);
 
@@ -619,8 +619,8 @@ export default function GameScreen() {
     if (!noAvailableNodes || !map || !state) return false;
     return map.nodes.some((node) => (
       reachableIds.has(node.id)
-      && node.category !== 'module'
-      && (state.objectives[node.id]?.failures ?? 0) >= (node.countermeasureType === 'wipe' ? 2 : 3)
+      && node.failureLimit !== undefined
+      && (state.objectives[node.id]?.failures ?? 0) >= node.failureLimit
     ));
   }, [map, noAvailableNodes, reachableIds, state]);
 
@@ -1228,11 +1228,6 @@ export default function GameScreen() {
           canPlanTurn={state.hackingMode === 'dynamic' && activePlayer?.class === 'lead' && state.actionsTaken === 0 && state.actionsCommitted <= 1}
           onPlanTurn={() => setPlanModalOpen(true)}
           onMajorAction={(node) => {
-            if (node.category === 'module' && activePlayer) {
-              dispatch({ type: 'COLLECT_MODULE', playerId: activePlayer.id, node });
-              setSelectedNode(null);
-              return;
-            }
             openRollForNode(node, activePlayer?.class === 'support' ? 'support-self' : 'lead');
           }}
           onPasswordAction={(node, password) => {

@@ -28,6 +28,7 @@ const wipeNode: FlowNode = {
   y: 0,
   category: 'countermeasure',
   countermeasureType: 'wipe',
+  failureLimit: 2,
   targetNodeIds: ['target-1'],
   resolve: { subskill: 'hack', dcModifier: 0, successesRequired: 1 },
 };
@@ -227,6 +228,19 @@ describe('turn reducer — ROLL_RESOLVE', () => {
     expect(next.objectives['wipe-1'].failures).toBe(2);
     expect(next.hiddenNodeIds).toEqual(['target-1']);
     expect(next.wipingNodeIds).toEqual(['target-1']);
+  });
+
+  test('Wipe without a failure limit remains retryable', () => {
+    const unlimitedWipe = { ...wipeNode, failureLimit: undefined };
+    let state = makeState();
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      state = reducer(state, {
+        type: 'ROLL_RESOLVE', playerId: 'p1', node: unlimitedWipe, d20: 5,
+      }, wipeMap);
+    }
+    expect(state.objectives['wipe-1'].failures).toBe(3);
+    expect(state.hiddenNodeIds).toEqual([]);
+    expect(state.wipingNodeIds).toEqual([]);
   });
 
   test('Feedback applies a global -5 penalty until hacked', () => {
@@ -940,6 +954,32 @@ describe('turn reducer — SUPPORT_AID', () => {
 });
 
 describe('turn reducer — COLLECT_MODULE', () => {
+  test('module Resolve succeeds only when the roll meets its DC', () => {
+    const next = reducer(makeState(), {
+      type: 'ROLL_RESOLVE',
+      playerId: 'p1',
+      node: moduleNode,
+      d20: 12, // total 17 meets the tier 1 DC
+    });
+
+    expect(next.visitedNodeIds).toContain('module-1');
+    expect(next.objectives['module-1'].successes).toBe(1);
+    expect(next.actionsTaken).toBe(1);
+  });
+
+  test('failed module Resolve does not collect the module', () => {
+    const next = reducer(makeState(), {
+      type: 'ROLL_RESOLVE',
+      playerId: 'p1',
+      node: moduleNode,
+      d20: 5, // total 10 misses the tier 1 DC
+    });
+
+    expect(next.visitedNodeIds).toContain('module-1');
+    expect(next.objectives['module-1'].successes).toBe(0);
+    expect(next.objectives['module-1'].failures).toBe(1);
+  });
+
   test('collects an accessible module without a roll or action cost', () => {
     const state = makeState({ actionsTaken: 1, visitedNodeIds: ['n1'] });
     const next = reducer(state, {

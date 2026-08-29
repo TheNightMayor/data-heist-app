@@ -97,11 +97,13 @@ Current app interpretation:
 
 ### Lockout
 
-After three failed attempts, makes the entire system inaccessible and ends the encounter in a total failure. Physical access bypass and countdowns are not modeled.
+After the configured number of failed attempts, makes the entire system inaccessible and ends the encounter in a total failure. Physical access bypass and countdowns are not modeled.
 
 Current app interpretation:
 
 - Track failed attempts separately from ordinary node failures.
+- Each node may define its own failure-attempt limit. An unset limit means the node can be retried indefinitely.
+- Reaching a node's limit makes that node unavailable; it does not use a hidden default limit.
 - Lock every node and end the encounter as a loss when the map-wide failure threshold is reached. The threshold is chosen in map creation and defaults to three failed attempts.
 
 This is the countermeasure most likely to use a countdown, but countdowns are not universal.

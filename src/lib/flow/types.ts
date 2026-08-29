@@ -57,6 +57,8 @@ export interface FlowNode {
   countdown?: number;
   /** Variant used to identify the countermeasure's eventual gameplay effect. */
   countermeasureType?: CountermeasureType;
+  /** Optional number of failed attempts before this node becomes permanently failed. */
+  failureLimit?: number;
   /** Official rank for Shock Grid countermeasures (1-5). */
   countermeasureRank?: number;
   /** Optional DC a hacking roll must meet to reveal this countermeasure. */
@@ -108,6 +110,7 @@ export function createNode(partial: Partial<FlowNode> & Pick<FlowNode, 'id' | 'x
     resolve,
     countdown: partial.countdown,
     countermeasureType: partial.countermeasureType ?? (category === COUNTERMEASURE_NODE_CATEGORY ? WIPE_COUNTERMEASURE : undefined),
+    failureLimit: partial.failureLimit,
     countermeasureRank: partial.countermeasureRank,
     visibilityDC: partial.visibilityDC,
     targetNodeIds: partial.targetNodeIds,

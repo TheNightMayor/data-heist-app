@@ -483,7 +483,8 @@ export function FlowCanvas({
       if (!reachableIds.has(node.id)) return true;
       if (isCompleted(node, objectives)) return true;
       const failures = objectives?.[node.id]?.failures ?? 0;
-      return node.category !== 'module' && failures >= 3;
+      return node.failureLimit !== undefined
+        && failures >= node.failureLimit;
     });
   }, [mode, objectives, positionedNodes, reachableIds]);
   const adjacentToUnlockedIds = useMemo(() => {
